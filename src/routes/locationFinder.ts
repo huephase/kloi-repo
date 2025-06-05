@@ -21,6 +21,7 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     const theme = (request as any).theme || 'default';
     // Simple theme color mapping (customize as needed)
     const themeColor = getThemeColor(theme);
+    console.log('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡 - [file src/routes/locationFinder.ts] GET:' + theme);
     return reply.view('wizard/location-finder.hbs', {
       submitted: false,
       theme,
@@ -34,7 +35,7 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     const data = request.body as Record<string, any>;
     const theme = (request as any).theme || 'default';
     const themeColor = getThemeColor(theme);
-    console.log('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡 - [file src/routes/locationFinder.ts]' + {theme});
+
     return reply.view('wizard/location-finder.hbs', {
       submitted: true,
       formData: data,
