@@ -5,6 +5,7 @@ import fastifyView from '@fastify/view';
 import fastifyStatic from '@fastify/static';
 import secureSession from '@fastify/secure-session';
 import path from 'path';
+import fs from 'fs';
 import { fastifyConfig } from './config';
 import { detectThemeFromSubdomain } from './lib/themeDetector';
 // FE: Aggregated routes
@@ -56,6 +57,28 @@ console.log('🟡🟡🟡 - [app.ts] secureSession sessionName:', process.env.SE
 
 console.log('🟡🟡🟡 - [app.ts] Registering theme detector middleware');
 app.addHook('preHandler', detectThemeFromSubdomain);
+
+// 👉🏻👉🏻👉🏻 HIGH-PRIORITY SPLASH SCREEN ROUTE FOR ROOT PATH
+app.get('/', async (request, reply) => {
+  // Extract theme/subdomain (use your own logic if needed)
+  let theme: string | undefined;
+  if (typeof request.hostname === 'string') {
+    // Try to extract subdomain as theme
+    const hostParts = request.hostname.split('.');
+    if (hostParts.length > 2) {
+      theme = hostParts[0];
+    } else if ((request as any).theme) {
+      theme = (request as any).theme;
+    }
+  }
+  if (!theme && (request as any).theme) theme = (request as any).theme;
+  if (!theme) theme = 'default'; // fallback
+  const splashPath = path.join(__dirname, `../public/themes/${theme}/${theme}_splash.html`);
+  if (fs.existsSync(splashPath)) {
+    return reply.type('text/html').send(fs.readFileSync(splashPath, 'utf-8'));
+  }
+  return reply.redirect('/location-finder');
+});
 
 console.log('🟡🟡🟡 - [app.ts] Registering routes');
 // FE: Register all app routes
