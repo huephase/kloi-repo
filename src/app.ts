@@ -60,15 +60,23 @@ app.addHook('preHandler', detectThemeFromSubdomain);
 
 // 👉🏻👉🏻👉🏻 HIGH-PRIORITY SPLASH SCREEN ROUTE FOR ROOT PATH
 app.get('/', async (request, reply) => {
-  // Extract theme/subdomain (use your own logic if needed)
   let theme: string | undefined;
+  let isApexDomain = false;
   if (typeof request.hostname === 'string') {
-    // Try to extract subdomain as theme
     const hostParts = request.hostname.split('.');
-    if (hostParts.length > 2) {
+    // Detect apex domain (e.g., specialtyservices.ae or www.specialtyservices.ae)
+    if (hostParts.length === 2 || (hostParts.length === 3 && hostParts[0] === 'www')) {
+      isApexDomain = true;
+    } else if (hostParts.length > 2) {
       theme = hostParts[0];
-    } else if ((request as any).theme) {
-      theme = (request as any).theme;
+    }
+  }
+  if (isApexDomain) {
+    const landingPath = path.join(__dirname, '../public/kloi_landing.html');
+    if (fs.existsSync(landingPath)) {
+      return reply.type('text/html').send(fs.readFileSync(landingPath, 'utf-8'));
+    } else {
+      return reply.status(404).send('Landing page not found');
     }
   }
   if (!theme && (request as any).theme) theme = (request as any).theme;
