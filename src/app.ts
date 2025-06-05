@@ -70,9 +70,12 @@ app.setErrorHandler((error, _request, reply) => {
 });
 
 // Start server if run directly
+// Start server if run directly
 if (require.main === module) {
+  // Read host and port from environment, fallback to '0.0.0.0' and 3000
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-  app.listen({ port }, (err, address) => {
+  const host = process.env.HOST || '0.0.0.0';
+  app.listen({ port, host }, (err, address) => {
     if (err) {
       console.error('❗❗❗ - [app.ts] Fastify failed to start:', err);
       process.exit(1);
@@ -80,5 +83,6 @@ if (require.main === module) {
     console.log('🟡🟡🟡 - [app.ts] Fastify server listening on', address);
   });
 }
+
 
 export default app;
