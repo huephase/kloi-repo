@@ -1,0 +1,1 @@
+// Endpoint for availability check

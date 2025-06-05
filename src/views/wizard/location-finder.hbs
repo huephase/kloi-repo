@@ -1,0 +1,25 @@
+{{!-- src/views/wizard/location-finder.hbs Rendered for /location-finder on themed subdomains --}}
+{{! Location finder view }}
+
+<!--
+  Theming Test: This template is used to verify theme detection.
+  The current theme should be visible below. (Set by reply.locals.theme)
+  Google Maps and session integration will be implemented in later steps.
+-->
+
+<h2>Location Finder</h2>
+<p>
+  <strong>Current Theme:</strong>
+  <span style="color: {{themeColor}}; font-weight: bold;">{{theme}}</span>
+</p>
+<p>
+  This wizard step will help you select a location for your event.<br>
+  (Google Maps integration and session state will be added soon.)
+</p>
+
+<!-- Placeholder for Google Map -->
+<div style="width:100%;height:300px;background:#e0e7ef;border:2px dashed #3b82f6;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:1.4rem;">
+  Google Map will appear here (API key: {{googleMapsApiKey}})
+</div>
+
+<!-- Developer Note: Use {{theme}}, {{themeColor}}, and {{googleMapsApiKey}} from the route handler. -->

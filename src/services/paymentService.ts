@@ -1,0 +1,1 @@
+// Integrates with Stripe payments

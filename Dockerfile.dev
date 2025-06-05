@@ -1,0 +1,8 @@
+FROM node:18-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . ./
+RUN npm run prisma:generate || true
+EXPOSE 3000
+CMD ["npx", "nodemon", "--watch", "src", "--exec", "npx", "ts-node", "src/app.ts"]
