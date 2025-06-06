@@ -53,6 +53,10 @@ textarea {
   line-height: inherit;
   color: inherit;
 }
+input {
+  border: none;
+  padding: 0.5rem;
+}
 
 /* Remove default button styling */
 button {

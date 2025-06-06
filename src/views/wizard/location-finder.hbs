@@ -4,11 +4,12 @@
 <!-- Developer Note: Use {{theme}}, {{themeColor}}, and {{googleMapsApiKey}} from the route handler. -->
 <div class="kloi-location-finder">
   <div class="lf-autocomplete-container">
-    <input id="lf-autocomplete-input" type="text" placeholder="Search for a location" class="lf-autocomplete-input" autocomplete="off" />
+      <input id="lf-autocomplete-input" type="text" placeholder="Search for a location" class="lf-autocomplete-input" autocomplete="off" />
+      <button type="button" id="lf-clear-btn" aria-label="Clear input">&#10006;</button>
   </div>
   <div id="GOOGLE_CONTAINER" style="width:100%;min-height:300px;"></div>
   <div class="lf-location-controls">
-  <button type="button" id="lf-detect-btn" class="lf-detect-btn">Detect My Location</button>
+  <button type="button" id="lf-detect-btn" class="lf-detect-btn pill-bt">Detect My Location</button>
   <div class="lf-infowindow-content" style="display: none;">
     <div class="location-field"><strong>City:</strong> <span id="lf-city">Not set</span></div>
     <div class="location-field"><strong>Country:</strong> <span id="lf-country">Not set</span></div>
@@ -35,6 +36,7 @@
   window.addEventListener('DOMContentLoaded', function() {
     window.initLocationFinderMap({
       apiKey: '{{googleMapsApiKey}}',
+      mapId: '{{googleMapsMapId}}',
       containerId: 'GOOGLE_CONTAINER',
       autocompleteInputId: 'lf-autocomplete-input',
       detectBtnId: 'lf-detect-btn',

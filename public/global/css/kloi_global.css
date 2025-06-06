@@ -31,6 +31,8 @@ form {
 }
 input {
     width: 100%;
+    background-color: var(--kloi-text);
+    color: var(--kloi-background);
 }
 button {
     padding: 1vh;
@@ -49,6 +51,18 @@ div#GOOGLE_CONTAINER {
     height: 6vh;
     padding: 0 4vw 2vh;
 }
+
+#lf-clear-btn {
+    width: 10%;
+    color: var(--kloi-text);
+    z-index: 2;
+    padding: 0;
+    line-height: 1;
+}
+
+.lf-autocomplete-input {
+    width: 90%;
+}
 .lf-location-controls {
     display: flex;
     flex-direction: column;
@@ -62,6 +76,14 @@ button#lf-detect-btn {
     margin-bottom: 2vh;
     line-height: 0;
 }
+
+button.pill-bt {
+    width: auto;
+    border-radius: 100px;
+    background-color: var(--kloi-accent);
+    border: none;
+}
+
 button#confirm-location {
     height: 10vh;
     line-height: 1;
@@ -81,8 +103,11 @@ button#confirm-location {
 
 
 footer {
-    font-size: 0.57rem;
+    font-size: 0.7rem;
     text-align: center;
     height: 2vh;
     background: #0000002e;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }

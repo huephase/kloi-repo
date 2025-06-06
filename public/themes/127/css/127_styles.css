@@ -1,6 +1,6 @@
 :root {
-    --kloi-background: #5c6633;
-    --kloi-text: #ffe9cc;
+    --kloi-background: hsl(75deg 30% 27%);
+    --kloi-text: #f2e3ce;
     --kloi-accent: #2b330a;
     --kloi-accent-secondary: #5ce6e6;
     --kloi-white: #ffffff;

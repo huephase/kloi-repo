@@ -27,6 +27,7 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
       theme,
       themeColor,
       googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
+      googleMapsMapId: process.env.GOOGLE_MAPS_ID || 'GOOGLE_MAPS_ID MISSING!',
     });
   });
 
@@ -41,7 +42,8 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
       formData: data,
       theme,
       themeColor,
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY IS MISSING!',
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
+      googleMapsMapId: process.env.GOOGLE_MAPS_ID || 'GOOGLE_MAPS_ID MISSING!',
     });
   });
 }
