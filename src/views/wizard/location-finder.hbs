@@ -1,25 +1,60 @@
 {{!-- src/views/wizard/location-finder.hbs Rendered for /location-finder on themed subdomains --}}
 {{! Location finder view }}
 
-<!--
-  Theming Test: This template is used to verify theme detection.
-  The current theme should be visible below. (Set by reply.locals.theme)
-  Google Maps and session integration will be implemented in later steps.
--->
-
-<h2>Location Finder</h2>
-<p>
-  <strong>Current Theme:</strong>
-  <span style="color: {{themeColor}}; font-weight: bold;">{{theme}}</span>
-</p>
-<p>
-  This wizard step will help you select a location for your event.<br>
-  (Google Maps integration and session state will be added soon.)
-</p>
-
-<!-- Placeholder for Google Map -->
-<div style="width:100%;height:300px;background:#e0e7ef;border:2px dashed #3b82f6;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:1.4rem;">
-  Google Map will appear here (API key: {{googleMapsApiKey}})
-</div>
-
 <!-- Developer Note: Use {{theme}}, {{themeColor}}, and {{googleMapsApiKey}} from the route handler. -->
+<div class="kloi-location-finder">
+  <div class="lf-autocomplete-container">
+    <input id="lf-autocomplete-input" type="text" placeholder="Search for a location" class="lf-autocomplete-input" autocomplete="off" />
+  </div>
+  <div id="GOOGLE_CONTAINER" style="width:100%;min-height:300px;"></div>
+  <div class="lf-location-controls">
+  <button type="button" id="lf-detect-btn" class="lf-detect-btn">Detect My Location</button>
+  <div class="lf-infowindow-content" style="display: none;">
+    <div class="location-field"><strong>City:</strong> <span id="lf-city">Not set</span></div>
+    <div class="location-field"><strong>Country:</strong> <span id="lf-country">Not set</span></div>
+    <div class="location-field"><strong>Latitude:</strong> <span id="lf-latitude"></span></div>
+    <div class="location-field"><strong>Longitude:</strong> <span id="lf-longitude"></span></div>
+  </div>
+  <form id="location-details" method="POST" action="/api/session/location">
+    <input type="hidden" id="lf-placeId" name="placeId" />
+    <input type="hidden" id="lf-fullAddress" name="fullAddress" />
+    <input type="hidden" id="lf-city-hidden" name="city" />
+    <input type="hidden" id="lf-country-hidden" name="country" />
+    <input type="hidden" id="lf-latitude-hidden" name="latitude" />
+    <input type="hidden" id="lf-longitude-hidden" name="longitude" />
+    <button type="submit" id="confirm-location" class="lf-confirm-btn" disabled>
+      <span id="lf-confirm-label">KINDLY CHOOSE A LOCATION</span>
+    </button>
+    </div>
+  </form>
+  </div>
+  <div id="lf-error-msg" class="lf-error-msg"></div>
+</div>
+<script src="public/global/js/maps.js"></script>
+<script>
+  window.addEventListener('DOMContentLoaded', function() {
+    window.initLocationFinderMap({
+      apiKey: '{{googleMapsApiKey}}',
+      containerId: 'GOOGLE_CONTAINER',
+      autocompleteInputId: 'lf-autocomplete-input',
+      detectBtnId: 'lf-detect-btn',
+      formId: 'location-details',
+      confirmBtnId: 'confirm-location',
+      displayFields: {
+        city: 'lf-city',
+        country: 'lf-country',
+        latitude: 'lf-latitude',
+        longitude: 'lf-longitude'
+      },
+      hiddenFields: {
+        placeId: 'lf-placeId',
+        fullAddress: 'lf-fullAddress',
+        city: 'lf-city-hidden',
+        country: 'lf-country-hidden',
+        latitude: 'lf-latitude-hidden',
+        longitude: 'lf-longitude-hidden'
+      },
+      errorMsgId: 'lf-error-msg'
+    });
+  });
+</script>

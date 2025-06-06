@@ -1,0 +1,88 @@
+:root {
+    --kloi-background: #5c6633;
+    --kloi-text: #ffe9cc;
+    --kloi-accent: #2b330a;
+    --kloi-accent-secondary: #5ce6e6;
+    --kloi-white: #ffffff;
+    --kloi-deactivated: #313131;
+    --kloi-warning: #b67474;
+}
+
+body { 
+    font-family: system-ui, sans-serif; 
+    margin: 0; 
+    padding: 0; 
+    background: var(--kloi-background);
+}
+
+header.kloi_header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 2vh auto;
+}
+
+img.kloi_header_logo {
+    height: 12vh;
+}
+
+form {
+    width: 100%;
+}
+input {
+    width: 100%;
+}
+button {
+    padding: 1vh;
+    width: 100%;
+    text-transform: uppercase;
+    color: var(--kloi-text);
+    border: 1px solid var(--kloi-text);
+}
+
+div#GOOGLE_CONTAINER {
+    height: 57vh;
+}
+
+.lf-autocomplete-container {
+    display: flex;
+    height: 6vh;
+    padding: 0 4vw 2vh;
+}
+.lf-location-controls {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 2vh 4vw;
+    align-items: center;
+    justify-content: space-evenly;
+}
+button#lf-detect-btn {
+    height: 3vh;
+    margin-bottom: 2vh;
+    line-height: 0;
+}
+button#confirm-location {
+    height: 10vh;
+    line-height: 1;
+}
+
+#lf-confirm-label span {
+    text-transform: initial;
+    font-size: 0.8rem;
+    border-bottom: 1px solid var(--kloi-accent);
+    display: inline-block;
+    padding-bottom: 5px;
+    letter-spacing: -0.05rem;
+}
+#lf-confirm-label strong {
+    line-height: 2;
+}
+
+
+footer {
+    font-size: 0.57rem;
+    text-align: center;
+    height: 2vh;
+    background: #0000002e;
+}

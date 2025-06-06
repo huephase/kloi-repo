@@ -21,12 +21,12 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     const theme = (request as any).theme || 'default';
     // Simple theme color mapping (customize as needed)
     const themeColor = getThemeColor(theme);
-    console.log('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡 - [file src/routes/locationFinder.ts] GET:' + theme);
+    // console.log('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡 - [file src/routes/locationFinder.ts] GET:' + theme);
     return reply.view('wizard/location-finder.hbs', {
       submitted: false,
       theme,
       themeColor,
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'demo-key',
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
     });
   });
 
@@ -41,7 +41,7 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
       formData: data,
       theme,
       themeColor,
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'demo-key',
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY IS MISSING!',
     });
   });
 }

@@ -1,0 +1,231 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { GoogleMap, Marker, Autocomplete } from '@react-google-maps/api';
+import loadGoogleMaps from '../../utils/loadGoogleMaps';
+import KloiPageLayout from '../../components/KloiPageLayout';
+
+// Extract subdomain from host
+function getSubdomain() {
+  const host = window.location.hostname;
+  const parts = host.split('.');
+  if (host.endsWith('.localhost') && parts.length === 2) return parts[0];
+  if (parts.length > 2) return parts[0];
+  return '';
+}
+
+const GOOGLE_MAPS_LIBRARIES = ['places'];
+const defaultCenter = { lat: 25.2048, lng: 55.2708 };
+
+export default function LocationFinder() {
+  // 📃 Session: Hydrate form state from backend session on mount
+  // Form, map, marker, autocomplete
+  const [form, setForm] = useState({
+    placeId: '', fullAddress: '', city: '', country: '',
+    latitude: defaultCenter.lat.toString(),
+    longitude: defaultCenter.lng.toString(),
+  });
+  const [mapCenter, setMapCenter] = useState(defaultCenter);
+  const [markerPosition, setMarkerPosition] = useState(defaultCenter);
+  const [autocompleteValue, setAutocompleteValue] = useState('');
+
+  // Validity
+  const [isValidUAE, setIsValidUAE] = useState(false);
+  const [hasFullAddress, setHasFullAddress] = useState(false);
+  const [error, setError] = useState(null);
+  const [detecting, setDetecting] = useState(false);
+  const [globalError, setGlobalError] = useState(null);
+
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const autocompleteRef = useRef(null);
+  const placesServiceRef = useRef(null);
+
+  // Load component CSS once
+  useEffect(() => { import('./LocationFinder.css'); }, []);
+
+  // Sync marker & map when form coords change
+  useEffect(() => {
+    const lat = parseFloat(form.latitude);
+    const lng = parseFloat(form.longitude);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      setMarkerPosition({ lat, lng });
+      setMapCenter({ lat, lng });
+    }
+  }, [form.latitude, form.longitude]);
+
+  // Reverse geocode & update form
+  function reverseGeocodeAndUpdateForm(lat, lng) {
+    if (window.google?.maps) {
+      new window.google.maps.Geocoder().geocode({ location: { lat, lng } }, (results, status) => {
+        if (status === 'OK' && results?.length) {
+          const place = results[0];
+          const compMap = {};
+          place.address_components?.forEach(c => c.types.forEach(t => compMap[t] = c.long_name));
+          const country = compMap.country || '';
+          const fullAddress = place.formatted_address || Object.values(compMap).join(', ');
+          setIsValidUAE(country === 'United Arab Emirates');
+          setHasFullAddress(Boolean(fullAddress.trim()));
+          updateLocationDetails(place, compMap, true);
+        } else {
+          setForm(f => ({ ...f, latitude: lat.toString(), longitude: lng.toString() }));
+          setIsValidUAE(false); setHasFullAddress(false);
+        }
+      });
+    } else {
+      setForm(f => ({ ...f, latitude: lat.toString(), longitude: lng.toString() }));
+      setIsValidUAE(false); setHasFullAddress(false);
+    }
+  }
+
+  // Update form from place data
+  function updateLocationDetails(place, compMap = {}, useMarker = false) {
+    if (!Object.keys(compMap).length && place.address_components) {
+      place.address_components.forEach(c => c.types.forEach(t => compMap[t] = c.long_name));
+    }
+    const street = compMap.route ? `${compMap.street_number || ''} ${compMap.route}`.trim() : '';
+    const city = compMap.locality || compMap.postal_town || '';
+    const country = compMap.country || '';
+    const address = place.formatted_address || `${street}, ${city}, ${country}`.trim();
+    let lat, lng;
+    if (useMarker && markerRef.current?.getPosition()) {
+      lat = markerRef.current.getPosition().lat();
+      lng = markerRef.current.getPosition().lng();
+    } else {
+      lat = place.geometry.location.lat();
+      lng = place.geometry.location.lng();
+    }
+    setForm({ placeId: place.place_id || '', fullAddress: address, city, country, latitude: lat.toString(), longitude: lng.toString() });
+    setIsValidUAE(country === 'United Arab Emirates');
+    setHasFullAddress(Boolean(address.trim()));
+  }
+
+  // Autocomplete selection
+  function handleAutocompletePlaceChanged() {
+    const place = autocompleteRef.current?.getPlace();
+    if (!place?.geometry?.location) return;
+    const lat = place.geometry.location.lat();
+    const lng = place.geometry.location.lng();
+    updateLocationDetails(place, {}, false);
+    setMapCenter({ lat, lng });
+    setMarkerPosition({ lat, lng });
+    setAutocompleteValue(place.formatted_address || '');
+  }
+
+  // Geolocation detection
+  function handleDetectLocation() {
+    if (!navigator.geolocation) return setError('Geolocation is not supported by your browser.');
+    setDetecting(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setForm(f => ({ ...f, latitude: coords.latitude.toString(), longitude: coords.longitude.toString() }));
+        setError(null);
+        setDetecting(false);
+      },
+      () => { setError('Unable to retrieve your location.'); setDetecting(false); }
+    );
+  }
+
+  // Form submit
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(null);
+    const pos = markerRef.current?.getPosition();
+    const latitude = pos ? pos.lat().toString() : form.latitude;
+    const longitude = pos ? pos.lng().toString() : form.longitude;
+    const now = new Date();
+    // 📃 Session: Save progress to backend session using /api/session/location
+    try {
+      const res = await fetch('/api/session/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // 📃 Always include credentials for session cookie
+        body: JSON.stringify({
+          locationData: {
+            placeId: form.placeId,
+            fullAddress: form.fullAddress,
+            city: form.city,
+            country: form.country,
+            latitude,
+            longitude,
+            timestamp: now.toISOString(),
+          }
+        })
+      });
+      if (res.ok) navigate('/customer-details');
+      else setError('Failed to save session and location.');
+    } catch {
+      setError('Failed to save session and location.');
+    }
+  }
+
+  // Google Maps loader state
+  const [mapsReady, setMapsReady] = useState(false);
+  const [mapsError, setMapsError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    setMapsReady(false);
+    setMapsError(null);
+    loadGoogleMaps({
+      apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+      libraries: GOOGLE_MAPS_LIBRARIES.join(','),
+    })
+      .then(() => {
+        if (isMounted) setMapsReady(true);
+      })
+      .catch(err => {
+        if (isMounted) setMapsError(err?.message || 'Google Maps failed to load');
+      });
+    return () => {
+      isMounted = false;
+      // Clean up map/marker refs if needed
+      mapRef.current = null;
+      markerRef.current = null;
+      autocompleteRef.current = null;
+      placesServiceRef.current = null;
+    };
+  }, []);
+
+  // Render
+  return (
+    <KloiPageLayout>
+      <div className="container">
+        {!mapsReady && !mapsError && <div>Loading Google Maps...</div>}
+        {mapsError && <div className="lf-error-msg">{mapsError}</div>}
+        {mapsReady && (
+          <>
+            <div className="lf-autocomplete-container">
+              <Autocomplete onLoad={ref => (autocompleteRef.current = ref)} onPlaceChanged={handleAutocompletePlaceChanged} options={{ componentRestrictions: { country: 'AE' } }}>
+                <input type="text" placeholder="Search for a location" className="lf-autocomplete-input" value={autocompleteValue} onChange={e => setAutocompleteValue(e.target.value)} />
+              </Autocomplete>
+            </div>
+            <GoogleMap mapContainerClassName="lf-map-container" center={mapCenter} zoom={15} onClick={e => { const lat = e.latLng.lat(); const lng = e.latLng.lng(); setMarkerPosition({ lat, lng }); reverseGeocodeAndUpdateForm(lat, lng); }} onLoad={map => { mapRef.current = map; if (window.google) placesServiceRef.current = new window.google.maps.places.PlacesService(map); }}>
+              <Marker position={markerPosition} draggable onDragEnd={e => { const lat = e.latLng.lat(); const lng = e.latLng.lng(); setMarkerPosition({ lat, lng }); reverseGeocodeAndUpdateForm(lat, lng); }} onLoad={marker => { markerRef.current = marker; }} onUnmount={() => { markerRef.current = null; }} />
+            </GoogleMap>
+          </>
+        )}
+        <div className="kloi-location-controls">
+          <button type="button" onClick={handleDetectLocation} className="lf-detect-btn">{detecting ? 'Detecting location...' : 'Detect My Location'}</button>
+          <div id="infowindow-content" className="lf-infowindow-content">
+            {/* savedLocationData display if needed */}
+            <div className="location-field"><strong>City:</strong> {form.city || <span className="lf-not-set">Not set</span>}</div>
+            <div className="location-field"><strong>Country:</strong> {form.country || <span className="lf-not-set">Not set</span>}</div>
+            <div className="location-field"><strong>Latitude:</strong> {form.latitude}</div>
+            <div className="location-field"><strong>Longitude:</strong> {form.longitude}</div>
+          </div>
+        
+        <form id="location-details" onSubmit={handleSubmit}>
+          {['placeId','fullAddress','city','country','latitude','longitude'].map(name => <input key={name} type="hidden" name={name} value={form[name]} />)}
+          <button type="submit" id="confirm-location" className="lf-confirm-btn" disabled={!(form.latitude && form.longitude && isValidUAE && hasFullAddress)}>
+            {!isValidUAE ? 'Kindly select your event location.' : (<><>{form.fullAddress}</>
+            <br />
+            <strong>CONFIRM THIS LOCATION</strong></>)}
+          </button>
+        </form>
+        {!isValidUAE || !hasFullAddress ? <div className="lf-error-msg">{!hasFullAddress && isValidUAE ? 'Kindly provide a valid address.' : ''}</div> : null}
+        {error && <div className="lf-error-msg">{error}</div>}
+      </div>
+      </div>
+    </KloiPageLayout>
+  );
+}

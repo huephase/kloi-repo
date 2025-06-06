@@ -1,0 +1,8 @@
+npm run dev
+
+RUNS ON http://127.0.0.1:3000
+
+so 127 becomes extracted domain
+
+i.e.
+🟡🟡🟡 - [detectThemeFromSubdomain] theme set: 127

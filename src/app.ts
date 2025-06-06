@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 // src/app.ts Starts server, registers static and view handlers
 // Fastify server initialization and config
 import Fastify from 'fastify';
@@ -85,7 +88,7 @@ app.get('/', async (request, reply) => {
   if (fs.existsSync(splashPath)) {
     return reply.type('text/html').send(fs.readFileSync(splashPath, 'utf-8'));
   }
-  return reply.redirect('/location-finder');
+  return reply.redirect('/');
 });
 
 console.log('🟡🟡🟡 - [app.ts] Registering routes');

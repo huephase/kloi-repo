@@ -1,0 +1,13 @@
+:root {
+    --kloi-background: #5c6633;
+    --kloi-text: #ffe9cc;
+    --kloi-accent: #2b330a;
+    --kloi-accent-secondary: #5ce6e6;
+    --kloi-white: #ffffff;
+    --kloi-deactivated: #313131;
+    --kloi-warning: #b67474;
+}
+
+body {
+    background-color: var(--kloi-background);
+}
