@@ -55,7 +55,7 @@ app.register(secureSession, {
     path: '/',
     httpOnly: true,
     secure: process.env.SESSION_COOKIE_SECURE === 'true',
-    sameSite: process.env.SESSION_COOKIE_SAMESITE === 'true',
+    sameSite: process.env.SESSION_COOKIE_SAMESITE === 'lax',
     maxAge: parseInt(process.env.REDIS_SESSION_TTL || '86400', 10),
   },
 });
