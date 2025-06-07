@@ -1,6 +1,7 @@
 // src/routes/locationFinder.ts Route for GET/POST /location
 
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+// import { updateWizardState } from '../services/wizardStateService';
 
 // Helper: Map theme to color (customize as needed)
 function getThemeColor(theme: string): string {
@@ -31,19 +32,7 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     });
   });
 
-  // POST /location - process form submission and re-render view
-  app.post('/location', async (request, reply) => {
-    const data = request.body as Record<string, any>;
-    const theme = (request as any).theme || 'default';
-    const themeColor = getThemeColor(theme);
+  // POST /api/session/location is now handled by the API router (src/routes/api/index.ts)
+  // Only the GET /location handler remains here.
 
-    return reply.view('wizard/location-finder.hbs', {
-      submitted: true,
-      formData: data,
-      theme,
-      themeColor,
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
-      googleMapsMapId: process.env.GOOGLE_MAPS_ID || 'GOOGLE_MAPS_ID MISSING!',
-    });
-  });
 }

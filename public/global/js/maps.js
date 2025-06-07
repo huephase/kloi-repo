@@ -1,16 +1,4 @@
 // Google Maps + Autocomplete Location Finder (vanilla JS)
-// Usage: window.initLocationFinderMap({
-//   apiKey: '...',
-//   containerId: 'GOOGLE_CONTAINER',
-//   autocompleteInputId: 'lf-autocomplete-input',
-//   detectBtnId: 'lf-detect-btn',
-//   formId: 'location-details',
-//   confirmBtnId: 'confirm-location',
-//   displayFields: { city, country, latitude, longitude },
-//   hiddenFields: { placeId, fullAddress, city, country, latitude, longitude },
-//   errorMsgId: 'lf-error-msg',
-//   ...
-// })
 (function(global) {
 // Clear (X) button logic for autocomplete input
   document.addEventListener('DOMContentLoaded', function() {

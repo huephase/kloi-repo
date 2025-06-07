@@ -7,6 +7,7 @@ import Fastify from 'fastify';
 import fastifyView from '@fastify/view';
 import fastifyStatic from '@fastify/static';
 import secureSession from '@fastify/secure-session';
+import formbody from '@fastify/formbody';
 import path from 'path';
 import fs from 'fs';
 import { fastifyConfig } from './config';
@@ -44,19 +45,21 @@ app.register(fastifyStatic, {
 
 console.log('🟡🟡🟡 - [app.ts] Registering secure session');
 const sessionKey = (process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat').slice(0, 32);
+// Register formbody to parse application/x-www-form-urlencoded (HTML forms)
+app.register(formbody);
 console.log('🟡🟡🟡 - [app.ts] secureSession key length:', sessionKey.length);
 app.register(secureSession, {
   key: Buffer.from(sessionKey),
-  sessionName: process.env.SESSION_COOKIE_NAME || 'sessionId',
+  sessionName: process.env.SESSION_COOKIE_NAME || 'kloi_sessionId',
   cookie: {
     path: '/',
     httpOnly: true,
     secure: process.env.SESSION_COOKIE_SECURE === 'true',
-    sameSite: true,
+    sameSite: process.env.SESSION_COOKIE_SAMESITE === 'true',
     maxAge: parseInt(process.env.REDIS_SESSION_TTL || '86400', 10),
   },
 });
-console.log('🟡🟡🟡 - [app.ts] secureSession sessionName:', process.env.SESSION_COOKIE_NAME || 'sessionId');
+console.log('🟡🟡🟡 - [app.ts] secureSession sessionName:', process.env.SESSION_COOKIE_NAME || 'kloi_sessionId');
 
 console.log('🟡🟡🟡 - [app.ts] Registering theme detector middleware');
 app.addHook('preHandler', detectThemeFromSubdomain);

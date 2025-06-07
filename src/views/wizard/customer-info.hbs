@@ -1,1 +1,35 @@
 {{! Customer info view }}
+<div class="wizard-step customer-info-step">
+  <h2>Customer Information</h2>
+  {{#if location}}
+    <div class="location-summary">
+      <strong>Selected Location:</strong>
+      <span>{{location}}</span>
+    </div>
+  {{/if}}
+  <form method="POST" action="/customer-info" autocomplete="on" class="customer-info-form">
+    <div class="form-group">
+      <label for="name">Full Name</label>
+      <input type="text" id="name" name="name" value="{{customerInfo.name}}" required />
+      {{#if errors.name}}
+        <div class="form-error">{{errors.name}}</div>
+      {{/if}}
+    </div>
+    <div class="form-group">
+      <label for="email">Email Address</label>
+      <input type="email" id="email" name="email" value="{{customerInfo.email}}" required />
+      {{#if errors.email}}
+        <div class="form-error">{{errors.email}}</div>
+      {{/if}}
+    </div>
+    <div class="form-group">
+      <label for="phone">Phone Number</label>
+      <input type="tel" id="phone" name="phone" value="{{customerInfo.phone}}" required />
+      {{#if errors.phone}}
+        <div class="form-error">{{errors.phone}}</div>
+      {{/if}}
+    </div>
+    <button type="submit" class="btn btn-primary">Continue</button>
+  </form>
+</div>
+
