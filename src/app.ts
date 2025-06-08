@@ -3,16 +3,18 @@ dotenv.config();
 
 // src/app.ts Starts server, registers static and view handlers
 // Fastify server initialization and config
-import Fastify from 'fastify';
+import fastify, { FastifyInstance } from 'fastify';
 import fastifyView from '@fastify/view';
 import fastifyStatic from '@fastify/static';
-import secureSession from '@fastify/secure-session';
-import formbody from '@fastify/formbody';
+import handlebars from 'handlebars';
 import path from 'path';
 import fs from 'fs';
+import formbody from '@fastify/formbody';
+import fastifyCookie from '@fastify/cookie';
+import fastifySession from '@fastify/session';
 import { fastifyConfig } from './config';
 import { detectThemeFromSubdomain } from './lib/themeDetector';
-// FE: Aggregated routes
+import { createRedisStore } from './lib/session-store';
 import routes from './routes';
 import pino from 'pino';
 
@@ -22,15 +24,13 @@ const logger = pino();
 // NOTE TO FIX: fix properly 'logger' is declared but its value is never read.
 // BELOW IS JUST TO SILENCE NODEMON ERROR
 logger.info('Hello, world! logger is declared but its value is never read.');
-const app = Fastify({
-  ...fastifyConfig(),
-  logger: { level: 'info' },
-});
+const app: FastifyInstance = fastify(fastifyConfig());
+app.log.info('Hello, world! logger is declared but its value is never read.');
 
 console.log('🟡🟡🟡 - [app.ts] Registering view engine');
 app.register(fastifyView, {
   engine: {
-    handlebars: require('handlebars'),
+    handlebars,
   },
   root: path.join(__dirname, 'views'),
   layout: 'layouts/default.hbs',
@@ -43,37 +43,46 @@ app.register(fastifyStatic, {
   prefix: '/public/',
 });
 
-console.log('🟡🟡🟡 - [app.ts] Registering secure session');
-const sessionKey = (process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat').slice(0, 32);
 // Register formbody to parse application/x-www-form-urlencoded (HTML forms)
 app.register(formbody);
 
-// Debug the session key to ensure it's valid
-console.log('🟡🟡🟡 - [app.ts] secureSession key length:', sessionKey.length);
+// Register cookie plugin - required by the session plugin
+console.log('🟡🟡🟡 - [app.ts] Registering cookie plugin');
+app.register(fastifyCookie);
 
-// Register secure-session before any routes
-app.register(secureSession, {
-  key: Buffer.from(sessionKey),
-  // IMPORTANT NOTE: The @fastify/secure-session plugin expects a cookieName property
-  cookieName: process.env.SESSION_COOKIE_NAME || 'kloi_sessionId', 
+// Configure session
+console.log('🟡🟡🟡 - [app.ts] Registering session with Redis storage');
+const sessionTTL = parseInt(process.env.REDIS_SESSION_TTL || '86400', 10); // 24 hours in seconds
+
+// Register fastify session with Redis store
+app.register(fastifySession, {
+  secret: process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat',
+  cookieName: process.env.SESSION_COOKIE_NAME || 'kloi_sessionId',
   cookie: {
     path: '/',
     httpOnly: true,
-    secure: process.env.SESSION_COOKIE_SECURE, // Explicitly false for development
+    secure: process.env.NODE_ENV === 'production' && process.env.SESSION_COOKIE_SECURE === 'true',
     sameSite: 'lax',
-    maxAge: parseInt(process.env.REDIS_SESSION_TTL || '86400', 10), // 24 hours in seconds
+    maxAge: sessionTTL * 1000 // milliseconds
   },
+  // Use connect-redis store implementation
+  store: createRedisStore(sessionTTL),
+  saveUninitialized: false,
+  rolling: true
 });
 
 // Add a hook to check if session is working
 app.addHook('onRequest', (req, _reply, done) => {
-  console.log('🔵🔵🔵 Request received, session available:', req.session !== undefined);
+  if (req.url !== '/favicon.ico' && !req.url.startsWith('/public/')) {
+    console.log('🔵🔵🔵 Request received, path:', req.url, 'session available:', req.session !== undefined, 
+      req.session?.sessionId ? `sessionId: ${req.session.sessionId.substring(0, 8)}...` : '');
+  }
   done();
 });
 
 // NOTE: TEMPORARY CHECK PLUGIN LOADED
-app.addHook('onReady', () => console.log('✅✅✅✅ secure-session loaded'));
-console.log('🟡🟡🟡 - [app.ts] secureSession sessionName:', process.env.SESSION_COOKIE_NAME || 'kloi_sessionId');
+app.addHook('onReady', () => console.log('✅✅✅✅ Redis session loaded'));
+console.log('🟡🟡🟡 - [app.ts] Session cookie name:', process.env.SESSION_COOKIE_NAME || 'kloi_sessionId');
 
 console.log('🟡🟡🟡 - [app.ts] Registering theme detector middleware');
 app.addHook('preHandler', detectThemeFromSubdomain);

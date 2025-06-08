@@ -16,16 +16,20 @@ function getThemeColor(theme: string): string {
 
 export default async function locationFinder(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // GET /location - render the location finder view
-  // NOTE TO FIX: fix properly 'request' is declared but its value is never read.
-  app.get('/location', async (request, reply) => {
-    // Ensure session cookie gets created with some data
-    if (request.session) {
-      // Always set wizardStarted to true to force cookie creation
-      request.session.set('wizardStarted', true);
+  app.get('/location', (request, reply) => {
+    // Ensure session data is saved to Redis
+    try {
+      // Always set wizardStarted to true to force session creation
+      request.session.wizardStarted = true;
       // Add timestamp to ensure session data changes
-      request.session.set('lastVisited', new Date().toISOString());
-    } else {
-      console.error('⚠️⚠️⚠️ Session object is undefined in /location route');
+      request.session.lastVisited = new Date().toISOString();
+      
+      // Touch the session to ensure it's saved
+      request.session.touch();
+      
+      console.log('✅ Session data saved to Redis:', request.session.sessionId?.substring(0, 8));
+    } catch (err) {
+      console.error('⚠️⚠️⚠️ Error saving session data to Redis:', err);
     }
     // Get theme from request, fallback to 'default'
     const theme = (request as any).theme || 'default';
