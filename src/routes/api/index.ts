@@ -1,3 +1,4 @@
+// src/routes/api/index.ts
 // Aggregates API routes. All POST routes are handled here.
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { updateWizardState } from '../../services/wizardStateService';
@@ -7,8 +8,8 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
   app.post('/session/location', async (request, reply) => {
     // Debug logs to diagnose session/cookie issues
     console.log('🔴🔴🔴 Incoming POST /api/session/location');
-    console.log('🔴🔴🔴 Request headers:', request.headers);
-    console.log('🔴🔴🔴 Request cookies:', request.cookies);
+    console.log('🔴🔴🔴 --------REQUEST HEADERS:', request.headers);
+    console.log('🔴🔴🔴 --------REQUEST COOKIES:', request.cookies);
     const sessionCookieName = process.env.SESSION_COOKIE_NAME || 'kloi_sessionId';
     console.log('🔴🔴🔴 Using sessionCookieName:', sessionCookieName);
     const sessionId = request.cookies[sessionCookieName];

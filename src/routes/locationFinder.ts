@@ -18,12 +18,21 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
   // GET /location - render the location finder view
   // NOTE TO FIX: fix properly 'request' is declared but its value is never read.
   app.get('/location', async (request, reply) => {
+    // Ensure session cookie gets created with some data
+    if (request.session) {
+      // Always set wizardStarted to true to force cookie creation
+      request.session.set('wizardStarted', true);
+      // Add timestamp to ensure session data changes
+      request.session.set('lastVisited', new Date().toISOString());
+    } else {
+      console.error('⚠️⚠️⚠️ Session object is undefined in /location route');
+    }
     // Get theme from request, fallback to 'default'
     const theme = (request as any).theme || 'default';
     // Simple theme color mapping (customize as needed)
     const themeColor = getThemeColor(theme);
     // console.log('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡 - [file src/routes/locationFinder.ts] GET:' + theme);
-    return reply.view('wizard/location-finder.hbs', {
+    return reply.view('wizard/location-finder', {
       submitted: false,
       theme,
       themeColor,
@@ -34,5 +43,4 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
 
   // POST /api/session/location is now handled by the API router (src/routes/api/index.ts)
   // Only the GET /location handler remains here.
-
 }

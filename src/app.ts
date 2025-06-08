@@ -47,18 +47,32 @@ console.log('🟡🟡🟡 - [app.ts] Registering secure session');
 const sessionKey = (process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat').slice(0, 32);
 // Register formbody to parse application/x-www-form-urlencoded (HTML forms)
 app.register(formbody);
+
+// Debug the session key to ensure it's valid
 console.log('🟡🟡🟡 - [app.ts] secureSession key length:', sessionKey.length);
+
+// Register secure-session before any routes
 app.register(secureSession, {
   key: Buffer.from(sessionKey),
-  sessionName: process.env.SESSION_COOKIE_NAME || 'kloi_sessionId',
+  // IMPORTANT NOTE: The @fastify/secure-session plugin expects a cookieName property
+  cookieName: process.env.SESSION_COOKIE_NAME || 'kloi_sessionId', 
   cookie: {
     path: '/',
     httpOnly: true,
-    secure: process.env.SESSION_COOKIE_SECURE === 'true',
-    sameSite: process.env.SESSION_COOKIE_SAMESITE === 'lax',
-    maxAge: parseInt(process.env.REDIS_SESSION_TTL || '86400', 10),
+    secure: process.env.SESSION_COOKIE_SECURE, // Explicitly false for development
+    sameSite: 'lax',
+    maxAge: parseInt(process.env.REDIS_SESSION_TTL || '86400', 10), // 24 hours in seconds
   },
 });
+
+// Add a hook to check if session is working
+app.addHook('onRequest', (req, _reply, done) => {
+  console.log('🔵🔵🔵 Request received, session available:', req.session !== undefined);
+  done();
+});
+
+// NOTE: TEMPORARY CHECK PLUGIN LOADED
+app.addHook('onReady', () => console.log('✅✅✅✅ secure-session loaded'));
 console.log('🟡🟡🟡 - [app.ts] secureSession sessionName:', process.env.SESSION_COOKIE_NAME || 'kloi_sessionId');
 
 console.log('🟡🟡🟡 - [app.ts] Registering theme detector middleware');
