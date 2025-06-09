@@ -51,7 +51,7 @@ console.log('🟡🟡🟡 - [app.ts] Registering cookie plugin');
 app.register(fastifyCookie);
 
 // Configure session
-console.log('🟡🟡🟡 - [app.ts] Registering session with Redis storage');
+console.log('⚪⚪⚪ - [app.ts] Registering session with Redis storage');
 const sessionTTL = parseInt(process.env.REDIS_SESSION_TTL || '86400', 10); // 24 hours in seconds
 
 // Register fastify session with Redis store

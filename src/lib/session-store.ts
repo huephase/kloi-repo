@@ -3,8 +3,8 @@ import { getRedisClient } from './redis';
 
 // Create Redis store for use with @fastify/session
 export function createRedisStore(ttl = 86400): SessionStore {
-  console.log('🟡🟡🟡 - [createRedisStore] Initializing Redis session store');
-
+  console.log('⚪⚪⚪ - [createRedisStore] Initializing Redis session store with TTL:', ttl);
+  
   try {
     // Get Redis client using existing utility function
     const client = getRedisClient();
