@@ -28,6 +28,32 @@ const app: FastifyInstance = fastify(fastifyConfig());
 app.log.info('Hello, world! logger is declared but its value is never read.');
 
 console.log('🟡🟡🟡 - [app.ts] Registering view engine');
+
+// ⚠️⚠️⚠️ 2024-12-19 - Register custom Handlebars helpers before view engine registration
+console.log('🟡🟡🟡 - [app.ts] Registering custom Handlebars helpers');
+handlebars.registerHelper('eq', function(a: any, b: any) {
+  console.log('🔵🔵🔵 - [HANDLEBARS eq HELPER] Comparing:', a, '===', b, 'Result:', a === b);
+  return a === b;
+});
+
+// ⚠️⚠️⚠️ 2024-12-19 - Additional useful helpers for templates
+handlebars.registerHelper('ne', function(a: any, b: any) {
+  console.log('🔵🔵🔵 - [HANDLEBARS ne HELPER] Comparing:', a, '!==', b, 'Result:', a !== b);
+  return a !== b;
+});
+
+handlebars.registerHelper('gt', function(a: any, b: any) {
+  console.log('🔵🔵🔵 - [HANDLEBARS gt HELPER] Comparing:', a, '>', b, 'Result:', a > b);
+  return a > b;
+});
+
+handlebars.registerHelper('lt', function(a: any, b: any) {
+  console.log('🔵🔵🔵 - [HANDLEBARS lt HELPER] Comparing:', a, '<', b, 'Result:', a < b);
+  return a < b;
+});
+
+console.log('✅✅✅ - [app.ts] Custom Handlebars helpers registered successfully');
+
 app.register(fastifyView, {
   engine: {
     handlebars,

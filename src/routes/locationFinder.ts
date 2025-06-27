@@ -5,11 +5,11 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 export default async function locationFinder(app: FastifyInstance, _opts: FastifyPluginOptions) {
   app.get('/location', (request, reply) => {
     try {
-      // Always set wizardStarted to true to force session creation
+      //🟡🟡🟡 Always set wizardStarted to true to force session creation
       request.session.wizardStarted = true;
-      // Add timestamp to ensure session data changes
+      //🟡🟡🟡 Add timestamp to ensure session data changes
       request.session.lastVisited = new Date().toISOString();
-      // Touch the session to ensure it's saved
+      //🟡🟡🟡 Touch the session to ensure it's saved
       request.session.touch();
       console.log('✅✅✅ Session data saved to Redis:', request.session.sessionId?.substring(0, 8));
       console.log('⚪⚪⚪ - [LOCATION FINDER] Session data saved to Redis:', request.session.sessionId?.substring(0, 8));

@@ -1,0 +1,106 @@
+{{!-- ⚠️⚠️⚠️ IMPORTANT NOTE: THE NEW URL FOR ./customerInfo IS /event-details NOW --}}
+{{! Customer info view }}
+<div class="wizard-step event-details">
+  <h2 style="display: none;">Customer Information</h2>
+  {{#if location}}
+    <div class="location-summary">
+      <strong>Area:</strong>
+      <span>{{location}}</span>
+      <button class="pill-bt-mini change-location-link" onclick="history.back(); return false;" type="button">
+        <span>Change Location</span>
+      </button>
+    </div>
+  {{/if}}
+  
+  </div>
+
+  <form method="POST" action="/api/session/event-details" autocomplete="on" class="event-details-customer-info-form">
+    {{!-- Property Type Radio Group --}}
+    <div class="form-group">
+      <label>Property Type</label>
+      <div class="radio-group">
+        <label class="radio-option">
+          <input type="radio" name="propertyType" value="APARTMENT" {{#if (eq customerInfo.propertyType 'APARTMENT')}}checked{{/if}} required />
+          <span>APARTMENT</span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="propertyType" value="VILLA/HOUSE" {{#if (eq customerInfo.propertyType 'VILLA/HOUSE')}}checked{{/if}} />
+          <span>VILLA/HOUSE</span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="propertyType" value="OFFICE" {{#if (eq customerInfo.propertyType 'OFFICE')}}checked{{/if}} />
+          <span>OFFICE</span>
+        </label>
+      </div>
+      {{#if errors.propertyType}}
+        <div class="form-error">{{errors.propertyType}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Property Name --}}
+    <div class="form-group">
+      <label for="propertyName">Property Name</label>
+      <input type="text" id="propertyName" name="propertyName" value="{{customerInfo.propertyName}}" required />
+      {{#if errors.propertyName}}
+        <div class="form-error">{{errors.propertyName}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Floor Number --}}
+    <div class="form-group">
+      <label for="floorNumber">Floor Number</label>
+      <input type="text" id="floorNumber" name="floorNumber" value="{{customerInfo.floorNumber}}" required />
+      {{#if errors.floorNumber}}
+        <div class="form-error">{{errors.floorNumber}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Unit Number --}}
+    <div class="form-group">
+      <label for="unitNumber">Unit Number</label>
+      <input type="text" id="unitNumber" name="unitNumber" value="{{customerInfo.unitNumber}}" required />
+      {{#if errors.unitNumber}}
+        <div class="form-error">{{errors.unitNumber}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Street Name/Number --}}
+    <div class="form-group">
+      <label for="street">Street Name/Number</label>
+      <input type="text" id="street" name="street" value="{{customerInfo.street}}" />
+      {{#if errors.street}}
+        <div class="form-error">{{errors.street}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Phone Number --}}
+    <div class="form-group">
+      <label for="phone">Phone Number</label>
+      <input type="tel" id="phone" name="phone" value="{{customerInfo.phone}}" required />
+      {{#if errors.phone}}
+        <div class="form-error">{{errors.phone}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Email --}}
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" value="{{customerInfo.email}}" />
+      {{#if errors.email}}
+        <div class="form-error">{{errors.email}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Additional Directions --}}
+    <div class="form-group">
+      <label for="additionalDirections">Additional Directions (optional)</label>
+      <textarea id="additionalDirections" name="additionalDirections" rows="3">{{customerInfo.additionalDirections}}</textarea>
+      {{#if errors.additionalDirections}}
+        <div class="form-error">{{errors.additionalDirections}}</div>
+      {{/if}}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Continue</button>
+  </form>
+</div>
+

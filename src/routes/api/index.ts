@@ -8,8 +8,9 @@ import { WizardStepConfig } from '../../types';
 // The data will be stored in the session under the key "locationData"
 // redirectTo: means the user will be redirected to next wizard, eg for "location" it will be /customer-info
 const stepConfig: Record<string, WizardStepConfig> = {
-  location: { sessionKey: 'locationData', redirectTo: '/customer-info' },
-  customer: { sessionKey: 'customerInfo', redirectTo: '/date-picker' },
+  location: { sessionKey: 'locationData', redirectTo: '/event-details' },
+  // ⚠️⚠️⚠️ IMPORTANT NOTE: customerInfo IS eventDetails NOW
+  customer: { sessionKey: 'eventDetails', redirectTo: '/date-picker' },
   date: { sessionKey: 'dateInfo', redirectTo: '/event-setup' },
   event: { sessionKey: 'eventSetup', redirectTo: '/event-summary' },
   summary: { sessionKey: 'finalReview', redirectTo: '/checkout' }, // optional, for review screen

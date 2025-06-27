@@ -6,13 +6,47 @@
     --kloi-white: #ffffff;
     --kloi-deactivated: #313131;
     --kloi-warning: #b67474;
+    --page-padding-horizontal: 4vw;
+    --page-padding: 2vw;
+}
+
+@font-face {
+    font-family: 'KloiFont';
+    src: url('/public/fonts/RedditSansCondensed-Light.woff2') format('woff2');
+    font-weight: 300;
+    font-style: normal;
+    font-display: optional;
+  }
+  @font-face {
+    font-family: 'KloiFont';
+    src: url('/public/fonts/RedditSansCondensed-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: optional;
+  }
+  @font-face {
+    font-family: 'KloiFont';
+    src: url('/public/fonts/RedditSansCondensed-ExtraBold.woff2') format('woff2');
+    font-weight: 800;
+    font-style: normal;
+    font-display: optional;
 }
 
 body { 
-    font-family: system-ui, sans-serif; 
+    font-family: 'KloiFont', system-ui, sans-serif;
+    font-weight: 300; 
     margin: 0; 
     padding: 0; 
     background: var(--kloi-background);
+    color: var(--kloi-text);
+}
+
+strong {
+    font-weight: 800;
+}
+
+main {
+    padding: 0 var(--page-padding-horizontal);
 }
 
 header.kloi_header {
@@ -44,12 +78,14 @@ button {
 
 div#GOOGLE_CONTAINER {
     height: 57vh;
+    width: 100vw;
+    transform: translateX(-4vw);
 }
 
 .lf-autocomplete-container {
     display: flex;
     height: 6vh;
-    padding: 0 4vw 2vh;
+    padding: 0 var(--page-padding-horizontal) 2vh;
 }
 
 #lf-clear-btn {
@@ -67,13 +103,13 @@ div#GOOGLE_CONTAINER {
     display: flex;
     flex-direction: column;
     width: 100%;
-    padding: 2vh 4vw;
+    padding: 1.5vh var(--page-padding-horizontal) 2vh;
     align-items: center;
     justify-content: space-evenly;
 }
 button#lf-detect-btn {
     height: 3vh;
-    margin-bottom: 2vh;
+    margin-bottom: 1.5vh;
     line-height: 0;
 }
 
@@ -82,6 +118,18 @@ button.pill-bt {
     border-radius: 100px;
     background-color: var(--kloi-accent);
     border: none;
+    padding: 2vh;
+    font-weight: 800;
+}
+button.pill-bt-mini {
+    display: contents;
+    text-align: left;
+}
+button.pill-bt-mini span{
+    width: fit-content;
+    border-bottom: 2px solid var(--kloi-text);
+    padding: 1vh 0 0;
+    font-weight: 800;
 }
 
 button#confirm-location {
@@ -101,8 +149,74 @@ button#confirm-location {
     line-height: 2;
 }
 
+/* 🟡🟡🟡 - [GLOBAL CSS] Styling for radio button pills */
+form.event-details-customer-info-form div.radio-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+form.event-details-customer-info-form div.radio-group label.radio-option {
+    position: relative;
+    flex: 1;
+    background: transparent;
+    color: var(--kloi-text);
+    padding: 10px 0;
+    text-align: center;
+    border-radius: 100px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid var(--kloi-text);
+}
+
+form.event-details-customer-info-form div.radio-group label.radio-option:hover {
+    background: var(--kloi-accent);
+}
+
+form.event-details-customer-info-form div.radio-group input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+form.event-details-customer-info-form div.radio-group input[type="radio"]:checked + span {
+    font-weight: bold;
+}
+
+form.event-details-customer-info-form div.radio-group input[type="radio"]:checked + span::before {
+    content: '';
+    position: absolute;
+    background-color: transparent;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 100px;
+    pointer-events: none;
+}
+
+form.event-details-customer-info-form div.radio-group input[type="radio"]:focus-visible + span {
+    outline: 2px solid var(--kloi-accent-secondary);
+    outline-offset: 2px;
+}
+/* END FORM */
+
+.wizard-step.event-details .location-summary {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--kloi-text);
+    padding: 1vh;
+    margin-bottom: 2vh;
+}
 
 footer {
+    position: absolute;
+    width: 100vw;
+    bottom: 0;
     font-size: 0.7rem;
     text-align: center;
     height: 2vh;
