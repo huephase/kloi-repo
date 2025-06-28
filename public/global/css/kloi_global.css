@@ -63,11 +63,21 @@ img.kloi_header_logo {
 form {
     width: 100%;
 }
-input {
+input, textarea {
     width: 100%;
-    background-color: var(--kloi-text);
-    color: var(--kloi-background);
+    background-color: transparent;
+    border: 1px solid var(--kloi-text);
+    color: var(--kloi-text);
+    margin-bottom: 1vh;
+    padding: 1vh 0;
 }
+
+input::placeholder, textarea::placeholder {
+    color: var(--kloi-text) !important;
+    opacity: 0.8 !important;
+    font-weight: 400;
+}
+
 button {
     padding: 1vh;
     width: 100%;

@@ -50,12 +50,34 @@ input,
 select,
 textarea {
   font: inherit;
-  line-height: inherit;
+  line-height: 1;
   color: inherit;
 }
-input {
+textarea {
+  background: transparent;
+}
+input::placeholder, textarea::placeholder {
   border: none;
   padding: 0.5rem;
+}
+input::-webkit-input-placeholder {
+  color: white !important;
+  opacity: 0.8 !important;
+}
+
+input::-moz-placeholder {
+  color: white !important;
+  opacity: 0.8 !important;
+}
+
+input:-ms-input-placeholder {
+  color: white !important;
+  opacity: 0.8 !important;
+}
+
+input:-moz-placeholder {
+  color: white !important;
+  opacity: 0.8 !important;
 }
 
 /* Remove default button styling */
