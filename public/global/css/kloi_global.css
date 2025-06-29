@@ -69,7 +69,10 @@ input, textarea {
     border: 1px solid var(--kloi-text);
     color: var(--kloi-text);
     margin-bottom: 1vh;
-    padding: 1vh 0;
+    padding: 1vh;
+}
+body.location-finder input{
+    margin: 0;
 }
 
 input::placeholder, textarea::placeholder {
@@ -171,7 +174,7 @@ form.event-details-customer-info-form div.radio-group {
 
 form.event-details-customer-info-form div.radio-group label.radio-option {
     position: relative;
-    flex: 1;
+    flex: auto;
     background: transparent;
     color: var(--kloi-text);
     padding: 10px 0;
@@ -183,6 +186,11 @@ form.event-details-customer-info-form div.radio-group label.radio-option {
 }
 
 form.event-details-customer-info-form div.radio-group label.radio-option:hover {
+    background: var(--kloi-accent);
+}
+
+/* 🟡🟡🟡 - [RADIO BUTTONS] Style for checked radio button labels */
+form.event-details-customer-info-form div.radio-group label.radio-option.checked {
     background: var(--kloi-accent);
 }
 
@@ -212,6 +220,20 @@ form.event-details-customer-info-form div.radio-group input[type="radio"]:checke
 form.event-details-customer-info-form div.radio-group input[type="radio"]:focus-visible + span {
     outline: 2px solid var(--kloi-accent-secondary);
     outline-offset: 2px;
+}
+/* 🟡🟡🟡 - [EVENT DETAILS] Dynamic form field transitions */
+.conditional-field {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.conditional-field[style*="display: none"] {
+    opacity: 0 !important;
+}
+
+/* 🟡🟡🟡 - [VALIDATION] Email validation styling */
+input.invalid-email {
+    border-color: var(--kloi-warning) !important;
+    box-shadow: 0 0 0 1px var(--kloi-warning);
 }
 /* END FORM */
 

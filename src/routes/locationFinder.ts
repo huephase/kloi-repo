@@ -1,6 +1,7 @@
 // src/routes/locationFinder.ts Route for GET/POST /location
 
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { generatePageClass } from '../lib/pageClass';
 
 export default async function locationFinder(app: FastifyInstance, _opts: FastifyPluginOptions) {
   app.get('/location', (request, reply) => {
@@ -21,9 +22,14 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     const theme = (request as any).theme || 'default';
     console.log('🟡🟡🟡 - [file src/routes/locationFinder.ts] GET THE THEME:' + theme);
 
-    return reply.view('wizard/location-finder', {
+    // 🟡🟡🟡 Generate page class for template
+    const templatePath = 'wizard/location-finder';
+    const page_class = generatePageClass(templatePath);
+
+    return reply.view(templatePath, {
       submitted: false,
       theme,
+      page_class,
       googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
       googleMapsMapId: process.env.GOOGLE_MAPS_ID || 'GOOGLE_MAPS_ID MISSING!',
     });

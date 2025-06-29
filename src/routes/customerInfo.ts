@@ -2,6 +2,7 @@
 // 
 // src/routes/customerInfo.ts
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from 'fastify';
+import { generatePageClass } from '../lib/pageClass';
 
 export default async function eventDetails(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // ⚠️⚠️⚠️ IMPORTANT NOTE: THE NEW URL FOR ./customerInfo IS /event-details NOW
@@ -25,9 +26,14 @@ export default async function eventDetails(app: FastifyInstance, _opts: FastifyP
     
     console.log('🟡🟡🟡 - [EVENT DETAILS] Location data from session:', location);
 
+    // 🟡🟡🟡 Generate page class for template
+    const templatePath = 'wizard/event-details';
+    const page_class = generatePageClass(templatePath);
+
     // Render the event details page with location data
-    return reply.view('wizard/event-details', {
+    return reply.view(templatePath, {
       theme,
+      page_class,
       location,
       // Add any other template variables needed for the event-details page
     });

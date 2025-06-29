@@ -58,26 +58,30 @@ textarea {
 }
 input::placeholder, textarea::placeholder {
   border: none;
-  padding: 0.5rem;
+  padding: 0 !important;
 }
 input::-webkit-input-placeholder {
   color: white !important;
   opacity: 0.8 !important;
+  padding: 0 !important;
 }
 
 input::-moz-placeholder {
   color: white !important;
   opacity: 0.8 !important;
+  padding: 0 !important;
 }
 
 input:-ms-input-placeholder {
   color: white !important;
   opacity: 0.8 !important;
+  padding: 0 !important;
 }
 
 input:-moz-placeholder {
   color: white !important;
   opacity: 0.8 !important;
+  padding: 0 !important;
 }
 
 /* Remove default button styling */

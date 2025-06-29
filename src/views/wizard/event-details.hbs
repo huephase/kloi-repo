@@ -19,16 +19,20 @@
     <div class="form-group">
       <div class="radio-group">
         <label class="radio-option">
-          <input type="radio" name="propertyType" value="APARTMENT" {{#if (eq customerInfo.propertyType 'APARTMENT')}}checked{{/if}} required />
+          <input type="radio" name="propertyType" value="APARTMENT" {{#if (eq customerInfo.propertyType 'APARTMENT')}}checked{{else}}checked{{/if}} required />
           <span>APARTMENT</span>
         </label>
         <label class="radio-option">
-          <input type="radio" name="propertyType" value="VILLA/HOUSE" {{#if (eq customerInfo.propertyType 'VILLA/HOUSE')}}checked{{/if}} />
-          <span>VILLA/HOUSE</span>
+          <input type="radio" name="propertyType" value="HOUSE" {{#if (eq customerInfo.propertyType 'HOUSE')}}checked{{/if}} />
+          <span>HOUSE</span>
         </label>
         <label class="radio-option">
           <input type="radio" name="propertyType" value="OFFICE" {{#if (eq customerInfo.propertyType 'OFFICE')}}checked{{/if}} />
           <span>OFFICE</span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="propertyType" value="EVENT" {{#if (eq customerInfo.propertyType 'EVENT')}}checked{{/if}} />
+          <span>EVENT</span>
         </label>
       </div>
       {{#if errors.propertyType}}
@@ -36,25 +40,34 @@
       {{/if}}
     </div>
 
-    {{!-- Property Name --}}
-    <div class="form-group">
-      <input type="text" id="propertyName" name="propertyName" value="{{customerInfo.propertyName}}" placeholder="Building Name" required />
-      {{#if errors.propertyName}}
-        <div class="form-error">{{errors.propertyName}}</div>
+    {{!-- Building Name 🚩🚩🚩 VISIBLE ONLY IF RADIO value="APARTMENT" OR value="OFFICE" OR value="EVENT" IS SELECTED --}}
+    <div class="form-group conditional-field" data-show-for="APARTMENT,OFFICE,EVENT">
+      <input type="text" id="buildingName" name="buildingName" value="{{customerInfo.buildingName}}" placeholder="Building Name" required />
+      {{#if errors.buildingName}}
+        <div class="form-error">{{errors.buildingName}}</div>
       {{/if}}
     </div>
 
-    {{!-- Floor Number --}}
-    <div class="form-group">
+    {{!-- House Number 🚩🚩🚩 VISIBLE ONLY IF RADIO value="HOUSE" IS SELECTED --}}
+    <div class="form-group conditional-field" data-show-for="HOUSE">
+      <input type="text" id="houseNumber" name="houseNumber" value="{{customerInfo.houseNumber}}" placeholder="House (or MAKANI) number" required />
+      {{#if errors.houseNumber}}
+        <div class="form-error">{{errors.houseNumber}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Floor Number 🚩🚩🚩 VISIBLE ONLY IF RADIO value="APARTMENT" OR value="OFFICE" OR value="EVENT" IS SELECTED --}}
+    <div class="form-group conditional-field" data-show-for="APARTMENT,OFFICE,EVENT">
       <input type="text" id="floorNumber" name="floorNumber" value="{{customerInfo.floorNumber}}" placeholder="Floor Number" required />
       {{#if errors.floorNumber}}
         <div class="form-error">{{errors.floorNumber}}</div>
       {{/if}}
     </div>
 
-    {{!-- Unit Number --}}
-    <div class="form-group">
-      <input type="text" id="unitNumber" name="unitNumber" value="{{customerInfo.unitNumber}}" placeholder="Unit Number" required />
+    {{!-- Unit Number 🚩🚩🚩 VISIBLE ONLY IF RADIO value="APARTMENT" OR value="OFFICE" OR value="EVENT" IS SELECTED --}}
+    {{!-- 🚩🚩🚩 Unit Number FOR RADIO value="EVENT" unitNumber IS NOT MANDATORY --}}
+    <div class="form-group conditional-field" data-show-for="APARTMENT,OFFICE,EVENT">
+      <input type="text" id="unitNumber" name="unitNumber" value="{{customerInfo.unitNumber}}" placeholder="Unit Number" data-optional-for="EVENT" required />
       {{#if errors.unitNumber}}
         <div class="form-error">{{errors.unitNumber}}</div>
       {{/if}}
@@ -95,4 +108,7 @@
     <button type="submit" class="btn btn-primary">Continue</button>
   </form>
 </div>
+
+{{!-- 🟡🟡🟡 - [EVENT DETAILS] Load page-specific JavaScript --}}
+<script src="/public/global/js/even__details.js"></script>
 
