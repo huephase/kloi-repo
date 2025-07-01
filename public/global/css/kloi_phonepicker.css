@@ -1,0 +1,221 @@
+/* 🟡🟡🟡 - [KLOI PHONE PICKER] Phone picker component styling refined layout */
+/* ⚠️⚠️⚠️ 2025-01-23 - CSS styling for phone picker component */
+
+/* 🟡🟡🟡 - [PHONE PICKER] Main container styling */
+.select-box {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--kloi-text);
+    background: transparent;
+    overflow: visible;
+    margin-bottom: 1vh;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Selected option area styling */
+.select-box .selected-option {
+    display: flex;
+    align-items: stretch;
+    background: transparent;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Country selector container (20% width) */
+.select-box .country-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 20%;
+    padding: 16px 8px;
+    background: var(--kloi-text);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.select-box .country-selector:hover {
+    background: #EBEBEB;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Phone input container (80% width) */
+.select-box .phone-input-container {
+    display: flex;
+    flex-direction: column;
+    width: 80%;
+    padding: 1vh;
+    background: transparent;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Flag icon styling */
+.select-box .fi {
+    width: 20px;
+    height: 15px;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Country code styling */
+.select-box .country-selector strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Phone label styling */
+.select-box .phone-label {
+    font-size: 12px;
+    color: var(--kloi-text);
+    font-weight: 400;
+    margin-bottom: 4px;
+    line-height: 1;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Phone input styling */
+.select-box input[type="tel"] {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    padding: 0;
+    margin: 0;
+    outline: none;
+    flex: 1;
+}
+
+.select-box input[type="tel"]::placeholder {
+    color: #999 !important;
+    opacity: 1 !important;
+    font-weight: 400;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Options container */
+.select-box .options {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    width: 100%;
+    background: white;
+    border-radius: 0 0 12px 12px;
+    z-index: 1000;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.select-box.active .options {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Search container styling */
+.select-box .search-container {
+    background: #2C2C2C; /* Dark background like in sample */
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Search box styling */
+.select-box .search-box {
+    width: 100%;
+    padding: 16px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 16px;
+    outline: none;
+}
+
+.select-box .search-box::placeholder {
+    color: #B0B0B0 !important;
+    opacity: 1 !important;
+    font-weight: 400;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Options list */
+.select-box ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Individual option styling */
+.select-box .option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #F0F0F0;
+    transition: background-color 0.2s ease;
+}
+
+.select-box .option:hover {
+    background-color: #F8F8F8;
+}
+
+.select-box .option:last-child {
+    border-bottom: none;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Option content layout */
+.select-box .option > div {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Country name styling */
+.select-box .country-name {
+    font-size: 16px;
+    color: #333;
+    font-weight: 400;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Phone code in options */
+.select-box .option strong {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    min-width: 60px;
+    text-align: right;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Hidden options during search */
+.select-box .option.hide {
+    display: none;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Scrollbar styling for options list */
+.select-box ol::-webkit-scrollbar {
+    width: 6px;
+}
+
+.select-box ol::-webkit-scrollbar-track {
+    background: #F1F1F1;
+}
+
+.select-box ol::-webkit-scrollbar-thumb {
+    background: #C1C1C1;
+    border-radius: 3px;
+}
+
+.select-box ol::-webkit-scrollbar-thumb:hover {
+    background: #A1A1A1;
+}
+
+/* 🟡🟡🟡 - [PHONE PICKER] Focus states for accessibility */
+.select-box .country-selector:focus-visible,
+.select-box .search-box:focus-visible,
+.select-box input[type="tel"]:focus-visible {
+    outline: 2px solid #4A90E2;
+    outline-offset: 2px;
+}
+
+.select-box .option:focus-visible {
+    background-color: #E3F2FD;
+    outline: 2px solid #4A90E2;
+    outline-offset: -2px;
+}
+
+/* 👍👍👍👍👍👍 - [KLOI PHONE PICKER] Refined styling completed with 20%/80% layout */ 

@@ -97,9 +97,11 @@
         if (confirmBtn && confirmLabel) {
           if (!form.fullAddress || !hasFullAddress) {
             confirmBtn.disabled = true;
+            confirmBtn.classList.remove('btn-active'); // 🔵🔵🔵 Remove active class when no location selected
             confirmLabel.innerHTML = 'KINDLY CHOOSE A LOCATION';
           } else {
             confirmBtn.disabled = !(form.latitude && form.longitude && isValidUAE && hasFullAddress);
+            confirmBtn.classList.add('btn-active'); // ✅✅✅ Add active class when location is populated
             confirmLabel.innerHTML = `<span>${form.fullAddress}</span><br><strong>CONFIRM</strong>`;
           }
         }

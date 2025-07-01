@@ -153,7 +153,7 @@ button#confirm-location {
 #lf-confirm-label span {
     text-transform: initial;
     font-size: 0.8rem;
-    border-bottom: 1px solid var(--kloi-accent);
+    border-bottom: 1px solid var(--kloi-text);
     display: inline-block;
     padding-bottom: 5px;
     letter-spacing: -0.05rem;
@@ -191,7 +191,7 @@ form.event-details-customer-info-form div.radio-group label.radio-option:hover {
 
 /* 🟡🟡🟡 - [RADIO BUTTONS] Style for checked radio button labels */
 form.event-details-customer-info-form div.radio-group label.radio-option.checked {
-    background: var(--kloi-accent);
+    background: var(--kloi-accent) !important;
 }
 
 form.event-details-customer-info-form div.radio-group input[type="radio"] {
@@ -203,18 +203,6 @@ form.event-details-customer-info-form div.radio-group input[type="radio"] {
 
 form.event-details-customer-info-form div.radio-group input[type="radio"]:checked + span {
     font-weight: bold;
-}
-
-form.event-details-customer-info-form div.radio-group input[type="radio"]:checked + span::before {
-    content: '';
-    position: absolute;
-    background-color: transparent;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: 100px;
-    pointer-events: none;
 }
 
 form.event-details-customer-info-form div.radio-group input[type="radio"]:focus-visible + span {
@@ -256,4 +244,12 @@ footer {
     display: flex;
     flex-direction: column;
     justify-content: center;
+}
+
+button.btn-active {
+    background-color: var(--kloi-accent);
+  }
+
+button#event-details-submit {
+    height: 12vh;
 }

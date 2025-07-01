@@ -1,5 +1,10 @@
 {{!-- ⚠️⚠️⚠️ IMPORTANT NOTE: THE NEW URL FOR ./customerInfo IS /event-details NOW --}}
-{{! Customer info view }}
+{{!-- 🟡🟡🟡 - [EVENT DETAILS] Load flag-icons CSS scoped to this page --}}
+<style>
+  @import "/public/global/css/flag-icons.min.css";
+  @import "/public/global/css/kloi_phonepicker.css";
+</style>
+
 <div class="wizard-step event-details">
   <h2 style="display: none;">Customer Information</h2>
   {{#if location}}
@@ -83,7 +88,24 @@
 
     {{!-- Phone Number --}}
     <div class="form-group">
-      <input type="tel" id="phone" name="phone" value="{{customerInfo.phone}}" placeholder="Phone Number" required />
+        <div class="select-box">
+        <div class="selected-option">
+            <div class="country-selector">
+                <span class="fi fi-ae"></span>
+                <strong id="the-country-code">+971</strong>
+            </div>
+            <div class="phone-input-container">
+                <span class="phone-label">Phone Number</span>
+                <input type="tel" id="the-customer-phone" name="phone" value="{{customerInfo.phone}}" placeholder="05# #### ####" required />
+            </div>
+        </div>
+        <div class="options">
+            <div class="search-container">
+                <input type="text" id="searchCountry" class="search-box" placeholder="Search Country Name">
+            </div>
+            <ol></ol>
+        </div>
+      </div>
       {{#if errors.phone}}
         <div class="form-error">{{errors.phone}}</div>
       {{/if}}
@@ -105,10 +127,10 @@
       {{/if}}
     </div>
 
-    <button type="submit" class="btn btn-primary">Continue</button>
+    <button id="event-details-submit" type="submit" class="btn btn-primary">Continue</button>
   </form>
 </div>
 
 {{!-- 🟡🟡🟡 - [EVENT DETAILS] Load page-specific JavaScript --}}
-<script src="/public/global/js/even__details.js"></script>
-
+<script src="/public/global/js/kloi_phonepicker.js"></script>
+<script src="/public/global/js/event__details.js"></script>
