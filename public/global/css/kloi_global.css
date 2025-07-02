@@ -150,6 +150,14 @@ button#confirm-location {
     line-height: 1;
 }
 
+button.btn-active {
+    background-color: var(--kloi-accent);
+  }
+
+button#event-details-submit {
+    height: 12vh;
+}
+
 #lf-confirm-label span {
     text-transform: initial;
     font-size: 0.8rem;
@@ -234,7 +242,7 @@ input.invalid-email {
 }
 
 footer {
-    position: absolute;
+    position: sticky;
     width: 100vw;
     bottom: 0;
     font-size: 0.7rem;
@@ -244,12 +252,4 @@ footer {
     display: flex;
     flex-direction: column;
     justify-content: center;
-}
-
-button.btn-active {
-    background-color: var(--kloi-accent);
-  }
-
-button#event-details-submit {
-    height: 12vh;
 }

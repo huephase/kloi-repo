@@ -20,6 +20,48 @@
   </div>
 
   <form method="POST" action="/api/session/event-details" autocomplete="on" class="event-details-customer-info-form">
+
+    {{!-- FIRST NAME --}}
+    <div class="form-group">
+      <input type="text" id="firstName" name="firstName" value="{{customerInfo.firstName}}" placeholder="First Name" required />
+      {{#if errors.firstName}}
+        <div class="form-error">{{errors.firstName}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- LAST NAME --}}
+    <div class="form-group">
+      <input type="text" id="lastName" name="lastName" value="{{customerInfo.lastName}}" placeholder="Last Name" required />
+      {{#if errors.lastName}}
+        <div class="form-error">{{errors.lastName}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- Phone Number --}}
+    <div class="form-group" id="phone-number-group">
+        <div class="select-box">
+        <div class="selected-option">
+            <div class="country-selector">
+                <span class="fi fi-ae"></span>
+                <strong id="the-country-code">+971</strong>
+            </div>
+            <div class="phone-input-container">
+                <span class="phone-label">Phone Number</span>
+                <input type="tel" id="the-customer-phone" name="phone" value="{{customerInfo.phone}}" placeholder="05# #### ####" required />
+            </div>
+        </div>
+        <div class="options">
+            <div class="search-container">
+                <input type="text" id="searchCountry" class="search-box" placeholder="Search Country Name">
+            </div>
+            <ol></ol>
+        </div>
+      </div>
+      {{#if errors.phone}}
+        <div class="form-error">{{errors.phone}}</div>
+      {{/if}}
+    </div>
+
     {{!-- Property Type Radio Group --}}
     <div class="form-group">
       <div class="radio-group">
@@ -86,34 +128,11 @@
       {{/if}}
     </div>
 
-    {{!-- Phone Number --}}
-    <div class="form-group">
-        <div class="select-box">
-        <div class="selected-option">
-            <div class="country-selector">
-                <span class="fi fi-ae"></span>
-                <strong id="the-country-code">+971</strong>
-            </div>
-            <div class="phone-input-container">
-                <span class="phone-label">Phone Number</span>
-                <input type="tel" id="the-customer-phone" name="phone" value="{{customerInfo.phone}}" placeholder="05# #### ####" required />
-            </div>
-        </div>
-        <div class="options">
-            <div class="search-container">
-                <input type="text" id="searchCountry" class="search-box" placeholder="Search Country Name">
-            </div>
-            <ol></ol>
-        </div>
-      </div>
-      {{#if errors.phone}}
-        <div class="form-error">{{errors.phone}}</div>
-      {{/if}}
-    </div>
+
 
     {{!-- Email --}}
     <div class="form-group">
-      <input type="email" id="email" name="email" value="{{customerInfo.email}}" placeholder="Email" />
+      <input type="email" id="email" name="email" value="{{customerInfo.email}}" placeholder="YourEmail" />
       {{#if errors.email}}
         <div class="form-error">{{errors.email}}</div>
       {{/if}}

@@ -77,6 +77,14 @@ document.addEventListener('DOMContentLoaded', function() {
         let customMessage = '';
         
         switch(fieldId) {
+            case 'firstName':
+                customMessage = '👤 Please enter your first name to continue';
+                break;
+                
+            case 'lastName':
+                customMessage = '👤 Please enter your last name to continue';
+                break;
+                
             case 'buildingName':
                 if (propertyType === 'APARTMENT') {
                     customMessage = '🏢 Please enter the apartment building name to continue';
@@ -332,6 +340,8 @@ function resetFormFields() {
     
     // 🟡🟡🟡 - [FORM RESET] Clear all input fields except radio buttons and country code
     const fieldsToReset = [
+        'firstName',
+        'lastName',
         'buildingName',
         'houseNumber', 
         'floorNumber',
@@ -372,18 +382,22 @@ function resetFormFields() {
 // 🟡🟡🟡 - [SUBMIT BUTTON] Function to determine the next required field based on property type
 function getNextRequiredField(propertyType) {
     
-    // Define field order based on property type
-    let fieldOrder = [];
+    // 🟡🟡🟡 - [ALWAYS REQUIRED] First check always required fields (firstName, lastName, phone)
+    let alwaysRequiredFields = ['firstName', 'lastName', 'the-customer-phone'];
+    
+    // Define conditional field order based on property type
+    let conditionalFields = [];
     
     if (propertyType === 'HOUSE') {
-        fieldOrder = ['houseNumber', 'the-customer-phone'];
+        conditionalFields = ['houseNumber'];
     } else if (propertyType === 'APARTMENT' || propertyType === 'OFFICE') {
-        fieldOrder = ['buildingName', 'floorNumber', 'unitNumber', 'the-customer-phone'];
+        conditionalFields = ['buildingName', 'floorNumber', 'unitNumber'];
     } else if (propertyType === 'EVENT') {
-        fieldOrder = ['buildingName', 'floorNumber', 'the-customer-phone']; // unitNumber is optional for EVENT
-    } else {
-        fieldOrder = ['the-customer-phone'];
+        conditionalFields = ['buildingName', 'floorNumber']; // unitNumber is optional for EVENT
     }
+    
+    // Combine always required fields with conditional fields
+    let fieldOrder = [...alwaysRequiredFields, ...conditionalFields];
     
     // Check each field in order to find the first empty required field
     for (let fieldId of fieldOrder) {
@@ -419,6 +433,8 @@ function getDynamicMessage(nextRequiredField) {
     }
     
     const messages = {
+        'firstName': 'Kindly fill in your first name',
+        'lastName': 'Kindly fill in your last name',
         'propertyType': 'Kindly select a property type',
         'buildingName': 'Kindly fill in your building name',
         'houseNumber': 'Kindly fill in your house number',
@@ -432,10 +448,56 @@ function getDynamicMessage(nextRequiredField) {
 }
 
 // 🟡🟡🟡 - [EVENT DETAILS JS] Field validation functions
-function initializeFieldValidation() {
-    console.log('🟡🟡🟡 - [EVENT DETAILS JS] Initializing field validation with custom messages');
-    
+function initializeFieldValidation() {    
     // 🟡🟡🟡 - [CUSTOM VALIDATION] Initialize custom validation for all always-visible required fields
+    
+    // First Name field validation (always visible and required)
+    const firstNameInput = document.getElementById('firstName');
+    if (firstNameInput) {
+        firstNameInput.addEventListener('input', function() {
+            validateFirstName(this);
+        });
+        firstNameInput.addEventListener('blur', function() {
+            validateFirstName(this);
+        });
+        
+        // 🟡🟡🟡 - [CUSTOM VALIDATION] Add custom validation message for firstName
+        if (!firstNameInput.hasAttribute('data-custom-validation-applied')) {
+            firstNameInput.addEventListener('invalid', function() {
+                this.setCustomValidity('👤 Please enter your first name to continue');
+            });
+            
+            firstNameInput.addEventListener('input', function() {
+                this.setCustomValidity(''); // Clear custom message when user starts typing
+            });
+            
+            firstNameInput.setAttribute('data-custom-validation-applied', 'true');
+        }
+    }
+    
+    // Last Name field validation (always visible and required)
+    const lastNameInput = document.getElementById('lastName');
+    if (lastNameInput) {
+        lastNameInput.addEventListener('input', function() {
+            validateLastName(this);
+        });
+        lastNameInput.addEventListener('blur', function() {
+            validateLastName(this);
+        });
+        
+        // 🟡🟡🟡 - [CUSTOM VALIDATION] Add custom validation message for lastName
+        if (!lastNameInput.hasAttribute('data-custom-validation-applied')) {
+            lastNameInput.addEventListener('invalid', function() {
+                this.setCustomValidity('👤 Please enter your last name to continue');
+            });
+            
+            lastNameInput.addEventListener('input', function() {
+                this.setCustomValidity(''); // Clear custom message when user starts typing
+            });
+            
+            lastNameInput.setAttribute('data-custom-validation-applied', 'true');
+        }
+    }
     
     // Street field validation (always visible, but not required - no custom message needed)
     const streetInput = document.getElementById('street');
@@ -548,6 +610,30 @@ function initializeFieldValidation() {
         });
     }
     
+}
+
+// 🟡🟡🟡 - [VALIDATION] First Name: Max 20 chars, letters, hyphen, space only
+function validateFirstName(input) {
+    let value = input.value;
+    // Remove invalid characters (only letters, hyphen, and space allowed)
+    value = value.replace(/[^a-zA-Z\-\s]/g, '');
+    // Trim to max 20 characters
+    if (value.length > 20) {
+        value = value.substring(0, 20);
+    }
+    input.value = value;
+}
+
+// 🟡🟡🟡 - [VALIDATION] Last Name: Max 20 chars, letters, hyphen, space only
+function validateLastName(input) {
+    let value = input.value;
+    // Remove invalid characters (only letters, hyphen, and space allowed)
+    value = value.replace(/[^a-zA-Z\-\s]/g, '');
+    // Trim to max 20 characters
+    if (value.length > 20) {
+        value = value.substring(0, 20);
+    }
+    input.value = value;
 }
 
 // 🟡🟡🟡 - [VALIDATION] Building Name: Max 30 chars, letters, numbers, hyphen, comma, space only

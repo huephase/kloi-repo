@@ -2,6 +2,7 @@
 // Aggregates API routes. All POST routes are handled here.
 import { FastifyInstance, FastifyPluginOptions, FastifyReply } from 'fastify';
 import { WizardStepConfig } from '../../types';
+import { prisma } from '../../lib/prisma';
 
 // Maps wizard steps to session keys and redirect targets
 // The step parameter will be the wizard step, for eg. "location"
@@ -17,6 +18,71 @@ const stepConfig: Record<string, WizardStepConfig> = {
 };
 
 export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
+  
+  // 🔍🔍🔍 DATABASE CONNECTION TEST ROUTE
+  // 🟤🟤🟤 src/routes/api/index.ts:23:30 - error TS6133: 'request' is declared but its value is never read.
+  app.get('/db-test', async (_request, reply: FastifyReply) => {
+    console.log('🔍🔍🔍 - [API ROUTE] GET /api/db-test - Testing database connection');
+    console.log('🔍🔍🔍 - [API ROUTE] DATABASE_URL configured:', process.env.DATABASE_URL ? 'Yes' : 'No');
+    
+    try {
+      // Test basic database connection
+      const startTime = Date.now();
+      await prisma.$connect();
+      const connectionTime = Date.now() - startTime;
+      
+      // Test a simple query to verify the connection works
+      const testQuery = await prisma.$queryRaw`SELECT version() as db_version, now() as current_time`;
+      const queryTime = Date.now() - startTime;
+      
+      // Get database info
+      const customerCount = await prisma.customers.count();
+      const sessionCount = await prisma.session.count();
+      const orderCount = await prisma.order.count();
+      const menuCount = await prisma.menus.count();
+      
+      console.log('✅✅✅ - [API ROUTE] Database connection successful');
+      console.log('✅✅✅ - [API ROUTE] Connection time:', connectionTime, 'ms');
+      console.log('✅✅✅ - [API ROUTE] Query time:', queryTime, 'ms');
+      
+      return reply.send({
+        success: true,
+        message: 'Database connection successful',
+        data: {
+          databaseUrl: process.env.DATABASE_URL ? 'Configured' : 'Not configured',
+          connectionTime: `${connectionTime}ms`,
+          queryTime: `${queryTime}ms`,
+          databaseInfo: testQuery,
+          tableInfo: {
+            customers: customerCount,
+            sessions: sessionCount,
+            orders: orderCount,
+            menus: menuCount
+          },
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+    } catch (error) {
+      console.error('🔴🔴🔴 - [API ROUTE] Database connection failed:', error);
+      console.error('🔴🔴🔴 - [API ROUTE] DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+      
+      return reply.status(500).send({
+        success: false,
+        message: 'Database connection failed',
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          code: error instanceof Error && 'code' in error ? error.code : 'UNKNOWN',
+          databaseUrl: process.env.DATABASE_URL ? 'Configured' : 'Not configured',
+        },
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      // Ensure we disconnect to avoid connection leaks
+      await prisma.$disconnect();
+    }
+  });
+
   app.post<{
     Params: { step: string };
   }>('/session/:step', async (request, reply: FastifyReply) => {
