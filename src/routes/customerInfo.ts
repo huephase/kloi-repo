@@ -26,16 +26,23 @@ export default async function eventDetails(app: FastifyInstance, _opts: FastifyP
     
     console.log('🟡🟡🟡 - [EVENT DETAILS] Location data from session:', location);
 
+    // 🟡🟡🟡 - [FORM DATA] Get existing customer info from session if available
+    const existingEventDetails = (request.session as any)?.eventDetails;
+    const customerInfo = existingEventDetails || {};
+    
+    console.log('🟡🟡🟡 - [EVENT DETAILS] Existing customer info from session:', customerInfo);
+
     // 🟡🟡🟡 Generate page class for template
     const templatePath = 'wizard/event-details';
     const page_class = generatePageClass(templatePath);
 
-    // Render the event details page with location data
+    // Render the event details page with location data and existing customer info
     return reply.view(templatePath, {
       theme,
       page_class,
       location,
-      // Add any other template variables needed for the event-details page
+      customerInfo, // 🟡🟡🟡 - [FORM DATA] Pass existing customer info to pre-populate form
+      // errors: {}, // 🟡🟡🟡 - [ERROR HANDLING] Errors are now handled by AJAX, not server-side rendering
     });
   });
 }

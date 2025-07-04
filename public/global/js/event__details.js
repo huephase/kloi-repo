@@ -203,6 +203,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🟡🟡🟡 - [CUSTOM VALIDATION] Initialize form submission handling
     initializeFormValidation();
     
+    // 🟡🟡🟡 - [FORM SUBMISSION] Initialize AJAX form submission
+    initializeAjaxFormSubmission();
+    
     // 🟡🟡🟡 - [SUBMIT BUTTON] Initialize dynamic submit button behavior
     initializeSubmitButtonBehavior();
 });
@@ -766,4 +769,172 @@ function validateAdditionalDirections(input) {
         value = value.substring(0, 100);
     }
     input.value = value;
+}
+
+// 🟡🟡🟡 - [AJAX FORM SUBMISSION] Handle form submission with server-side validation
+function initializeAjaxFormSubmission() {
+    const form = document.querySelector('form.event-details-customer-info-form');
+    const submitButton = document.getElementById('event-details-submit');
+    
+    if (!form || !submitButton) {
+        console.error('❗❗❗ - [AJAX FORM] Could not find form or submit button');
+        return;
+    }
+    
+    form.addEventListener('submit', function(event) {
+        event.preventDefault(); // Prevent default form submission
+        
+        console.log('🟡🟡🟡 - [AJAX FORM] Form submitted, processing...');
+        
+        // Clear any existing error messages
+        clearFormErrors();
+        
+        // Show loading state
+        const originalButtonText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Processing...';
+        submitButton.classList.remove('btn-active');
+        
+        // Prepare form data
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        
+        console.log('🟡🟡🟡 - [AJAX FORM] Form data prepared:', data);
+        
+        // Make AJAX request to server
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+            credentials: 'same-origin' // Include session cookies
+        })
+        .then(response => {
+            console.log('🟡🟡🟡 - [AJAX FORM] Server response status:', response.status);
+            return response.json();
+        })
+        .then(result => {
+            console.log('🟡🟡🟡 - [AJAX FORM] Server response:', result);
+            
+            if (result.success) {
+                console.log('✅✅✅ - [AJAX FORM] Form submission successful');
+                
+                // Show success message briefly
+                submitButton.textContent = 'Success! Redirecting...';
+                submitButton.classList.add('btn-success');
+                
+                // Redirect to next step after brief delay
+                setTimeout(() => {
+                    console.log('✅✅✅ - [AJAX FORM] Redirecting to:', result.nextStep);
+                    window.location.href = result.nextStep;
+                }, 1000);
+                
+            } else {
+                console.log('❗❗❗ - [AJAX FORM] Form submission failed with validation errors');
+                
+                // Display validation errors
+                displayFormErrors(result.errors || {});
+                
+                // Reset submit button
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+                submitButton.classList.remove('btn-success');
+                
+                // Focus on first error field
+                focusOnFirstError();
+            }
+        })
+        .catch(error => {
+            console.error('❌❌❌ - [AJAX FORM] Network or parsing error:', error);
+            
+            // Show generic error message
+            displayFormErrors({ 
+                general: 'Network error occurred. Please check your connection and try again.' 
+            });
+            
+            // Reset submit button
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+            submitButton.classList.remove('btn-success');
+        });
+    });
+}
+
+// 🟡🟡🟡 - [ERROR HANDLING] Clear all form error messages
+function clearFormErrors() {
+    const errorDivs = document.querySelectorAll('.form-error');
+    errorDivs.forEach(errorDiv => {
+        errorDiv.textContent = '';
+        errorDiv.style.display = 'none';
+    });
+    
+    // Remove error styling from inputs
+    const inputs = document.querySelectorAll('input, textarea');
+    inputs.forEach(input => {
+        input.classList.remove('error');
+    });
+    
+    console.log('🟡🟡🟡 - [ERROR HANDLING] Cleared all form errors');
+}
+
+// 🟡🟡🟡 - [ERROR HANDLING] Display form validation errors
+function displayFormErrors(errors) {
+    console.log('❗❗❗ - [ERROR HANDLING] Displaying form errors:', errors);
+    
+    // Map server field names to client field names if needed
+    const fieldMapping = {
+        'phone': 'the-customer-phone' // Map server field to client field ID
+    };
+    
+    Object.keys(errors).forEach(fieldName => {
+        const errorMessage = errors[fieldName];
+        const mappedFieldName = fieldMapping[fieldName] || fieldName;
+        
+        // Find the input field
+        const inputField = document.getElementById(mappedFieldName) || document.querySelector(`[name="${fieldName}"]`);
+        
+        if (inputField) {
+            // Add error styling to input
+            inputField.classList.add('error');
+            
+            // Find or create error message div
+            const formGroup = inputField.closest('.form-group');
+            if (formGroup) {
+                let errorDiv = formGroup.querySelector('.form-error');
+                if (errorDiv) {
+                    errorDiv.textContent = errorMessage;
+                    errorDiv.style.display = 'block';
+                } else {
+                    // Create new error div if it doesn't exist
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'form-error';
+                    errorDiv.textContent = errorMessage;
+                    errorDiv.style.display = 'block';
+                    formGroup.appendChild(errorDiv);
+                }
+                
+                console.log(`❗❗❗ - [ERROR HANDLING] Displayed error for field "${fieldName}": ${errorMessage}`);
+            }
+        } else {
+            console.warn('⚠️⚠️⚠️ - [ERROR HANDLING] Could not find field for error:', fieldName);
+            
+            // Show general error if field not found
+            if (fieldName === 'general') {
+                // Display general error at top of form or in a toast
+                console.error('❌❌❌ - [ERROR HANDLING] General error:', errorMessage);
+                alert('Error: ' + errorMessage); // Simple fallback - could be improved with better UI
+            }
+        }
+    });
+}
+
+// 🟡🟡🟡 - [ERROR HANDLING] Focus on the first field with an error
+function focusOnFirstError() {
+    const firstErrorField = document.querySelector('input.error, textarea.error');
+    if (firstErrorField) {
+        firstErrorField.focus();
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        console.log('🟡🟡🟡 - [ERROR HANDLING] Focused on first error field:', firstErrorField.id || firstErrorField.name);
+    }
 }

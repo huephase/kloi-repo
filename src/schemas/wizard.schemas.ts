@@ -3,6 +3,130 @@ import { z } from 'zod';
 
 console.log('🟡🟡🟡 - [wizard.schemas] Defining wizard step schemas');
 
+// 🟡🟡🟡 - [VALIDATION SCHEMA] Location data schema
+export const locationDataSchema = z.object({
+  fullAddress: z.string().min(1, 'Location address is required'),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  components: z.record(z.string()).optional(),
+});
+
+// 🟡🟡🟡 - [VALIDATION SCHEMA] Comprehensive customer info schema for event-details form
+export const eventDetailsSchema = z.object({
+  // Always required fields
+  firstName: z.string()
+    .min(1, 'First name is required')
+    .max(20, 'First name must be 20 characters or less')
+    .regex(/^[a-zA-Z\-\s]+$/, 'First name can only contain letters, hyphens, and spaces'),
+  
+  lastName: z.string()
+    .min(1, 'Last name is required')
+    .max(20, 'Last name must be 20 characters or less')
+    .regex(/^[a-zA-Z\-\s]+$/, 'Last name can only contain letters, hyphens, and spaces'),
+  
+  phone: z.string()
+    .min(1, 'Phone number is required')
+    .refine((val) => {
+      const digits = val.replace(/\D/g, '');
+      return digits.length >= 9;
+    }, 'Phone number must contain at least 9 digits'),
+  
+  propertyType: z.enum(['APARTMENT', 'HOUSE', 'OFFICE', 'EVENT'], {
+    required_error: 'Property type is required',
+    invalid_type_error: 'Property type must be APARTMENT, HOUSE, OFFICE, or EVENT',
+  }),
+  
+  // Conditional fields based on property type
+  buildingName: z.string()
+    .max(30, 'Building name must be 30 characters or less')
+    .regex(/^[a-zA-Z0-9\-,\s]*$/, 'Building name can only contain letters, numbers, hyphens, commas, and spaces')
+    .optional(),
+  
+  houseNumber: z.string()
+    .max(12, 'House number must be 12 characters or less')
+    .regex(/^[0-9\-\s]*$/, 'House number can only contain numbers, hyphens, and spaces')
+    .optional(),
+  
+  floorNumber: z.string()
+    .max(3, 'Floor number must be 3 characters or less')
+    .refine((val) => {
+      if (!val) return true; // Allow empty for optional validation
+      const upperVal = val.toUpperCase();
+      // Allow G, GF, M, MF or numbers 1-170
+      if (['G', 'GF', 'M', 'MF'].includes(upperVal)) return true;
+      const numVal = parseInt(upperVal, 10);
+      return !isNaN(numVal) && numVal >= 1 && numVal <= 170;
+    }, 'Floor number must be G, GF, M, MF, or a number between 1-170')
+    .optional(),
+  
+  unitNumber: z.string()
+    .max(4, 'Unit number must be 4 digits or less')
+    .regex(/^[0-9]*$/, 'Unit number can only contain numbers')
+    .refine((val) => {
+      if (!val) return true; // Allow empty for optional validation
+      const numVal = parseInt(val, 10);
+      return !isNaN(numVal) && numVal >= 1 && numVal <= 9999;
+    }, 'Unit number must be between 1-9999')
+    .optional(),
+  
+  // Optional fields
+  street: z.string()
+    .max(30, 'Street name must be 30 characters or less')
+    .regex(/^[a-zA-Z0-9\-,\s]*$/, 'Street name can only contain letters, numbers, hyphens, commas, and spaces')
+    .optional(),
+  
+  email: z.string()
+    .email('Please enter a valid email address')
+    .optional()
+    .or(z.literal('')), // Allow empty string
+  
+  additionalDirections: z.string()
+    .max(100, 'Additional directions must be 100 characters or less')
+    .regex(/^[a-zA-Z0-9\-,\s]*$/, 'Additional directions can only contain letters, numbers, hyphens, commas, and spaces')
+    .optional(),
+})
+.refine((data) => {
+  // ✅✅✅ - [CONDITIONAL VALIDATION] Building name is required for APARTMENT, OFFICE, EVENT
+  if (['APARTMENT', 'OFFICE', 'EVENT'].includes(data.propertyType)) {
+    return data.buildingName && data.buildingName.length > 0;
+  }
+  return true;
+}, {
+  message: 'Building name is required for apartments, offices, and events',
+  path: ['buildingName'],
+})
+.refine((data) => {
+  // ✅✅✅ - [CONDITIONAL VALIDATION] House number is required for HOUSE
+  if (data.propertyType === 'HOUSE') {
+    return data.houseNumber && data.houseNumber.length > 0;
+  }
+  return true;
+}, {
+  message: 'House number is required for houses',
+  path: ['houseNumber'],
+})
+.refine((data) => {
+  // ✅✅✅ - [CONDITIONAL VALIDATION] Floor number is required for APARTMENT, OFFICE, EVENT
+  if (['APARTMENT', 'OFFICE', 'EVENT'].includes(data.propertyType)) {
+    return data.floorNumber && data.floorNumber.length > 0;
+  }
+  return true;
+}, {
+  message: 'Floor number is required for apartments, offices, and events',
+  path: ['floorNumber'],
+})
+.refine((data) => {
+  // ✅✅✅ - [CONDITIONAL VALIDATION] Unit number is required for APARTMENT, OFFICE (optional for EVENT)
+  if (['APARTMENT', 'OFFICE'].includes(data.propertyType)) {
+    return data.unitNumber && data.unitNumber.length > 0;
+  }
+  return true;
+}, {
+  message: 'Unit number is required for apartments and offices',
+  path: ['unitNumber'],
+});
+
+// 🟡🟡🟡 - [LEGACY SCHEMA] Keep existing schemas for backward compatibility
 export const customerInfoSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
@@ -36,3 +160,5 @@ export const eventSummarySchema = z.object({
   totalPrice: z.number().min(0),
 });
 console.log('🟡🟡🟡 - [wizard.schemas] eventSummarySchema created');
+
+console.log('✅✅✅ - [wizard.schemas] All validation schemas created successfully');
