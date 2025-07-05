@@ -76,7 +76,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
       // Get database info
       const customerCount = await prisma.customers.count();
       const sessionCount = await prisma.session.count();
-      const orderCount = await prisma.order.count();
+      const orderCount = await prisma.kloiOrdersTable.count();
       const menuCount = await prisma.menus.count();
       
       console.log('✅✅✅ - [API ROUTE] Database connection successful');
@@ -118,6 +118,59 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
     } finally {
       // Ensure we disconnect to avoid connection leaks
       await prisma.$disconnect();
+    }
+  });
+
+  // 🟡🟡🟡 - [TEST ENDPOINT] Test endpoint to create sample order
+  app.post('/test-order', async (_request, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [TEST ENDPOINT] Creating test order');
+    
+    try {
+      const testOrder = await prisma.kloiOrdersTable.create({
+        data: {
+          firstName: 'Test',
+          lastName: 'User',
+          phone: '+971501234567',
+          email: 'test@example.com',
+          location: {
+            fullAddress: 'Test Address, Dubai, UAE',
+            city: 'Dubai',
+            country: 'UAE',
+            latitude: 25.2048,
+            longitude: 55.2708
+          },
+          eventDetails: {
+            propertyType: 'APARTMENT',
+            buildingName: 'Test Building',
+            floorNumber: '5',
+            unitNumber: '502',
+            street: 'Test Street',
+            additionalDirections: 'Test directions'
+          },
+          status: 'pending'
+        }
+      });
+
+      console.log('✅✅✅ - [TEST ENDPOINT] Test order created:', testOrder.id);
+      console.log('✅✅✅ - [TEST ENDPOINT] Order number:', testOrder.orderNumber);
+
+      return reply.send({
+        success: true,
+        message: 'Test order created successfully',
+        data: {
+          id: testOrder.id,
+          orderNumber: testOrder.orderNumber,
+          createdAt: testOrder.createdAt
+        }
+      });
+
+    } catch (error) {
+      console.error('❌❌❌ - [TEST ENDPOINT] Failed to create test order:', error);
+      return reply.status(500).send({
+        success: false,
+        message: 'Failed to create test order',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
@@ -197,7 +250,72 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         console.log('🟡🟡🟡 - [API ROUTE] Session AFTER update:', JSON.stringify(request.session, null, 2));
       }
 
-      request.session.lastVisited = new Date().toISOString();
+      // 🟡🟡🟡 - [DATABASE SAVE] Save to database for event-details step
+      let savedOrder = null;
+      if (step === 'event-details') {
+        try {
+          console.log('🟡🟡🟡 - [DATABASE SAVE] Starting database save for event-details');
+          
+          // Get location data from session
+          const locationData = (request.session as any).locationData;
+          if (!locationData) {
+            console.log('⚠️⚠️⚠️ - [DATABASE SAVE] No location data found in session');
+            return reply.status(400).send({
+              success: false,
+              message: 'Location data not found. Please select a location first.',
+              errors: { location: 'Location data missing' }
+            });
+          }
+
+          // Create order in database
+          savedOrder = await prisma.kloiOrdersTable.create({
+            data: {
+              // Customer info
+              firstName: validatedData.firstName,
+              lastName: validatedData.lastName,
+              phone: validatedData.phone,
+              email: validatedData.email || null,
+              
+              // Location data as JSONB
+              location: locationData,
+              
+              // Event details as JSONB
+              eventDetails: {
+                propertyType: validatedData.propertyType,
+                buildingName: validatedData.buildingName || null,
+                houseNumber: validatedData.houseNumber || null,
+                floorNumber: validatedData.floorNumber || null,
+                unitNumber: validatedData.unitNumber || null,
+                street: validatedData.street || null,
+                additionalDirections: validatedData.additionalDirections || null,
+              },
+              
+              // Session reference
+              sessionId: request.session.sessionId,
+              
+              // Status
+              status: 'pending'
+            }
+          });
+
+          console.log('✅✅✅ - [DATABASE SAVE] Order saved successfully:', savedOrder.id);
+          console.log('✅✅✅ - [DATABASE SAVE] Order number:', savedOrder.orderNumber);
+          
+          // Store order ID in session for future reference
+          (request.session as any).orderId = savedOrder.id;
+          (request.session as any).orderNumber = savedOrder.orderNumber;
+          
+        } catch (dbError) {
+          console.error('❌❌❌ - [DATABASE SAVE] Failed to save order:', dbError);
+          return reply.status(500).send({
+            success: false,
+            message: 'Failed to save order information. Please try again.',
+            errors: { database: 'Database save failed' }
+          });
+        }
+      }
+
+      (request.session as any).lastVisited = new Date().toISOString();
       request.session.touch();
       
       console.log(`✅✅✅ - [API ROUTE] ${step} data validated and saved to session [${sessionKey}] → ${redirectTo}`);

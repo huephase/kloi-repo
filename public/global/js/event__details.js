@@ -200,9 +200,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🟡🟡🟡 - [EVENT DETAILS JS] Initialize field validation
     initializeFieldValidation();
     
-    // 🟡🟡🟡 - [CUSTOM VALIDATION] Initialize form submission handling
-    initializeFormValidation();
-    
     // 🟡🟡🟡 - [FORM SUBMISSION] Initialize AJAX form submission
     initializeAjaxFormSubmission();
     
@@ -210,36 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeSubmitButtonBehavior();
 });
 
-// 🟡🟡🟡 - [CUSTOM VALIDATION] Form submission validation handler
-function initializeFormValidation() {
-    const form = document.querySelector('form.event-details-customer-info-form');
-    
-    if (form) {
-        form.addEventListener('submit', function(event) {
-            
-            // 🟡🟡🟡 - [FORM VALIDATION] Find the first invalid field and focus on it
-            const firstInvalidField = form.querySelector(':invalid');
-            if (firstInvalidField) {
-                
-                // Focus on the first invalid field to trigger validation message display
-                firstInvalidField.focus();
-                
-                // If it's a hidden conditional field, make sure it's visible
-                const conditionalParent = firstInvalidField.closest('.conditional-field');
-                if (conditionalParent && conditionalParent.style.display === 'none') {
-                    // This shouldn't happen due to our visibility logic, but just in case
-                    event.preventDefault();
-                    return false;
-                }
-            } else {
-                console.log('✅✅✅ - [FORM VALIDATION] All fields valid, allowing form submission');
-            }
-        });
-        
-    } else {
-        console.error('❗❗❗ - [FORM VALIDATION] Could not find event details form');
-    }
-}
+
 
 // 🟡🟡🟡 - [SUBMIT BUTTON] Dynamic submit button behavior handler
 function initializeSubmitButtonBehavior() {
@@ -920,9 +888,9 @@ function displayFormErrors(errors) {
             console.warn('⚠️⚠️⚠️ - [ERROR HANDLING] Could not find field for error:', fieldName);
             
             // Show general error if field not found
-            if (fieldName === 'general') {
+            if (fieldName === 'general' || fieldName === 'database') {
                 // Display general error at top of form or in a toast
-                console.error('❌❌❌ - [ERROR HANDLING] General error:', errorMessage);
+                console.error('❌❌❌ - [ERROR HANDLING] General/Database error:', errorMessage);
                 alert('Error: ' + errorMessage); // Simple fallback - could be improved with better UI
             }
         }

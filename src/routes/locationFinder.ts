@@ -7,9 +7,9 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
   app.get('/location', (request, reply) => {
     try {
       //🟡🟡🟡 Always set wizardStarted to true to force session creation
-      request.session.wizardStarted = true;
+      (request.session as any).wizardStarted = true;
       //🟡🟡🟡 Add timestamp to ensure session data changes
-      request.session.lastVisited = new Date().toISOString();
+      (request.session as any).lastVisited = new Date().toISOString();
       //🟡🟡🟡 Touch the session to ensure it's saved
       request.session.touch();
       console.log('✅✅✅ Session data saved to Redis:', request.session.sessionId?.substring(0, 8));

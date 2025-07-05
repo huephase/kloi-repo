@@ -156,6 +156,7 @@ button.btn-active {
 
 button#event-details-submit {
     height: 12vh;
+    margin-bottom: 12vh;
 }
 
 #lf-confirm-label span {

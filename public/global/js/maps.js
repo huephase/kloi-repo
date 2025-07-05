@@ -206,15 +206,90 @@
       }
   
       function handleFormSubmit(e) {
-        // Optionally, validate before submit
+        // 🟡🟡🟡 - [LOCATION FORM] Always prevent default HTML submission
+        e.preventDefault();
+        
+        // Validate before submit
         if (!(form.latitude && form.longitude && isValidUAE && hasFullAddress)) {
-          e.preventDefault();
           setError(errorMsgId, 'Please select a valid UAE location and address.');
           return false;
         }
         setError(errorMsgId, '');
-        // Form will submit normally
-        return true;
+        
+        // 🟡🟡🟡 - [LOCATION FORM] Use AJAX submission to handle redirect properly
+        console.log('🟡🟡🟡 - [LOCATION FORM] Submitting location data via AJAX');
+        
+        // Get the form element and its action URL
+        const formEl = document.getElementById(formId);
+        const actionUrl = formEl.action;
+        
+        // Show loading state on confirm button
+        const confirmBtn = document.getElementById(confirmBtnId);
+        const confirmLabel = document.getElementById('lf-confirm-label');
+        const originalBtnText = confirmLabel.innerHTML;
+        
+        confirmBtn.disabled = true;
+        confirmLabel.innerHTML = 'Processing...';
+        
+        // Prepare form data
+        const formData = {
+          placeId: form.placeId,
+          fullAddress: form.fullAddress,
+          city: form.city,
+          country: form.country,
+          latitude: form.latitude,
+          longitude: form.longitude
+        };
+        
+        console.log('🟡🟡🟡 - [LOCATION FORM] Submitting data:', formData);
+        
+        // Make AJAX request
+        fetch(actionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+          credentials: 'same-origin' // Include session cookies
+        })
+        .then(response => {
+          console.log('🟡🟡🟡 - [LOCATION FORM] Server response status:', response.status);
+          return response.json();
+        })
+        .then(result => {
+          console.log('🟡🟡🟡 - [LOCATION FORM] Server response:', result);
+          
+          if (result.success) {
+            console.log('✅✅✅ - [LOCATION FORM] Location submission successful');
+            
+            // Show success message briefly
+            confirmLabel.innerHTML = 'Checking location, please wait...';
+            
+            // Redirect to next step after brief delay
+            setTimeout(() => {
+              console.log('✅✅✅ - [LOCATION FORM] Redirecting to:', result.nextStep);
+              window.location.href = result.nextStep;
+            }, 1000);
+            
+          } else {
+            console.log('❗❗❗ - [LOCATION FORM] Location submission failed');
+            
+            // Reset button and show error
+            confirmBtn.disabled = false;
+            confirmLabel.innerHTML = originalBtnText;
+            setError(errorMsgId, result.message || 'Failed to save location. Please try again.');
+          }
+        })
+        .catch(error => {
+          console.error('❌❌❌ - [LOCATION FORM] Network or parsing error:', error);
+          
+          // Reset button and show error
+          confirmBtn.disabled = false;
+          confirmLabel.innerHTML = originalBtnText;
+          setError(errorMsgId, 'Network error occurred. Please check your connection and try again.');
+        });
+        
+        return false;
       }
   
       // Load Google Maps and initialize

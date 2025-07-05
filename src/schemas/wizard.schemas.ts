@@ -6,8 +6,8 @@ console.log('🟡🟡🟡 - [wizard.schemas] Defining wizard step schemas');
 // 🟡🟡🟡 - [VALIDATION SCHEMA] Location data schema
 export const locationDataSchema = z.object({
   fullAddress: z.string().min(1, 'Location address is required'),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
   components: z.record(z.string()).optional(),
 });
 

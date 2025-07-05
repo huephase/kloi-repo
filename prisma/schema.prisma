@@ -13,7 +13,7 @@ model Customers {
   name      String?
   phone     String?
   createdAt DateTime @default(now()) @db.Timestamp(3)
-  orders    Order[]
+  orders    kloiOrdersTable[]
   sessions  Session[]
 }
 
@@ -24,7 +24,7 @@ model Session {
   data      Json
   createdAt DateTime @default(now()) @db.Timestamp(3)
   updatedAt DateTime @updatedAt @db.Timestamp(3)
-  orders Order[]
+  // 🟡🟡🟡 - [SESSION REF] Removed orders relation since kloiOrdersTable uses Redis session IDs
 }
 
 model Menus {
@@ -34,18 +34,44 @@ model Menus {
   menuItems  Json
 }
 
-model Order {
-  id           String      @id @default(uuid())
-  user         Customers?  @relation(fields: [userId], references: [id])
-  userId       String?
-  session      Session?    @relation(fields: [sessionId], references: [id])
-  sessionId    String?
-  eventDate    DateTime    @db.Timestamp(3)
-  location     Json
-  guestCount   Int
-  totalAmount  Int
-  status       String
-  createdAt    DateTime    @default(now()) @db.Timestamp(3)
-  updatedAt    DateTime    @updatedAt @db.Timestamp(3)
-  orderItems   Json
+// 🟡🟡🟡 - [NEW DATABASE SCHEMA] Updated to match kloiOrdersTable structure
+model kloiOrdersTable {
+  id             String        @id @default(uuid())
+  orderNumber    Int           @unique @default(autoincrement()) @db.Integer
+  
+  // Customer info (indexed for searching)
+  firstName      String        @db.VarChar(20)
+  lastName       String        @db.VarChar(20)
+  phone          String        @db.VarChar(20)
+  email          String?       @db.VarChar(100)
+  
+  // Location data (JSONB for flexibility)
+  location       Json
+  
+  // Property/delivery details (JSONB for address components)
+  eventDetails   Json
+  
+  // Event date/time (proper timestamp)
+  eventDate      DateTime?     @db.Date
+  eventTime      DateTime?     @db.Time
+  eventDatetime  DateTime?     @db.Timestamptz
+  
+  // Event setup (JSONB for wizard data)
+  eventSetup     Json?
+  
+  // Order management
+  status         String        @default("pending") @db.VarChar(20)
+  totalAmount    Decimal?      @db.Decimal(10,2)
+  
+  // Timestamps
+  createdAt      DateTime      @default(now()) @db.Timestamptz
+  updatedAt      DateTime      @updatedAt @db.Timestamptz
+  
+  // Relations
+  user           Customers?    @relation(fields: [userId], references: [id])
+  userId         String?
+  sessionId      String?       // 🟡🟡🟡 - [SESSION REF] Store session ID as string without FK constraint (Redis-based sessions)
+  
+  // Constraints
+  @@map("kloiOrdersTable")
 }
