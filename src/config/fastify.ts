@@ -3,7 +3,7 @@ import { FastifyServerOptions } from 'fastify';
 export default function fastifyConfig(): FastifyServerOptions {
   console.log('🟡🟡🟡 - [fastifyConfig] called');
   const config: FastifyServerOptions = {
-    logger: true,
+    logger: false,
     trustProxy: true,
     bodyLimit: 1048576, // 1MB
     pluginTimeout: 10000,

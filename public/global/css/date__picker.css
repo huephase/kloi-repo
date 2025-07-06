@@ -120,6 +120,7 @@
     text-transform: uppercase;
     line-height: 1;
     letter-spacing: -1px;
+    transform: rotate(-45deg);
 }
 
 .calendar-day.selected .day-status {

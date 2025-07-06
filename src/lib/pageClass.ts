@@ -17,6 +17,6 @@ export function generatePageClass(templatePath: string): string {
   // Replace directory separators and convert to kebab-case, then remove 'wizard-' prefix
   const pageClass = `${cleanPath.replace(/[\/\\]/g, '-').toLowerCase()}`.replace(/^wizard-/, '');
   
-  console.log('✅✅✅ - [PAGE CLASS] Generated page class:', pageClass);
+  // console.log('✅✅✅ - [PAGE CLASS] Generated page class:', pageClass);
   return pageClass;
 } 

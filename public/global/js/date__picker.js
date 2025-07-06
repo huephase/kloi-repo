@@ -2,7 +2,7 @@
 
 class DatePicker {
     constructor() {
-        // 👍👍👍👍👍👍 - 2024-12-28 - Initialize with null, will be set from server time
+        // 👍👍👍 Initialize with null, will be set from server time
         this.today = null;
         this.selectedDates = [];
         this.isMultiDay = false;
@@ -10,10 +10,13 @@ class DatePicker {
         this.currentYear = null;
         this.activeMonth = 0; // 0-5 for the 6 months
         
+        // 👍👍👍 Configurable number of days to mark as BOOKED from current date
+        this.defaultBookedDays = 3; // Default: mark first 3 days as BOOKED
+        
         this.monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
-        // 👍👍👍👍👍👍 - 2024-12-28 - Full month names for display purposes
+        // 👍👍👍 Full month names for display purposes
         this.fullMonthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                               'July', 'August', 'September', 'October', 'November', 'December'];
         
@@ -23,11 +26,10 @@ class DatePicker {
     async init() {
         console.log('🟡🟡🟡 - [DATE PICKER] Initializing date picker component');
         
-        // 👍👍👍👍👍👍 - 2024-12-28 - Fetch server time first for accuracy
         await this.fetchServerTime();
         
         this.generateMonthPills();
-        this.updateCurrentMonthDisplay(); // 👍👍👍👍👍👍 - 2024-12-28 - Initialize current month display
+        this.updateCurrentMonthDisplay();
         this.generateCalendar();
         this.generateTimeOptions();
         this.bindEvents();
@@ -36,9 +38,8 @@ class DatePicker {
         console.log('✅✅✅ - [DATE PICKER] Date picker initialized successfully');
     }
     
-    // 👍👍👍👍👍👍 - 2024-12-28 - Fetch server time to avoid dependency on user device time
     async fetchServerTime() {
-        console.log('🟡🟡🟡 - [DATE PICKER] Fetching server time for accuracy');
+        // console.log('🟡🟡🟡 - [DATE PICKER] Fetching server time for accuracy');
         
         try {
             const response = await fetch('/api/server-time');
@@ -50,7 +51,6 @@ class DatePicker {
             const data = await response.json();
             
             if (data.success && data.serverTime) {
-                // 👍👍👍👍👍👍 - 2024-12-28 - Use server time as the base time
                 this.today = new Date(data.serverTime);
                 this.currentMonth = this.today.getMonth();
                 this.currentYear = this.today.getFullYear();
@@ -66,25 +66,22 @@ class DatePicker {
             console.error('❗❗❗ - [DATE PICKER] Failed to fetch server time:', error);
             console.log('🟤🟤🟤 - [DATE PICKER] Falling back to device time (not recommended)');
             
-            // 🟤🟤🟤 - 2024-12-28 - Fallback to device time if server time fails
             this.today = new Date();
             this.currentMonth = this.today.getMonth();
             this.currentYear = this.today.getFullYear();
             
-            console.log('⚠️⚠️⚠️ - [DATE PICKER] Using device time as fallback:', this.today.toISOString());
+            // console.log('⚠️⚠️⚠️ - [DATE PICKER] Using device time as fallback:', this.today.toISOString());
             
-            // 🟡🟡🟡 - 2024-12-28 - Show user warning about potential time accuracy issues
             const warningMessage = 'Unable to sync with server time. Booking times may not be accurate.';
-            console.warn('⚠️⚠️⚠️ - [DATE PICKER]', warningMessage);
+            // console.warn('⚠️⚠️⚠️ - [DATE PICKER]', warningMessage);
             
             // Optional: Show visual warning to user
             this.showTimeWarning(warningMessage);
         }
     }
     
-    // 👍👍👍👍👍👍 - 2024-12-28 - Show time accuracy warning to user
     showTimeWarning(message) {
-        console.log('🟡🟡🟡 - [DATE PICKER] Showing time warning to user:', message);
+        // console.log('🟡🟡🟡 - [DATE PICKER] Showing time warning to user:', message);
         
         const warningContainer = document.createElement('div');
         warningContainer.className = 'time-warning';
@@ -109,7 +106,7 @@ class DatePicker {
         if (container) {
             container.insertBefore(warningContainer, container.firstChild);
             
-            // 🟡🟡🟡 - 2024-12-28 - Auto-hide warning after 8 seconds
+            // 🟡🟡🟡 Auto-hide warning after 8 seconds
             setTimeout(() => {
                 if (warningContainer.parentNode) {
                     warningContainer.style.transition = 'opacity 0.5s ease-out';
@@ -154,7 +151,7 @@ class DatePicker {
             pill.classList.toggle('active', index === monthIndex);
         });
         
-        this.updateCurrentMonthDisplay(); // 👍👍👍👍👍👍 - 2024-12-28 - Update current month display when month changes
+        this.updateCurrentMonthDisplay(); // 👍👍👍👍👍👍 Update current month display when month changes
         this.generateCalendar();
         console.log('✅✅✅ - [DATE PICKER] Active month updated successfully');
     }
@@ -190,7 +187,7 @@ class DatePicker {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const daysInMonth = lastDay.getDate();
-        // 👍👍👍👍👍👍 - 2024-12-28 - Convert Sunday-first (0-6) to Monday-first (0-6) layout
+        // 👍👍👍👍👍👍 Convert Sunday-first (0-6) to Monday-first (0-6) layout
         // Sunday becomes 6, Monday becomes 0, Tuesday becomes 1, etc.
         const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
         
@@ -238,11 +235,12 @@ class DatePicker {
             const statusText = document.createElement('div');
             statusText.className = 'day-status';
             
-            // Mark first 3 days from current date as BOOKED
+            // 👍👍👍👍👍👍 - 2024-12-28 - Mark configurable number of days from current date as BOOKED
             const dayDiff = Math.ceil((dayDate - this.today) / (1000 * 60 * 60 * 24));
-            if (dayDiff >= 0 && dayDiff <= 2) {
+            if (dayDiff >= 0 && dayDiff <= this.defaultBookedDays - 1) {
                 statusText.textContent = 'BOOKED';
                 dayCell.classList.add('booked');
+                console.log(`🟡🟡🟡 - [DATE PICKER] Day ${dayDiff + 1} marked as BOOKED: ${dayCell.dataset.date}`);
             }
             
             dayCell.appendChild(statusText);
@@ -463,10 +461,10 @@ class DatePicker {
 
 // Initialize the date picker when the DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🟡🟡🟡 - [DATE PICKER] DOM loaded, initializing date picker...');
+    // console.log('🟡🟡🟡 - [DATE PICKER] DOM loaded, initializing date picker...');
     try {
         const datePicker = new DatePicker();
-        console.log('✅✅✅ - [DATE PICKER] Date picker instance created successfully');
+        // console.log('✅✅✅ - [DATE PICKER] Date picker instance created successfully');
     } catch (error) {
         console.error('❗❗❗ - [DATE PICKER] Failed to initialize date picker:', error);
         
