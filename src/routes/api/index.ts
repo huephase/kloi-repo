@@ -57,6 +57,38 @@ function validateStepData(step: string, data: any) {
 
 export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   
+  // 👍👍👍👍👍👍 - 2024-12-28 - SERVER TIME API ENDPOINT
+  // This endpoint provides reliable server time to avoid dependency on user device time
+  app.get('/server-time', async (_request, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [API ROUTE] GET /api/server-time - Providing server time');
+    
+    try {
+      const serverTime = new Date();
+      const serverTimeISO = serverTime.toISOString();
+      const serverTimeLocal = serverTime.toLocaleString();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      console.log('✅✅✅ - [API ROUTE] Server time provided:', serverTimeISO);
+      
+      return reply.send({
+        success: true,
+        serverTime: serverTimeISO,
+        serverTimeLocal: serverTimeLocal,
+        timezone: timezone,
+        timestamp: serverTime.getTime(), // Unix timestamp
+        message: 'Server time retrieved successfully'
+      });
+      
+    } catch (error) {
+      console.error('❗❗❗ - [API ROUTE] Error getting server time:', error);
+      return reply.status(500).send({
+        success: false,
+        message: 'Failed to get server time',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // 🔍🔍🔍 DATABASE CONNECTION TEST ROUTE
   // 🟤🟤🟤 src/routes/api/index.ts:23:30 - error TS6133: 'request' is declared but its value is never read.
   app.get('/db-test', async (_request, reply: FastifyReply) => {

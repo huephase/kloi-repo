@@ -3,7 +3,7 @@ import { getRedisClient } from './redis';
 
 // Create Redis store for use with @fastify/session
 export function createRedisStore(ttl = 86400): SessionStore {
-  console.log('⚪⚪⚪ - [createRedisStore] Initializing Redis session store with TTL:', ttl);
+  // console.log('⚪⚪⚪ - [createRedisStore] Initializing Redis session store with TTL:', ttl);
   
   try {
     // Get Redis client using existing utility function
@@ -17,11 +17,11 @@ export function createRedisStore(ttl = 86400): SessionStore {
         const data = JSON.stringify(sessionData);
         client.setex(key, ttl, data)
           .then(() => {
-            console.log(`🟢🟢🟢 - [RedisStore] Saved session: ${sessionId}`);
+            // console.log(`🟢🟢🟢 - [RedisStore] Saved session: ${sessionId}`);
             callback();
           })
           .catch(err => {
-            console.error(`🔴🔴🔴 - [RedisStore] Error saving session:`, err);
+            // console.error(`🔴🔴🔴 - [RedisStore] Error saving session:`, err);
             callback(err);
           });
       },
@@ -49,10 +49,10 @@ export function createRedisStore(ttl = 86400): SessionStore {
       }
     };
 
-    console.log('✅✅✅ - [createRedisStore] Redis session store created successfully');
+    // console.log('✅✅✅ - [createRedisStore] Redis session store created successfully');
     return store;
   } catch (err) {
-    console.error('❌❌❌ - [createRedisStore] Failed to create Redis session store:', err);
+    // console.error('❌❌❌ - [createRedisStore] Failed to create Redis session store:', err);
     throw err;
   }
 }

@@ -292,6 +292,25 @@
         return false;
       }
   
+      // 🟡🟡🟡 - [LOCATION FINDER] Reset form state when user navigates back to this page
+      function resetToDefaultState() {
+        //console.log('🟡🟡🟡 - [LOCATION FINDER] Resetting location finder to default state');
+         
+        // Clear any error messages
+        setError(errorMsgId, '');
+        // Sync display to show default state
+        syncDisplay();
+      }
+      
+      // 🟡🟡🟡 - [LOCATION FINDER] Listen for page show events to detect back navigation
+      window.addEventListener('pageshow', function(event) {
+        // ⚠️⚠️⚠️ - [LOCATION FINDER] Check if page is being restored from cache (back navigation)
+        if (event.persisted) {
+          console.log('🟡🟡🟡 - [LOCATION FINDER] Page restored from cache - resetting state');
+          setTimeout(resetToDefaultState, 100); // Small delay to ensure DOM is ready
+        }
+      });
+
       // Load Google Maps and initialize
       loadGoogleMaps(apiKey).then(() => {
         geocoder = new window.google.maps.Geocoder();

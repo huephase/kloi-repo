@@ -1,7 +1,7 @@
 // Zod schemas for wizard steps
 import { z } from 'zod';
 
-console.log('🟡🟡🟡 - [wizard.schemas] Defining wizard step schemas');
+// console.log('🟡🟡🟡 - [wizard.schemas] Defining wizard step schemas');
 
 // 🟡🟡🟡 - [VALIDATION SCHEMA] Location data schema
 export const locationDataSchema = z.object({
@@ -132,25 +132,25 @@ export const customerInfoSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(7).max(20),
 });
-console.log('🟡🟡🟡 - [wizard.schemas] customerInfoSchema created');
+// console.log('🟡🟡🟡 - [wizard.schemas] customerInfoSchema created');
 
 export const eventSetupSchema = z.object({
   eventType: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
   location: z.string().min(1),
 });
-console.log('🟡🟡🟡 - [wizard.schemas] eventSetupSchema created');
+// console.log('🟡🟡🟡 - [wizard.schemas] eventSetupSchema created');
 
 export const menuSelectionSchema = z.object({
   menuItems: z.array(z.string().min(1)),
 });
-console.log('🟡🟡🟡 - [wizard.schemas] menuSelectionSchema created');
+// console.log('🟡🟡🟡 - [wizard.schemas] menuSelectionSchema created');
 
 export const guestCountsSchema = z.object({
   adults: z.number().int().min(0),
   children: z.number().int().min(0),
 });
-console.log('🟡🟡🟡 - [wizard.schemas] guestCountsSchema created');
+// console.log('🟡🟡🟡 - [wizard.schemas] guestCountsSchema created');
 
 export const eventSummarySchema = z.object({
   customerInfo: customerInfoSchema,
@@ -159,6 +159,6 @@ export const eventSummarySchema = z.object({
   guestCounts: guestCountsSchema,
   totalPrice: z.number().min(0),
 });
-console.log('🟡🟡🟡 - [wizard.schemas] eventSummarySchema created');
+// console.log('🟡🟡🟡 - [wizard.schemas] eventSummarySchema created');
 
 console.log('✅✅✅ - [wizard.schemas] All validation schemas created successfully');

@@ -12,6 +12,6 @@ export default function fastifyConfig(): FastifyServerOptions {
     // See example usage below.
 
   };
-  console.log('🟡🟡🟡 - [fastifyConfig] return:', config);
+  // console.log('🟡🟡🟡 - [fastifyConfig] return:', config);
   return config;
 }

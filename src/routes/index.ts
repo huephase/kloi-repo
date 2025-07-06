@@ -6,6 +6,7 @@ import locationFinderRoutes from './locationFinder';
 // ⚠️⚠️⚠️ IMPORTANT NOTE: THE NEW URL FOR ./customerInfo IS /event-details NOW
 import customerInfoRoutes from './customerInfo';
 import datePickerRoutes from './datePicker';
+// healthCheckRoutes removed - now registered directly in app.ts to avoid session validation hooks
 import apiRoutes from './api';
 // 🟡🟡🟡 Import session validation hooks
 import { validateWizardSession } from '../hooks/sessionHooks';
@@ -20,6 +21,8 @@ export default async function routes(_app: FastifyInstance, _opts: FastifyPlugin
   // Register routes - landingPage and locationFinder are NOT protected (entry points)
   await _app.register(landingPage);
   await _app.register(locationFinderRoutes);
+  
+  // 👍👍👍👍👍👍 - 2024-12-28 - Health check dashboard now registered directly in app.ts to avoid session validation hooks
   
   // 🟡🟡🟡 Protected wizard routes (session validation applied via preHandler hook above)
   console.log('🟡🟡🟡 - [routes/index] Registering protected wizard routes');
@@ -36,5 +39,6 @@ export default async function routes(_app: FastifyInstance, _opts: FastifyPlugin
   // await _app.register(checkoutRoutes);
   
   console.log('✅✅✅ - [routes/index] All route modules registered with session protection');
+  console.log('✅✅✅ - [routes/index] Health check dashboard available at /kloiserverhealthcheck');
 }
 

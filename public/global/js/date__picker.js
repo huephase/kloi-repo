@@ -2,26 +2,124 @@
 
 class DatePicker {
     constructor() {
-        this.today = new Date();
+        // 👍👍👍👍👍👍 - 2024-12-28 - Initialize with null, will be set from server time
+        this.today = null;
         this.selectedDates = [];
         this.isMultiDay = false;
-        this.currentMonth = this.today.getMonth();
-        this.currentYear = this.today.getFullYear();
+        this.currentMonth = null;
+        this.currentYear = null;
         this.activeMonth = 0; // 0-5 for the 6 months
         
         this.monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
+        // 👍👍👍👍👍👍 - 2024-12-28 - Full month names for display purposes
+        this.fullMonthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                              'July', 'August', 'September', 'October', 'November', 'December'];
+        
         this.init();
     }
     
-    init() {
+    async init() {
+        console.log('🟡🟡🟡 - [DATE PICKER] Initializing date picker component');
+        
+        // 👍👍👍👍👍👍 - 2024-12-28 - Fetch server time first for accuracy
+        await this.fetchServerTime();
+        
         this.generateMonthPills();
+        this.updateCurrentMonthDisplay(); // 👍👍👍👍👍👍 - 2024-12-28 - Initialize current month display
         this.generateCalendar();
         this.generateTimeOptions();
         this.bindEvents();
         this.updateSelectedDatesDisplay();
         this.updateBookingSummary();
+        console.log('✅✅✅ - [DATE PICKER] Date picker initialized successfully');
+    }
+    
+    // 👍👍👍👍👍👍 - 2024-12-28 - Fetch server time to avoid dependency on user device time
+    async fetchServerTime() {
+        console.log('🟡🟡🟡 - [DATE PICKER] Fetching server time for accuracy');
+        
+        try {
+            const response = await fetch('/api/server-time');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.serverTime) {
+                // 👍👍👍👍👍👍 - 2024-12-28 - Use server time as the base time
+                this.today = new Date(data.serverTime);
+                this.currentMonth = this.today.getMonth();
+                this.currentYear = this.today.getFullYear();
+                
+                console.log('✅✅✅ - [DATE PICKER] Server time fetched successfully:', this.today.toISOString());
+                console.log('✅✅✅ - [DATE PICKER] Server timezone:', data.timezone);
+                console.log('✅✅✅ - [DATE PICKER] Current month/year set to:', this.currentMonth, this.currentYear);
+            } else {
+                throw new Error('Invalid server time response');
+            }
+            
+        } catch (error) {
+            console.error('❗❗❗ - [DATE PICKER] Failed to fetch server time:', error);
+            console.log('🟤🟤🟤 - [DATE PICKER] Falling back to device time (not recommended)');
+            
+            // 🟤🟤🟤 - 2024-12-28 - Fallback to device time if server time fails
+            this.today = new Date();
+            this.currentMonth = this.today.getMonth();
+            this.currentYear = this.today.getFullYear();
+            
+            console.log('⚠️⚠️⚠️ - [DATE PICKER] Using device time as fallback:', this.today.toISOString());
+            
+            // 🟡🟡🟡 - 2024-12-28 - Show user warning about potential time accuracy issues
+            const warningMessage = 'Unable to sync with server time. Booking times may not be accurate.';
+            console.warn('⚠️⚠️⚠️ - [DATE PICKER]', warningMessage);
+            
+            // Optional: Show visual warning to user
+            this.showTimeWarning(warningMessage);
+        }
+    }
+    
+    // 👍👍👍👍👍👍 - 2024-12-28 - Show time accuracy warning to user
+    showTimeWarning(message) {
+        console.log('🟡🟡🟡 - [DATE PICKER] Showing time warning to user:', message);
+        
+        const warningContainer = document.createElement('div');
+        warningContainer.className = 'time-warning';
+        warningContainer.style.cssText = `
+            background: #fff3cd; 
+            color: #856404; 
+            padding: 10px 15px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            border: 1px solid #ffeaa7;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `;
+        warningContainer.innerHTML = `
+            <span style="font-size: 18px;">⚠️</span>
+            <span>${message}</span>
+        `;
+        
+        const container = document.querySelector('.date-picker-container');
+        if (container) {
+            container.insertBefore(warningContainer, container.firstChild);
+            
+            // 🟡🟡🟡 - 2024-12-28 - Auto-hide warning after 8 seconds
+            setTimeout(() => {
+                if (warningContainer.parentNode) {
+                    warningContainer.style.transition = 'opacity 0.5s ease-out';
+                    warningContainer.style.opacity = '0';
+                    setTimeout(() => {
+                        warningContainer.remove();
+                    }, 500);
+                }
+            }, 8000);
+        }
     }
     
     generateMonthPills() {
@@ -48,6 +146,7 @@ class DatePicker {
     }
     
     setActiveMonth(monthIndex) {
+        console.log('🟡🟡🟡 - [DATE PICKER] Setting active month to index:', monthIndex);
         this.activeMonth = monthIndex;
         
         // Update pill styles
@@ -55,7 +154,28 @@ class DatePicker {
             pill.classList.toggle('active', index === monthIndex);
         });
         
+        this.updateCurrentMonthDisplay(); // 👍👍👍👍👍👍 - 2024-12-28 - Update current month display when month changes
         this.generateCalendar();
+        console.log('✅✅✅ - [DATE PICKER] Active month updated successfully');
+    }
+    
+    // 👍👍👍👍👍👍 - 2024-12-28 - Updates the current month display with full month name and year
+    updateCurrentMonthDisplay() {
+        const currentMonthElement = document.getElementById('current-month');
+        if (!currentMonthElement) {
+            console.error('❗❗❗ - [DATE PICKER] Current month element not found');
+            return;
+        }
+        
+        // Calculate the month and year based on active month
+        const displayDate = new Date(this.today.getFullYear(), this.today.getMonth() + this.activeMonth);
+        const fullMonthName = this.fullMonthNames[displayDate.getMonth()];
+        const year = displayDate.getFullYear();
+        
+        const displayText = `${fullMonthName} ${year}`;
+        currentMonthElement.textContent = displayText;
+        
+        console.log('✅✅✅ - [DATE PICKER] Current month display updated to:', displayText);
     }
     
     generateCalendar() {
@@ -70,7 +190,12 @@ class DatePicker {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const daysInMonth = lastDay.getDate();
-        const startingDayOfWeek = firstDay.getDay();
+        // 👍👍👍👍👍👍 - 2024-12-28 - Convert Sunday-first (0-6) to Monday-first (0-6) layout
+        // Sunday becomes 6, Monday becomes 0, Tuesday becomes 1, etc.
+        const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
+        
+        console.log('🟡🟡🟡 - [DATE PICKER] Generating calendar for:', year, month + 1);
+        console.log('🟡🟡🟡 - [DATE PICKER] First day of month:', firstDay.getDay(), 'adjusted to:', startingDayOfWeek);
         
         // Add empty cells for days before the first day of month
         for (let i = 0; i < startingDayOfWeek; i++) {
@@ -337,6 +462,26 @@ class DatePicker {
 }
 
 // Initialize the date picker when the DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    new DatePicker();
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🟡🟡🟡 - [DATE PICKER] DOM loaded, initializing date picker...');
+    try {
+        const datePicker = new DatePicker();
+        console.log('✅✅✅ - [DATE PICKER] Date picker instance created successfully');
+    } catch (error) {
+        console.error('❗❗❗ - [DATE PICKER] Failed to initialize date picker:', error);
+        
+        // 🟤🟤🟤 - 2024-12-28 - Show user-friendly error message
+        const errorContainer = document.createElement('div');
+        errorContainer.className = 'date-picker-error';
+        errorContainer.style.cssText = 'background: #ffebee; color: #c62828; padding: 15px; margin: 10px; border-radius: 4px; border: 1px solid #ef5350;';
+        errorContainer.innerHTML = `
+            <strong>⚠️ Date Picker Error:</strong> Unable to initialize the booking calendar. 
+            Please refresh the page or contact support if the issue persists.
+        `;
+        
+        const container = document.querySelector('.date-picker-container');
+        if (container) {
+            container.insertBefore(errorContainer, container.firstChild);
+        }
+    }
 });
