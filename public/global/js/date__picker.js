@@ -8,7 +8,7 @@ class DatePicker {
         this.isMultiDay = false;
         this.currentMonth = null;
         this.currentYear = null;
-        this.activeMonth = 0; // 0-5 for the 6 months
+        this.activeMonth = 0; // 0-6 for the 7 months (current month + 6 months ahead)
         
         // 👍👍👍 Configurable number of days to mark as BOOKED from current date
         this.defaultBookedDays = 3; // Default: mark first 3 days as BOOKED
@@ -23,10 +23,53 @@ class DatePicker {
         this.init();
     }
     
+    // 👍👍👍��👍👍 - 2024-12-28 - Test method to verify 6-month rolling window logic
+    testSixMonthWindow() {
+        // console.log('🟡🟡🟡 - [DATE PICKER] Testing 6-month rolling window logic...');
+        
+        const todayStart = new Date(this.today);
+        todayStart.setHours(0, 0, 0, 0);
+        
+        const sixMonthsFromToday = new Date(this.today);
+        sixMonthsFromToday.setMonth(sixMonthsFromToday.getMonth() + 6);
+        sixMonthsFromToday.setHours(23, 59, 59, 999);
+        
+        // console.log('✅✅✅ - [DATE PICKER] Today (start of window):', todayStart.toLocaleDateString());
+        // console.log('✅✅✅ - [DATE PICKER] 6 months from today (end of window):', sixMonthsFromToday.toLocaleDateString());
+        
+        // Test case: July 7, 2025 -> January 7, 2026
+        const testToday = new Date('2025-07-07');
+        const testSixMonths = new Date(testToday);
+        testSixMonths.setMonth(testSixMonths.getMonth() + 6);
+        
+        // console.log('✅✅✅ - [DATE PICKER] Test case - July 7, 2025:', testToday.toLocaleDateString());
+        // console.log('✅✅✅ - [DATE PICKER] Test case - 6 months later:', testSixMonths.toLocaleDateString());
+        
+        // Test boundary dates
+        const testDates = [
+            '2025-07-06', // Should be past (before window)
+            '2025-07-07', // Should be selectable (start of window)
+            '2026-01-07', // Should be selectable (end of window)
+            '2026-01-08', // Should be past (after window)
+            '2025-12-31'  // Should be selectable (within window)
+        ];
+        
+        testDates.forEach(dateStr => {
+            const testDate = new Date(dateStr);
+            const isPast = testDate < testToday || testDate > testSixMonths;
+            // console.log(`🟡🟡🟡 - [DATE PICKER] Test date ${dateStr}: ${isPast ? 'PAST (non-selectable)' : 'SELECTABLE'}`);
+        });
+        
+        // console.log('✅✅✅ - [DATE PICKER] 6-month window test completed');
+    }
+
     async init() {
-        console.log('🟡🟡🟡 - [DATE PICKER] Initializing date picker component');
+        // console.log('🟡🟡🟡 - [DATE PICKER] Initializing date picker component');
         
         await this.fetchServerTime();
+        
+        // 👍👍👍👍👍👍 - 2024-12-28 - Test the 6-month window logic
+        this.testSixMonthWindow();
         
         this.generateMonthPills();
         this.updateCurrentMonthDisplay();
@@ -55,16 +98,16 @@ class DatePicker {
                 this.currentMonth = this.today.getMonth();
                 this.currentYear = this.today.getFullYear();
                 
-                console.log('✅✅✅ - [DATE PICKER] Server time fetched successfully:', this.today.toISOString());
-                console.log('✅✅✅ - [DATE PICKER] Server timezone:', data.timezone);
-                console.log('✅✅✅ - [DATE PICKER] Current month/year set to:', this.currentMonth, this.currentYear);
+                // console.log('✅✅✅ - [DATE PICKER] Server time fetched successfully:', this.today.toISOString());
+                // console.log('✅✅✅ - [DATE PICKER] Server timezone:', data.timezone);
+                // console.log('✅✅✅ - [DATE PICKER] Current month/year set to:', this.currentMonth, this.currentYear);
             } else {
                 throw new Error('Invalid server time response');
             }
             
         } catch (error) {
-            console.error('❗❗❗ - [DATE PICKER] Failed to fetch server time:', error);
-            console.log('🟤🟤🟤 - [DATE PICKER] Falling back to device time (not recommended)');
+            // console.error('❗❗❗ - [DATE PICKER] Failed to fetch server time:', error);
+            // console.log('🟤🟤🟤 - [DATE PICKER] Falling back to device time (not recommended)');
             
             this.today = new Date();
             this.currentMonth = this.today.getMonth();
@@ -120,10 +163,12 @@ class DatePicker {
     }
     
     generateMonthPills() {
+        // console.log('🟡🟡🟡 - [DATE PICKER] Generating month pills for 6-month rolling window');
         const monthPillsContainer = document.querySelector('.month-pills');
         monthPillsContainer.innerHTML = '';
         
-        for (let i = 0; i < 6; i++) {
+        // 👍👍👍👍👍👍 - 2024-12-28 - Generate 7 pills to cover 6-month window (current month + 6 months ahead)
+        for (let i = 0; i < 7; i++) {
             const monthDate = new Date(this.today.getFullYear(), this.today.getMonth() + i);
             const monthName = this.monthNames[monthDate.getMonth()];
             const year = monthDate.getFullYear();
@@ -139,11 +184,15 @@ class DatePicker {
             });
             
             monthPillsContainer.appendChild(pill);
+            
+            // console.log(`🟡🟡🟡 - [DATE PICKER] Month pill ${i} created: ${monthName}${yearSuffix}`);
         }
+        
+        // console.log('✅✅✅ - [DATE PICKER] Generated 7 month pills for 6-month rolling window');
     }
     
     setActiveMonth(monthIndex) {
-        console.log('🟡🟡🟡 - [DATE PICKER] Setting active month to index:', monthIndex);
+        // console.log('🟡🟡🟡 - [DATE PICKER] Setting active month to index:', monthIndex);
         this.activeMonth = monthIndex;
         
         // Update pill styles
@@ -153,14 +202,14 @@ class DatePicker {
         
         this.updateCurrentMonthDisplay(); // 👍👍👍👍👍👍 Update current month display when month changes
         this.generateCalendar();
-        console.log('✅✅✅ - [DATE PICKER] Active month updated successfully');
+        // console.log('✅✅✅ - [DATE PICKER] Active month updated successfully');
     }
     
     // 👍👍👍👍👍👍 - 2024-12-28 - Updates the current month display with full month name and year
     updateCurrentMonthDisplay() {
         const currentMonthElement = document.getElementById('current-month');
         if (!currentMonthElement) {
-            console.error('❗❗❗ - [DATE PICKER] Current month element not found');
+            // console.error('❗❗❗ - [DATE PICKER] Current month element not found');
             return;
         }
         
@@ -172,7 +221,7 @@ class DatePicker {
         const displayText = `${fullMonthName} ${year}`;
         currentMonthElement.textContent = displayText;
         
-        console.log('✅✅✅ - [DATE PICKER] Current month display updated to:', displayText);
+        // console.log('✅✅✅ - [DATE PICKER] Current month display updated to:', displayText);
     }
     
     generateCalendar() {
@@ -191,8 +240,18 @@ class DatePicker {
         // Sunday becomes 6, Monday becomes 0, Tuesday becomes 1, etc.
         const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
         
-        console.log('🟡🟡🟡 - [DATE PICKER] Generating calendar for:', year, month + 1);
-        console.log('🟡🟡🟡 - [DATE PICKER] First day of month:', firstDay.getDay(), 'adjusted to:', startingDayOfWeek);
+        // console.log('🟡🟡🟡 - [DATE PICKER] Generating calendar for:', year, month + 1);
+        // console.log('🟡🟡🟡 - [DATE PICKER] First day of month:', firstDay.getDay(), 'adjusted to:', startingDayOfWeek);
+        
+        // 👍👍👍👍👍👍 - 2024-12-28 - Calculate 6-month window boundaries properly
+        const todayStart = new Date(this.today);
+        todayStart.setHours(0, 0, 0, 0);
+        
+        const sixMonthsFromToday = new Date(this.today);
+        sixMonthsFromToday.setMonth(sixMonthsFromToday.getMonth() + 6);
+        sixMonthsFromToday.setHours(23, 59, 59, 999); // End of day for 6 months from today
+        
+        // console.log('🟡🟡🟡 - [DATE PICKER] 6-month window: from', todayStart.toISOString(), 'to', sixMonthsFromToday.toISOString());
         
         // Add empty cells for days before the first day of month
         for (let i = 0; i < startingDayOfWeek; i++) {
@@ -208,16 +267,16 @@ class DatePicker {
             dayCell.className = 'calendar-day';
             dayCell.dataset.date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             
-            // Check if day is in the past
-            if (dayDate < this.today.setHours(0, 0, 0, 0)) {
+            // 👍👍👍👍👍👍 - 2024-12-28 - Check if day is before today (past dates)
+            if (dayDate < todayStart) {
                 dayCell.classList.add('past');
+                // console.log('🟡🟡🟡 - [DATE PICKER] Day marked as past (before today):', dayCell.dataset.date);
             }
             
-            // Check if day is beyond 6 months
-            const sixMonthsFromNow = new Date(this.today);
-            sixMonthsFromNow.setMonth(this.today.getMonth() + 6);
-            if (dayDate > sixMonthsFromNow) {
-                dayCell.classList.add('future');
+            // 👍👍👍👍👍👍 - 2024-12-28 - Check if day is beyond 6 months from today
+            if (dayDate > sixMonthsFromToday) {
+                dayCell.classList.add('past');
+                // console.log('🟡🟡🟡 - [DATE PICKER] Day marked as past (beyond 6 months):', dayCell.dataset.date);
             }
             
             // Check if day is selected
@@ -236,11 +295,11 @@ class DatePicker {
             statusText.className = 'day-status';
             
             // 👍👍👍👍👍👍 - 2024-12-28 - Mark configurable number of days from current date as BOOKED
-            const dayDiff = Math.ceil((dayDate - this.today) / (1000 * 60 * 60 * 24));
+            const dayDiff = Math.ceil((dayDate - todayStart) / (1000 * 60 * 60 * 24));
             if (dayDiff >= 0 && dayDiff <= this.defaultBookedDays - 1) {
                 statusText.textContent = 'BOOKED';
                 dayCell.classList.add('booked');
-                console.log(`🟡🟡🟡 - [DATE PICKER] Day ${dayDiff + 1} marked as BOOKED: ${dayCell.dataset.date}`);
+                // console.log(`🟡🟡🟡 - [DATE PICKER] Day ${dayDiff + 1} marked as BOOKED: ${dayCell.dataset.date}`);
             }
             
             dayCell.appendChild(statusText);
@@ -255,10 +314,10 @@ class DatePicker {
     }
     
     selectDate(dateStr, dayCell) {
-        // Don't allow selection of past dates, future dates, or booked dates
+        // 👍👍👍👍👍👍 - 2024-12-28 - Don't allow selection of past dates or booked dates
         if (dayCell.classList.contains('past') || 
-            dayCell.classList.contains('future') || 
             dayCell.classList.contains('booked')) {
+            // console.log('🟡🟡🟡 - [DATE PICKER] Date selection blocked for:', dateStr, 'Reason: past or booked');
             return;
         }
         
@@ -268,11 +327,13 @@ class DatePicker {
                 // Remove date
                 this.selectedDates = this.selectedDates.filter(d => d !== dateStr);
                 dayCell.classList.remove('selected');
+                // console.log('🟡🟡🟡 - [DATE PICKER] Date removed from multi-day selection:', dateStr);
             } else {
                 // Add date
                 this.selectedDates.push(dateStr);
                 this.selectedDates.sort();
                 dayCell.classList.add('selected');
+                // console.log('🟡🟡🟡 - [DATE PICKER] Date added to multi-day selection:', dateStr);
             }
         } else {
             // Single day selection
@@ -283,6 +344,7 @@ class DatePicker {
             
             this.selectedDates = [dateStr];
             dayCell.classList.add('selected');
+            // console.log('🟡🟡🟡 - [DATE PICKER] Single date selected:', dateStr);
         }
         
         this.updateSelectedDatesDisplay();
@@ -400,7 +462,8 @@ class DatePicker {
         const formattedDates = this.selectedDates.map(dateStr => {
             const date = new Date(dateStr);
             return date.toLocaleDateString('en-US', { 
-                month: 'short', 
+                weekday: 'long',
+                month: 'long', 
                 day: 'numeric',
                 year: 'numeric'
             });
@@ -409,7 +472,8 @@ class DatePicker {
         if (this.selectedDates.length === 1) {
             display.textContent = formattedDates[0];
         } else {
-            display.textContent = `${formattedDates.join(', ')} (${this.selectedDates.length} days)`;
+            const wrappedDates = formattedDates.map(date => `<span class="multiday-date">${date}</span>`);
+            display.innerHTML = `${wrappedDates.join('')} <span class="total-days-count">(${this.selectedDates.length} days)</span>`;
         }
     }
     
@@ -451,7 +515,7 @@ class DatePicker {
             isMultiDay: this.isMultiDay
         };
         
-        console.log('Booking Data:', bookingData);
+        // console.log('Booking Data:', bookingData);
         
         // Here you would normally send the data to your server
         // For now, we'll just show a confirmation

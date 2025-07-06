@@ -131,25 +131,38 @@
 .multi-day-section {
     margin-bottom: 25px;
     text-align: center;
+    border: 1px solid var(--kloi-text);
+    border-radius: 12px;
+    padding: 1vh;
+}
+
+.multi-day-section p {
+    margin-bottom: 1vh;
 }
 
 .multi-day-toggle {
     display: inline-flex;
-    align-items: center;
-    gap: 10px;
+    gap: 5px;
     cursor: pointer;
     font-size: 1rem;
+    align-items: center;
+    justify-content: center;
 }
 
 .multi-day-toggle input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: #007bff;
+    width: 25px;
+    height: 25px;
+    accent-color: var(--kloi-accent);
     cursor: pointer;
+    padding: 0;
+    margin: 0;
 }
 
 .toggle-text {
-    font-weight: 500;
+    font-weight: 800;
+    line-height: 0;
+    margin: 0;
+    padding: 0;
 }
 
 /* Selected Dates Display */
@@ -159,21 +172,25 @@
 }
 
 .date-display {
-    background: #f8f9fa;
+    background: var(--kloi-text);
     padding: 15px 20px;
     border-radius: 8px;
     border: 1px solid #e9ecef;
 }
 
 .date-label {
-    font-weight: 600;
-    color: #495057;
-    margin-right: 10px;
+    font-weight: 400;
+    color: var(--kloi-background);
 }
 
 .date-value {
-    color: #007bff;
-    font-weight: 500;
+    color: var(--kloi-background);
+    font-size: 1.5rem;
+    font-weight: 800;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Time Selection */
@@ -187,33 +204,31 @@
 .time-group {
     display: flex;
     flex-direction: column;
+    justify-items: center;
+    align-items: center;
 }
 
 .time-group label {
-    font-weight: 600;
-    color: #495057;
+    font-weight: 800;
     margin-bottom: 8px;
-    font-size: 0.95rem;
 }
 
 .time-group select {
-    padding: 12px 16px;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--kloi-text);
     border-radius: 8px;
-    font-size: 1rem;
-    background: white;
+    font-size: 1.5rem;
+    background: transparent;
     cursor: pointer;
-    transition: all 0.3s ease;
+    width: 100%;
+    text-align: center;
 }
 
 .time-group select:focus {
     outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
 .time-group select:hover {
-    border-color: #adb5bd;
+    border-color: var(--kloi-accent);
 }
 
 /* Submit Section */

@@ -7,7 +7,7 @@ export default async function datePicker(app: FastifyInstance, _opts: FastifyPlu
   app.get('/date-picker', (request: FastifyRequest, reply: FastifyReply) => {
     // 🟡🟡🟡 - [DATE PICKER] Session validation is handled by validateWizardSession preHandler hook
     const theme = (request as any).theme || 'default';
-    console.log('🟡🟡🟡 - [DATE PICKER] Rendering date picker page with theme:', theme);
+    // console.log('🟡🟡🟡 - [DATE PICKER] Rendering date picker page with theme:', theme);
 
     // At this point, we know the session is valid (handled by the hook)
     const sessionInfo = request.session ? {
@@ -22,19 +22,19 @@ export default async function datePicker(app: FastifyInstance, _opts: FastifyPlu
     const locationData = request.session?.locationData as any;
     const location = locationData?.fullAddress || null;
     
-    console.log('🟡🟡🟡 - [DATE PICKER] Location data from session:', location);
+    // console.log('🟡🟡🟡 - [DATE PICKER] Location data from session:', location);
 
     // 🟡🟡🟡 - [FORM DATA] Get existing event details from session if available
     const existingEventDetails = (request.session as any)?.eventDetails;
     const customerInfo = existingEventDetails || {};
     
-    console.log('🟡🟡🟡 - [DATE PICKER] Customer info from session:', customerInfo);
+    // console.log('🟡🟡🟡 - [DATE PICKER] Customer info from session:', customerInfo);
     
     // 🟡🟡🟡 - [ORDER INFO] Get order information from session if available
     const orderId = (request.session as any)?.orderId;
     const orderNumber = (request.session as any)?.orderNumber;
     
-    console.log('🟡🟡🟡 - [DATE PICKER] Order info from session:', { orderId, orderNumber });
+    // console.log('🟡🟡🟡 - [DATE PICKER] Order info from session:', { orderId, orderNumber });
 
     // 🟡🟡🟡 Generate page class for template
     const templatePath = 'wizard/date-picker';
