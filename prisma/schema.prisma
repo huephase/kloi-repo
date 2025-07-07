@@ -9,9 +9,10 @@ generator client {
 
 model Customers {
   id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  phone     String?
+  email     String?  @db.VarChar(100)
+  firstName String?  @db.VarChar(50)
+  lastName  String?  @db.VarChar(50)
+  phone     String   @unique @db.VarChar(20)
   createdAt DateTime @default(now()) @db.Timestamp(3)
   orders    kloiOrdersTable[]
   sessions  Session[]
@@ -53,8 +54,8 @@ model kloiOrdersTable {
   
   // Event date/time (proper timestamp)
   eventDate      DateTime?     @db.Date
-  eventTime      DateTime?     @db.Time
-  eventDatetime  DateTime?     @db.Timestamptz
+  eventStartTime DateTime?     @db.Time
+  eventEndTime   DateTime?     @db.Time
   
   // Event setup (JSONB for wizard data)
   eventSetup     Json?

@@ -179,6 +179,9 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             street: 'Test Street',
             additionalDirections: 'Test directions'
           },
+          // Test time fields
+          eventStartTime: new Date('1970-01-01T09:00:00Z'),
+          eventEndTime: new Date('1970-01-01T17:00:00Z'),
           status: 'pending'
         }
       });
@@ -299,6 +302,45 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             });
           }
 
+          // 🟡🟡🟡 - [CUSTOMER CREATION] Create or update customer record
+          let customer = null;
+          if (validatedData.phone) {
+            console.log('🟡🟡🟡 - [CUSTOMER CREATION] Creating/updating customer with phone:', validatedData.phone);
+            
+            // Try to find existing customer by phone
+            customer = await prisma.customers.findUnique({
+              where: { phone: validatedData.phone }
+            });
+
+            if (customer) {
+              console.log('✅✅✅ - [CUSTOMER CREATION] Existing customer found, updating:', customer.id);
+              // Update existing customer with new information
+              customer = await prisma.customers.update({
+                where: { id: customer.id },
+                data: {
+                  firstName: validatedData.firstName,
+                  lastName: validatedData.lastName,
+                  email: validatedData.email || null,
+                }
+              });
+            } else {
+              console.log('🟡🟡🟡 - [CUSTOMER CREATION] No existing customer found, creating new customer');
+              // Create new customer
+              customer = await prisma.customers.create({
+                data: {
+                  phone: validatedData.phone,
+                  firstName: validatedData.firstName,
+                  lastName: validatedData.lastName,
+                  email: validatedData.email || null,
+                }
+              });
+            }
+            
+            console.log('✅✅✅ - [CUSTOMER CREATION] Customer saved successfully:', customer.id);
+          } else {
+            console.log('🟡🟡🟡 - [CUSTOMER CREATION] No phone provided, creating order without customer link');
+          }
+
           // Create order in database
           savedOrder = await prisma.kloiOrdersTable.create({
             data: {
@@ -322,6 +364,9 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
                 additionalDirections: validatedData.additionalDirections || null,
               },
               
+              // Link to customer if created
+              userId: customer?.id || null,
+              
               // Session reference
               sessionId: request.session.sessionId,
               
@@ -332,10 +377,14 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
 
           console.log('✅✅✅ - [DATABASE SAVE] Order saved successfully:', savedOrder.id);
           console.log('✅✅✅ - [DATABASE SAVE] Order number:', savedOrder.orderNumber);
+          if (customer) {
+            console.log('✅✅✅ - [DATABASE SAVE] Order linked to customer:', customer.id);
+          }
           
-          // Store order ID in session for future reference
+          // Store order ID and customer ID in session for future reference
           (request.session as any).orderId = savedOrder.id;
           (request.session as any).orderNumber = savedOrder.orderNumber;
+          (request.session as any).customerId = customer?.id || null;
           
         } catch (dbError) {
           console.error('❌❌❌ - [DATABASE SAVE] Failed to save order:', dbError);
@@ -347,11 +396,69 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         }
       }
 
+      // 🟡🟡🟡 - [DATABASE UPDATE] Update database with date/time info for date step
+      if (step === 'date') {
+        try {
+          console.log('🟡🟡🟡 - [DATABASE UPDATE] Starting database update for date step');
+          
+          // Get order ID from session
+          const orderId = (request.session as any).orderId;
+          if (!orderId) {
+            console.log('⚠️⚠️⚠️ - [DATABASE UPDATE] No order ID found in session');
+            return reply.status(400).send({
+              success: false,
+              message: 'Order not found. Please start from the beginning.',
+              errors: { order: 'Order ID missing' }
+            });
+          }
+
+          // Parse date and time data from validatedData
+          const { dates, startTime, endTime, isMultiDay } = validatedData;
+          
+          // Convert dates array to primary event date
+          const primaryEventDate = dates && dates.length > 0 ? new Date(dates[0]) : null;
+          
+          // Convert time strings to proper Time format for database
+          const eventStartTime = startTime ? new Date(`1970-01-01T${startTime}:00Z`) : null;
+          const eventEndTime = endTime ? new Date(`1970-01-01T${endTime}:00Z`) : null;
+
+          // Update the existing order with date/time information
+          await prisma.kloiOrdersTable.update({
+            where: { id: orderId },
+            data: {
+              eventDate: primaryEventDate,
+              eventStartTime: eventStartTime,
+              eventEndTime: eventEndTime,
+              // Store additional date info in eventSetup JSON for multi-day events
+              eventSetup: {
+                dates: dates,
+                startTime: startTime,
+                endTime: endTime,
+                isMultiDay: isMultiDay
+              }
+            }
+          });
+
+          console.log('✅✅✅ - [DATABASE UPDATE] Order updated with date/time info');
+          console.log('✅✅✅ - [DATABASE UPDATE] Primary event date:', primaryEventDate);
+          console.log('✅✅✅ - [DATABASE UPDATE] Start time:', startTime);
+          console.log('✅✅✅ - [DATABASE UPDATE] End time:', endTime);
+          
+        } catch (dbError) {
+          console.error('❌❌❌ - [DATABASE UPDATE] Failed to update order with date/time:', dbError);
+          return reply.status(500).send({
+            success: false,
+            message: 'Failed to save date and time information. Please try again.',
+            errors: { database: 'Database update failed' }
+          });
+        }
+      }
+
       (request.session as any).lastVisited = new Date().toISOString();
       request.session.touch();
       
-      console.log(`✅✅✅ - [API ROUTE] ${step} data validated and saved to session [${sessionKey}] → ${redirectTo}`);
-      console.log('✅✅✅ - [API ROUTE] Final session state:', JSON.stringify(request.session, null, 2));
+      // console.log(`✅✅✅ - [API ROUTE] ${step} data validated and saved to session [${sessionKey}] → ${redirectTo}`);
+      // console.log('✅✅✅ - [API ROUTE] Final session state:', JSON.stringify(request.session, null, 2));
 
       // 🟡🟡🟡 - [SUCCESS RESPONSE] Return success response for AJAX handling
       return reply.send({
