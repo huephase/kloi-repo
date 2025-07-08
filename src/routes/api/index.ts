@@ -179,9 +179,17 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             street: 'Test Street',
             additionalDirections: 'Test directions'
           },
-          // Test time fields
-          eventStartTime: new Date('1970-01-01T09:00:00Z'),
-          eventEndTime: new Date('1970-01-01T17:00:00Z'),
+          // 🟡🟡🟡 - [2025-01-05] Updated to use new eventDateTime JSONB structure
+          eventDateTime: {
+            events: [
+              {
+                date: '2025-01-10',
+                startTime: '09:00',
+                endTime: '17:00'
+              }
+            ],
+            isMultiDay: false
+          },
           status: 'pending'
         }
       });
@@ -415,21 +423,22 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           // Parse date and time data from validatedData
           const { dates, startTime, endTime, isMultiDay } = validatedData;
           
-          // Convert dates array to primary event date
-          const primaryEventDate = dates && dates.length > 0 ? new Date(dates[0]) : null;
-          
-          // Convert time strings to proper Time format for database
-          const eventStartTime = startTime ? new Date(`1970-01-01T${startTime}:00Z`) : null;
-          const eventEndTime = endTime ? new Date(`1970-01-01T${endTime}:00Z`) : null;
+          // 🟡🟡🟡 - [2025-01-05] Updated to use new eventDateTime JSONB structure
+          const eventDateTime = {
+            events: dates.map((date: string) => ({
+              date: date,
+              startTime: startTime,
+              endTime: endTime
+            })),
+            isMultiDay: isMultiDay
+          };
 
           // Update the existing order with date/time information
           await prisma.kloiOrdersTable.update({
             where: { id: orderId },
             data: {
-              eventDate: primaryEventDate,
-              eventStartTime: eventStartTime,
-              eventEndTime: eventEndTime,
-              // Store additional date info in eventSetup JSON for multi-day events
+              eventDateTime: eventDateTime,
+              // Store additional date info in eventSetup JSON for backward compatibility
               eventSetup: {
                 dates: dates,
                 startTime: startTime,
@@ -440,9 +449,10 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           });
 
           console.log('✅✅✅ - [DATABASE UPDATE] Order updated with date/time info');
-          console.log('✅✅✅ - [DATABASE UPDATE] Primary event date:', primaryEventDate);
+          console.log('✅✅✅ - [DATABASE UPDATE] Event dates:', dates);
           console.log('✅✅✅ - [DATABASE UPDATE] Start time:', startTime);
           console.log('✅✅✅ - [DATABASE UPDATE] End time:', endTime);
+          console.log('✅✅✅ - [DATABASE UPDATE] Event DateTime JSON:', eventDateTime);
           
         } catch (dbError) {
           console.error('❌❌❌ - [DATABASE UPDATE] Failed to update order with date/time:', dbError);

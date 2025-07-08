@@ -52,10 +52,8 @@ model kloiOrdersTable {
   // Property/delivery details (JSONB for address components)
   eventDetails   Json
   
-  // Event date/time (proper timestamp)
-  eventDate      DateTime?     @db.Date
-  eventStartTime DateTime?     @db.Time
-  eventEndTime   DateTime?     @db.Time
+  // 🟡🟡🟡 - [2025-01-05] Updated event date/time to single JSONB column for multi-day/multi-time support
+  eventDateTime  Json?
   
   // Event setup (JSONB for wizard data)
   eventSetup     Json?
