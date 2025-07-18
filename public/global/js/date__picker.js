@@ -20,12 +20,16 @@ class DatePicker {
         this.fullMonthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                               'July', 'August', 'September', 'October', 'November', 'December'];
         
+        // 🟡🟡🟡 - [BOOKED DATES] Store booked dates from database
+        this.bookedDates = [];
+        
         this.init();
     }
 
     async init() {
       
         await this.fetchServerTime();
+        await this.fetchBookedDates(); // 🟡🟡🟡 - [BOOKED DATES] Fetch booked dates from database
         
         this.generateMonthPills();
         this.updateCurrentMonthDisplay();
@@ -62,6 +66,37 @@ class DatePicker {
             this.currentYear = this.today.getFullYear();
             const warningMessage = 'Unable to sync with server time. Booking times may not be accurate.';
 
+            this.showTimeWarning(warningMessage);
+        }
+    }
+    
+    async fetchBookedDates() {
+        console.log('🟡🟡🟡 - [BOOKED DATES] Fetching booked dates from database...');
+        
+        try {
+            const response = await fetch('/api/booked-dates');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.bookedDates) {
+                this.bookedDates = data.bookedDates;
+                console.log('✅✅✅ - [BOOKED DATES] Successfully loaded booked dates:', this.bookedDates.length);
+                console.log('🟡🟡🟡 - [BOOKED DATES] Sample booked dates:', this.bookedDates.slice(0, 5));
+            } else {
+                console.warn('⚠️⚠️⚠️ - [BOOKED DATES] Invalid response format from booked-dates API');
+                this.bookedDates = [];
+            }
+            
+        } catch (error) {
+            console.error('❗❗❗ - [BOOKED DATES] Error fetching booked dates:', error);
+            this.bookedDates = [];
+            
+            // 🟤🟤🟤 - [BOOKED DATES] Show user-friendly warning
+            const warningMessage = 'Unable to load booked dates. Calendar may not show accurate availability.';
             this.showTimeWarning(warningMessage);
         }
     }
@@ -224,9 +259,9 @@ class DatePicker {
             const statusText = document.createElement('div');
             statusText.className = 'day-status';
             
-            // 👍👍👍👍👍👍 - 2024-12-28 - Mark configurable number of days from current date as BOOKED
-            const dayDiff = Math.ceil((dayDate - todayStart) / (1000 * 60 * 60 * 24));
-            if (dayDiff >= 0 && dayDiff <= this.defaultBookedDays - 1) {
+            // 🟡🟡🟡 - [BOOKED DATES] Check if day is booked from database
+            const dateStr = dayCell.dataset.date;
+            if (this.bookedDates.includes(dateStr)) {
                 statusText.textContent = 'BOOKED';
                 dayCell.classList.add('booked');
             }
@@ -424,7 +459,7 @@ class DatePicker {
         summaryElement.textContent = `${dateText} at ${timeText}`;
     }
     
-    submitBooking() {
+    async submitBooking() {
         if (this.selectedDates.length === 0) {
             alert('Please select at least one date.');
             return;
@@ -440,11 +475,66 @@ class DatePicker {
             isMultiDay: this.isMultiDay
         };
         
-        // console.log('Booking Data:', bookingData);
+        console.log('🟡🟡🟡 - [DATE PICKER] Submitting booking data:', bookingData);
         
-        // Here you would normally send the data to your server
-        // For now, we'll just show a confirmation
-        alert(`Booking confirmed for ${this.selectedDates.length} day(s) from ${startTime} to ${endTime}`);
+        // 🟡🟡🟡 - [SUBMIT BUTTON] Show loading state
+        const submitButton = document.getElementById('submitButton');
+        const originalButtonText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="summary">Processing...</span><span class="confirm-text">Please wait</span>';
+        
+        try {
+            // 🟡🟡🟡 - [SERVER SUBMISSION] Submit to server via API
+            const response = await fetch('/api/session/date', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(bookingData),
+                credentials: 'same-origin' // Include session cookies
+            });
+            
+            console.log('🟡🟡🟡 - [DATE PICKER] Server response status:', response.status);
+            
+            const result = await response.json();
+            console.log('🟡🟡🟡 - [DATE PICKER] Server response:', result);
+            
+            if (result.success) {
+                console.log('✅✅✅ - [DATE PICKER] Booking submitted successfully');
+                
+                // Show success message briefly
+                submitButton.innerHTML = '<span class="summary">Success! Redirecting...</span><span class="confirm-text">✓</span>';
+                submitButton.classList.add('btn-success');
+                
+                // Redirect to next step after brief delay
+                setTimeout(() => {
+                    console.log('✅✅✅ - [DATE PICKER] Redirecting to:', result.nextStep);
+                    window.location.href = result.nextStep;
+                }, 1000);
+                
+            } else {
+                console.log('❗❗❗ - [DATE PICKER] Booking submission failed');
+                
+                // Show error message
+                alert(`Booking submission failed: ${result.message || 'Unknown error'}`);
+                
+                // Reset submit button
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                submitButton.classList.remove('btn-success');
+            }
+            
+        } catch (error) {
+            console.error('❗❗❗ - [DATE PICKER] Error submitting booking:', error);
+            
+            // Show error message
+            alert('Failed to submit booking. Please try again.');
+            
+            // Reset submit button
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalButtonText;
+            submitButton.classList.remove('btn-success');
+        }
     }
 }
 

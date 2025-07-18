@@ -1,9 +1,9 @@
 // src/routes/api/index.ts
 // Aggregates API routes. All POST routes are handled here.
 import { FastifyInstance, FastifyPluginOptions, FastifyReply } from 'fastify';
-import { WizardStepConfig } from '../../types';
+import { WizardStepConfig, OrderStatus, ORDER_STATUS_GROUPS } from '../../types/index';
 import { prisma } from '../../lib/prisma';
-import { eventDetailsSchema, locationDataSchema } from '../../schemas/wizard.schemas';
+import { eventDetailsSchema, locationDataSchema, dateSelectionSchema } from '../../schemas/wizard.schemas';
 import { ZodError } from 'zod';
 
 // Maps wizard steps to session keys and redirect targets
@@ -48,6 +48,9 @@ function validateStepData(step: string, data: any) {
     case 'event-details':
       return eventDetailsSchema.parse(data);
     
+    case 'date':
+      return dateSelectionSchema.parse(data);
+    
     default:
       // For other steps, return data as-is (no validation)
       console.log('🟡🟡🟡 - [VALIDATION] No specific validation for step:', step);
@@ -85,6 +88,87 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         success: false,
         message: 'Failed to get server time',
         error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // 🟡🟡🟡 - [BOOKED DATES API] Retrieve booked dates from database for date picker calendar
+  app.get('/booked-dates', async (_request, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [API ROUTE] GET /api/booked-dates - Retrieving booked dates from database');
+    
+    try {
+      // 🟡🟡🟡 - [DATABASE QUERY] Get all orders with eventDateTime data
+      const ordersWithDates = await prisma.kloiOrdersTable.findMany({
+        where: {
+          eventDateTime: {
+            not: null as any
+          },
+          // 🟡🟡🟡 - [FILTER] Only include orders that are bookable (not cancelled or completed)
+          status: {
+            in: [...ORDER_STATUS_GROUPS.BOOKABLE]
+          }
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          eventDateTime: true,
+          status: true
+        }
+      });
+
+      console.log('🟡🟡🟡 - [BOOKED DATES] Found orders with dates:', ordersWithDates.length);
+
+      // 🟡🟡🟡 - [DATA PROCESSING] Extract all booked dates from eventDateTime JSONB
+      const bookedDates: string[] = [];
+      const bookedDatesWithDetails: Array<{
+        date: string;
+        startTime: string;
+        endTime: string;
+        orderNumber: number;
+        status: string;
+      }> = [];
+
+      ordersWithDates.forEach(order => {
+        const eventDateTime = order.eventDateTime as any;
+        
+        if (eventDateTime && eventDateTime.events && Array.isArray(eventDateTime.events)) {
+          eventDateTime.events.forEach((event: any) => {
+            if (event.date) {
+              bookedDates.push(event.date);
+              bookedDatesWithDetails.push({
+                date: event.date,
+                startTime: event.startTime || '00:00',
+                endTime: event.endTime || '23:59',
+                orderNumber: order.orderNumber,
+                status: order.status
+              });
+            }
+          });
+        }
+      });
+
+      // 🟡🟡🟡 - [DEDUPLICATION] Remove duplicate dates (multiple orders on same date)
+      const uniqueBookedDates = [...new Set(bookedDates)];
+      
+      console.log('✅✅✅ - [BOOKED DATES] Unique booked dates found:', uniqueBookedDates.length);
+      console.log('🟡🟡🟡 - [BOOKED DATES] Sample booked dates:', uniqueBookedDates.slice(0, 5));
+
+      return reply.send({
+        success: true,
+        bookedDates: uniqueBookedDates,
+        bookedDatesWithDetails: bookedDatesWithDetails,
+        totalBookedDates: uniqueBookedDates.length,
+        message: 'Booked dates retrieved successfully',
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error('❗❗❗ - [API ROUTE] Error retrieving booked dates:', error);
+      return reply.status(500).send({
+        success: false,
+        message: 'Failed to retrieve booked dates',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
       });
     }
   });
@@ -190,7 +274,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             ],
             isMultiDay: false
           },
-          status: 'pending'
+          status: OrderStatus.PENDING
         }
       });
 
@@ -379,7 +463,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
               sessionId: request.session.sessionId,
               
               // Status
-              status: 'pending'
+              status: OrderStatus.PENDING
             }
           });
 
@@ -409,17 +493,6 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         try {
           console.log('🟡🟡🟡 - [DATABASE UPDATE] Starting database update for date step');
           
-          // Get order ID from session
-          const orderId = (request.session as any).orderId;
-          if (!orderId) {
-            console.log('⚠️⚠️⚠️ - [DATABASE UPDATE] No order ID found in session');
-            return reply.status(400).send({
-              success: false,
-              message: 'Order not found. Please start from the beginning.',
-              errors: { order: 'Order ID missing' }
-            });
-          }
-
           // Parse date and time data from validatedData
           const { dates, startTime, endTime, isMultiDay } = validatedData;
           
@@ -433,22 +506,105 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             isMultiDay: isMultiDay
           };
 
-          // Update the existing order with date/time information
-          await prisma.kloiOrdersTable.update({
-            where: { id: orderId },
-            data: {
-              eventDateTime: eventDateTime,
-              // Store additional date info in eventSetup JSON for backward compatibility
-              eventSetup: {
-                dates: dates,
-                startTime: startTime,
-                endTime: endTime,
-                isMultiDay: isMultiDay
-              }
-            }
+          // 🟡🟡🟡 - [UPSERT LOGIC] Use sessionId for accurate upserts to avoid mixups
+          const sessionId = request.session.sessionId;
+          if (!sessionId) {
+            console.log('⚠️⚠️⚠️ - [DATABASE UPDATE] No session ID found');
+            return reply.status(400).send({
+              success: false,
+              message: 'Session not found. Please start from the beginning.',
+              errors: { session: 'Session ID missing' }
+            });
+          }
+
+          // 🟡🟡🟡 - [UPSERT] Find existing order by sessionId and update, or create new one
+          const existingOrder = await prisma.kloiOrdersTable.findFirst({
+            where: { sessionId: sessionId }
           });
 
-          console.log('✅✅✅ - [DATABASE UPDATE] Order updated with date/time info');
+          if (existingOrder) {
+            console.log('🟡🟡🟡 - [DATABASE UPDATE] Found existing order, updating:', existingOrder.id);
+            
+            // Update existing order with date/time information
+            await prisma.kloiOrdersTable.update({
+              where: { id: existingOrder.id },
+              data: {
+                eventDateTime: eventDateTime,
+                // Store additional date info in eventSetup JSON for backward compatibility
+                eventSetup: {
+                  dates: dates,
+                  startTime: startTime,
+                  endTime: endTime,
+                  isMultiDay: isMultiDay
+                }
+              }
+            });
+
+            console.log('✅✅✅ - [DATABASE UPDATE] Existing order updated with date/time info');
+          } else {
+            console.log('🟡🟡🟡 - [DATABASE UPDATE] No existing order found, creating new order with sessionId');
+            
+            // Get location data and event details from session for new order
+            const locationData = (request.session as any).locationData;
+            const eventDetails = (request.session as any).eventDetails;
+            
+            if (!locationData || !eventDetails) {
+              console.log('⚠️⚠️⚠️ - [DATABASE UPDATE] Missing required session data for new order');
+              return reply.status(400).send({
+                success: false,
+                message: 'Missing required information. Please complete previous steps first.',
+                errors: { data: 'Incomplete session data' }
+              });
+            }
+
+            // Create new order with all required data
+            const newOrder = await prisma.kloiOrdersTable.create({
+              data: {
+                // Customer info from event details
+                firstName: eventDetails.firstName,
+                lastName: eventDetails.lastName,
+                phone: eventDetails.phone,
+                email: eventDetails.email || null,
+                
+                // Location data as JSONB
+                location: locationData,
+                
+                // Event details as JSONB
+                eventDetails: {
+                  propertyType: eventDetails.propertyType,
+                  buildingName: eventDetails.buildingName || null,
+                  houseNumber: eventDetails.houseNumber || null,
+                  floorNumber: eventDetails.floorNumber || null,
+                  unitNumber: eventDetails.unitNumber || null,
+                  street: eventDetails.street || null,
+                  additionalDirections: eventDetails.additionalDirections || null,
+                },
+                
+                // Date/time information
+                eventDateTime: eventDateTime,
+                eventSetup: {
+                  dates: dates,
+                  startTime: startTime,
+                  endTime: endTime,
+                  isMultiDay: isMultiDay
+                },
+                
+                // Session reference
+                sessionId: sessionId,
+                
+                // Status
+                status: OrderStatus.PENDING
+              }
+            });
+
+            console.log('✅✅✅ - [DATABASE UPDATE] New order created with date/time info:', newOrder.id);
+            console.log('✅✅✅ - [DATABASE UPDATE] Order number:', newOrder.orderNumber);
+            
+            // Store order ID in session for future reference
+            (request.session as any).orderId = newOrder.id;
+            (request.session as any).orderNumber = newOrder.orderNumber;
+          }
+
           console.log('✅✅✅ - [DATABASE UPDATE] Event dates:', dates);
           console.log('✅✅✅ - [DATABASE UPDATE] Start time:', startTime);
           console.log('✅✅✅ - [DATABASE UPDATE] End time:', endTime);

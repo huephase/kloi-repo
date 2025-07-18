@@ -7,6 +7,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// 🟡🟡🟡 - [ORDER STATUS ENUM] Centralized order status enum for database constraint
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  CANCELLED
+  COMPLETED
+}
+
 model Customers {
   id        String   @id @default(uuid())
   email     String?  @db.VarChar(100)
@@ -59,7 +67,7 @@ model kloiOrdersTable {
   eventSetup     Json?
   
   // Order management
-  status         String        @default("pending") @db.VarChar(20)
+  status         OrderStatus   @default(PENDING)
   totalAmount    Decimal?      @db.Decimal(10,2)
   
   // Timestamps

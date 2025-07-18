@@ -126,6 +126,56 @@ export const eventDetailsSchema = z.object({
   path: ['unitNumber'],
 });
 
+// 🟡🟡🟡 - [VALIDATION SCHEMA] Date and time selection schema for date picker
+export const dateSelectionSchema = z.object({
+  dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD'))
+    .min(1, 'At least one date must be selected')
+    .max(30, 'Maximum 30 dates can be selected'),
+  
+  startTime: z.string()
+    .regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format. Use HH:MM')
+    .refine((val) => {
+      const [hours] = val.split(':').map(Number);
+      return hours >= 7 && hours <= 23; // 7 AM to 11 PM
+    }, 'Start time must be between 7:00 AM and 11:00 PM'),
+  
+  endTime: z.string()
+    .regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format. Use HH:MM')
+    .refine((val) => {
+      const [hours] = val.split(':').map(Number);
+      return (hours >= 8 && hours <= 23) || hours === 0; // 8 AM to 12 AM (midnight)
+    }, 'End time must be between 8:00 AM and 12:00 AM'),
+  
+  isMultiDay: z.boolean().default(false),
+})
+.refine((data) => {
+  // 🟡🟡🟡 - [TIME VALIDATION] Ensure end time is after start time
+  const startHour = parseInt(data.startTime.split(':')[0]);
+  const endHour = parseInt(data.endTime.split(':')[0]);
+  
+  // Handle midnight (00:00) as 24
+  const adjustedEndHour = endHour === 0 ? 24 : endHour;
+  
+  return adjustedEndHour > startHour;
+}, {
+  message: 'End time must be after start time',
+  path: ['endTime'],
+})
+.refine((data) => {
+  // 🟡🟡🟡 - [DATE VALIDATION] Ensure dates are in the future
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  return data.dates.every(dateStr => {
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+    return date >= today;
+  });
+}, {
+  message: 'All selected dates must be in the future',
+  path: ['dates'],
+});
+
 // 🟡🟡🟡 - [LEGACY SCHEMA] Keep existing schemas for backward compatibility
 export const customerInfoSchema = z.object({
   name: z.string().min(1),
