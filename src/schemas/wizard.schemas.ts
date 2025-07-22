@@ -184,10 +184,11 @@ export const customerInfoSchema = z.object({
 });
 // console.log('🟡🟡🟡 - [wizard.schemas] customerInfoSchema created');
 
+// 🟡🟡🟡 - [VALIDATION SCHEMA] Event setup schema for menu selections
 export const eventSetupSchema = z.object({
-  eventType: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
-  location: z.string().min(1),
+  radioSelections: z.record(z.string()).optional(),
+  checkboxSelections: z.record(z.string()).optional(),
+  productQuantities: z.record(z.number().int().min(0)).optional(),
 });
 // console.log('🟡🟡🟡 - [wizard.schemas] eventSetupSchema created');
 

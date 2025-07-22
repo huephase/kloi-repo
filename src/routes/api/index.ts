@@ -3,7 +3,7 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyReply } from 'fastify';
 import { WizardStepConfig, OrderStatus, ORDER_STATUS_GROUPS } from '../../types/index';
 import { prisma } from '../../lib/prisma';
-import { eventDetailsSchema, locationDataSchema, dateSelectionSchema } from '../../schemas/wizard.schemas';
+import { eventDetailsSchema, locationDataSchema, dateSelectionSchema, eventSetupSchema } from '../../schemas/wizard.schemas';
 import { ZodError } from 'zod';
 
 // Maps wizard steps to session keys and redirect targets
@@ -50,6 +50,9 @@ function validateStepData(step: string, data: any) {
     
     case 'date':
       return dateSelectionSchema.parse(data);
+    
+    case 'event':
+      return eventSetupSchema.parse(data);
     
     default:
       // For other steps, return data as-is (no validation)
@@ -234,6 +237,190 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
     } finally {
       // Ensure we disconnect to avoid connection leaks
       await prisma.$disconnect();
+    }
+  });
+
+  // 🟡🟡🟡 - [DEBUG ENDPOINT] View menu data for debugging
+  app.get('/debug-menu/:theme', async (request, reply: FastifyReply) => {
+    const theme = (request.params as any).theme;
+    console.log('🟡🟡🟡 - [DEBUG ENDPOINT] Viewing menu for theme:', theme);
+    
+    try {
+      const menu = await prisma.menus.findFirst({
+        where: { theme: theme }
+      });
+
+      if (!menu) {
+        return reply.send({
+          success: false,
+          message: `No menu found for theme: ${theme}`
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          id: menu.id,
+          name: menu.name,
+          theme: menu.theme,
+          menuItems: menu.menuItems
+        }
+      });
+
+    } catch (error) {
+      console.error('❗❗❗ - [DEBUG ENDPOINT] Error viewing menu:', error);
+      return reply.status(500).send({
+        success: false,
+        message: 'Failed to view menu',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // 🟡🟡🟡 - [TEST ENDPOINT] Test endpoint to create sample menu
+  app.post('/test-menu', async (_request, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [TEST ENDPOINT] Creating test menu');
+    
+    try {
+      const testMenu = await prisma.menus.create({
+        data: {
+          name: 'Test Matcha Menu',
+          theme: 'red',
+          menuItems: {
+            "section1": {
+              "order": 1,
+              "html-type": "h1",
+              "content": "Matcha Menu"
+            },
+            "section2": {
+              "order": 2,
+              "html-type": "p",
+              "content": "Finest Matcha Selections"
+            },
+            "section3": {
+              "order": 3,
+              "html-type": "image",
+              "src": "/public/menus/red/section-3.jpg",
+              "alt": "Fresh matcha preparation",
+              "caption": "Freshly prepared matcha with premium ingredients"
+            },
+            "section4": {
+              "order": 4,
+              "html-type": "h2",
+              "content": "Please select your Matcha menu"
+            },
+            "section5": {
+              "order": 5,
+              "html-type": "radio-group",
+              "content": {
+                "radio1": {
+                  "label": "Matcha Ice Cream Only",
+                  "description": "Full matcha ice cream selections",
+                  "price": 50.00,
+                  "price-basis": "Per guest",
+                  "popup": {
+                    "section1": {
+                      "html-type": "image",
+                      "src": "/public/menus/red/popup-radio-1.jpg",
+                      "alt": "Matcha ice cream",
+                      "caption": "Premium matcha ice cream selection"
+                    },
+                    "section2": {
+                      "html-type": "p",
+                      "content": "Matcha[a] (抹茶) /ˈmætʃə, ˈmɑːtʃə/ is a finely ground powder of green tea specially processed from shade-grown tea leaves."
+                    },
+                    "section3": {
+                      "html-type": "unordered-list",
+                      "content": [
+                        "100% Organic", "Ceremonial Grade", "Direct from Japan"
+                      ]
+                    }
+                  }
+                },
+                "radio2": {
+                  "label": "Matcha and Specialty Drinks",
+                  "description": "Full matcha ice cream & drinks selections",
+                  "price": 75.00,
+                  "price-basis": "Per guest"
+                },
+                "radio3": {
+                  "label": "Specialty Drinks Only",
+                  "description": "Matcha Drinks",
+                  "price": 42.00,
+                  "price-basis": "Per guest"
+                }
+              }
+            },
+            "section6": {
+              "order": 6,
+              "html-type": "product-group",
+              "content": {
+                "seasonal-offer": {
+                  "label": "Seasonal Ice Cream",
+                  "price": 17.00,
+                  "price-basis": "Per guest"
+                },
+                "zero-sugar": {
+                  "label": "Zero Sugar Ice Cream",
+                  "price": 9.00,
+                  "price-basis": "Per guest"
+                }
+              }
+            },
+            "section7": {
+              "order": 7,
+              "html-type": "h2",
+              "content": "Select your upgrades below"
+            },
+            "section8": {
+              "order": 8,
+              "html-type": "checkbox-group",
+              "content": {
+                "checkbox1": {
+                  "label": "Matcha Upgrade",
+                  "price": 23.00,
+                  "price-basis": "Per guest"
+                },
+                "checkbox2": {
+                  "label": "Kids Menu",
+                  "price": 15.00,
+                  "price-basis": "Per guest"
+                },
+                "checkbox3": {
+                  "label": "Non-Dairy options",
+                  "price": 2.00,
+                  "price-basis": "Per guest"
+                },
+                "checkbox4": {
+                  "label": "Live DJ",
+                  "price": 1500.00,
+                  "price-basis": "Per day"
+                }
+              }
+            }
+          }
+        }
+      });
+
+      console.log('✅✅✅ - [TEST ENDPOINT] Test menu created:', testMenu.id);
+
+      return reply.send({
+        success: true,
+        message: 'Test menu created successfully',
+        data: {
+          id: testMenu.id,
+          name: testMenu.name,
+          theme: testMenu.theme
+        }
+      });
+
+    } catch (error) {
+      console.error('❌❌❌ - [TEST ENDPOINT] Failed to create test menu:', error);
+      return reply.status(500).send({
+        success: false,
+        message: 'Failed to create test menu',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 

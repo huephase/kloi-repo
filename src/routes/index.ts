@@ -6,6 +6,7 @@ import locationFinderRoutes from './locationFinder';
 // ⚠️⚠️⚠️ IMPORTANT NOTE: THE NEW URL FOR ./customerInfo IS /event-details NOW
 import customerInfoRoutes from './customerInfo';
 import datePickerRoutes from './datePicker';
+import eventSetupRoutes from './eventSetup';
 // healthCheckRoutes removed - now registered directly in app.ts to avoid session validation hooks
 import apiRoutes from './api';
 // 🟡🟡🟡 Import session validation hooks
@@ -28,12 +29,12 @@ export default async function routes(_app: FastifyInstance, _opts: FastifyPlugin
   console.log('🟡🟡🟡 - [routes/index] Registering protected wizard routes');
   await _app.register(customerInfoRoutes);
   await _app.register(datePickerRoutes);
+  await _app.register(eventSetupRoutes);
   
   // Register API router with prefix '/api' for all API endpoints
   await _app.register(apiRoutes, { prefix: '/api' });
   
   // 🟡🟡🟡 TODO: Register other wizard route modules here when implemented
-  // await _app.register(eventSetupRoutes);
   // await _app.register(eventSummaryRoutes);
   // await _app.register(finalConfirmationRoutes);
   // await _app.register(checkoutRoutes);
