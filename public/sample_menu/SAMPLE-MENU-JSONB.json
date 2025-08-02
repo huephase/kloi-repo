@@ -1,149 +1,160 @@
 {
-    "section1": {
-      "order": 1,
-      "html-type": "h1",
-      "content": "Matcha Menu"
-    },
-    "section2": {
-      "order": 2,
-      "html-type": "p",
-      "content": "Finest Matcha Selections"
-    },
-    "section3": {
-      "order": 3,
-      "html-type": "image",
-      "src": "/public/menus/red/section-3.jpg",
-      "alt": "Fresh hummus preparation",
-      "caption": "Freshly prepared hummus with premium ingredients"
-    },
-    "section4": {
-      "order": 4,
-      "html-type": "h2",
-      "content": "Please select your Matcha menu"
-    },
-    "section5": {
-      "order": 5,
-      "html-type": "radio-group",
-      "content": {
-        "radio1": {
-          "label": "Matcha Ice Cream Only",
-          "description": "Full matcha ice cream selections",
-          "price": 50.00,
-          "price-basis": "Per guest",
-          "popup": {
-            "section1": {
-              "html-type": "image",
-              "src": "/public/menus/red/popup-radio-1.jpg",
-              "alt": "Fresh hummus preparation",
-              "caption": "Freshly prepared hummus with premium ingredients"
-            },
-            "section2": {
-              "html-type": "p",
-              "content": "Matcha[a] (抹茶) /ˈmætʃə, ˈmɑːtʃə/ is a finely ground powder of green tea specially processed from shade-grown tea leaves.[4][5][6] Shade growing gives matcha its characteristic bright green color and strong umami flavor. Matcha is typically consumed suspended in hot water."
-            },
-            "section3": {
-              "html-type": "unordered-list",
-              "content": [
-                "100% Oragnic", "Ceremonial Grade", "Direct from Japan"
-              ]
-            }
+  "section1": {
+    "order": 1,
+    "content": "MINORI Event Menu",
+    "html-type": "h1"
+  },
+  "section2": {
+    "order": 2,
+    "content": "Finest Matcha Selections",
+    "html-type": "p"
+  },
+  "section3": {
+    "alt": "Fresh hummus preparation",
+    "src": "/public/themes/127/images/minori-hero.jpg",
+    "order": 3,
+    "caption": "",
+    "html-type": "image"
+  },
+  "section4": {
+    "order": 4,
+    "content": "Please select your Matcha menu",
+    "html-type": "h2"
+  },
+  "section5": {
+    "order": 5,
+    "content": {
+      "radio1": {
+        "label": "Matcha Ice Cream Only",
+        "popup": {
+          "section1": {
+            "alt": "Fresh hummus preparation",
+            "src": "/public/menus/red/popup-radio-1.jpg",
+            "caption": "Freshly prepared hummus with premium ingredients",
+            "html-type": "image"
+          },
+          "section2": {
+            "content": "Matcha[a] (抹茶) /ˈmætʃə, ˈmɑːtʃə/ is a finely ground powder of green tea specially processed from shade-grown tea leaves.[4][5][6] Shade growing gives matcha its characteristic bright green color and strong umami flavor. Matcha is typically consumed suspended in hot water.",
+            "html-type": "p"
+          },
+          "section3": {
+            "content": [
+              "100% Oragnic",
+              "Ceremonial Grade",
+              "Direct from Japan"
+            ],
+            "html-type": "unordered-list"
           }
         },
-        "radio2": {
-          "label": "Matcha and Specialty Drinks",
-          "description": "Full matcha ice cream & drinks selections",
-          "price": 75.00,
-          "price-basis": "Per guest",
-          "popup": {
-            "section1": {
-              "html-type": "image",
-              "src": "/public/menus/red/popup-radio-2.jpg",
-              "alt": "Fresh hummus preparation",
-              "caption": "Freshly prepared hummus with premium ingredients"
-            },
-            "section2": {
-              "html-type": "p",
-              "content": "This is a full menu with ice cream and drinks"
-            },
-            "section3": {
-              "html-type": "unordered-list",
-              "content": [
-                "100% Oragnic", "Ceremonial Grade", "Direct from Japan"
-              ]
-            }
+        "price": 50,
+        "description": "Full matcha ice cream selections",
+        "price-basis": "Per guest"
+      },
+      "radio2": {
+        "label": "Matcha and Specialty Drinks",
+        "popup": {
+          "section1": {
+            "alt": "Fresh hummus preparation",
+            "src": "/public/menus/red/popup-radio-2.jpg",
+            "caption": "Freshly prepared hummus with premium ingredients",
+            "html-type": "image"
+          },
+          "section2": {
+            "content": "This is a full menu with ice cream and drinks",
+            "html-type": "p"
+          },
+          "section3": {
+            "content": [
+              "100% Oragnic",
+              "Ceremonial Grade",
+              "Direct from Japan"
+            ],
+            "html-type": "unordered-list"
           }
         },
-        "radio3": {
-          "label": "Specialty Drinks Only",
-          "description": "Matcha Drinks",
-          "price": 42.00,
-          "price-basis": "Per guest",
-          "popup": {
-            "section1": {
-              "html-type": "image",
-              "src": "/public/menus/red/popup-radio-3.jpg",
-              "alt": "Fresh hummus preparation",
-              "caption": "Freshly prepared hummus with premium ingredients"
-            },
-            "section2": {
-              "html-type": "p",
-              "content": "This is a full menu with ice cream and drinks"
-            },
-            "section3": {
-              "html-type": "unordered-list",
-              "content": [
-                "100% Oragnic", "Ceremonial Grade", "Direct from Japan"
-              ]
-            }
+        "price": 75,
+        "description": "Full matcha ice cream & drinks selections",
+        "price-basis": "Per guest"
+      },
+      "radio3": {
+        "label": "Specialty Drinks Only",
+        "popup": {
+          "section1": {
+            "alt": "Fresh hummus preparation",
+            "src": "/public/menus/red/popup-radio-3.jpg",
+            "caption": "Freshly prepared hummus with premium ingredients",
+            "html-type": "image"
+          },
+          "section2": {
+            "content": "This is a full menu with ice cream and drinks",
+            "html-type": "p"
+          },
+          "section3": {
+            "content": [
+              "100% Oragnic",
+              "Ceremonial Grade",
+              "Direct from Japan"
+            ],
+            "html-type": "unordered-list"
           }
-        }
+        },
+        "price": 42,
+        "description": "Matcha Drinks",
+        "price-basis": "Per guest"
       }
     },
-    "section6": {
-      "order": 6,
-      "html-type": "product-group",
-      "content": {
-        "seasonal-offer": {
-          "label": "Seasonal Ice Cream",
-          "price": 17.00,
-          "price-basis": "Per guest"
-        },
-        "zero-sugar": {
-          "label": "Zero Sugar Ice Cream",
-          "price": 9.00,
-          "price-basis": "Per guest"
-        }
+    "html-type": "radio-group"
+  },
+  "section6": {
+    "order": 6,
+    "content": "Add Ons",
+    "html-type": "h2"
+  },
+  "section7": {
+    "order": 7,
+    "content": {
+      "zero-sugar": {
+        "label": "Zero Sugar Ice Cream",
+        "price": 9,
+        "price-basis": "Per guest"
+      },
+      "seasonal-offer": {
+        "label": "Seasonal Ice Cream",
+        "price": 17,
+        "price-basis": "Per guest"
       }
     },
-    "section7": {
-      "order": 7,
-      "html-type": "h2",
-      "content": "Select your upgrades below"
-    },
-    "section8":{
-      "order": 8,
-      "html-type": "checkbox-group",
-      "content":{
-        "checbox1": {
-          "label": "Matcha Upgrade",
-          "price": 23.00,
-          "price-basis": "Per guest"
-        },
-        "checbox2": {
-          "label": "Kids Menu",
-          "price": 15.00,
-          "price-basis": "Per guest"
-        },
-        "checkbox3": {
-          "label": "Non-Dairy options",
-          "price": 2.00,
-          "price-basis": "Per guest"
-        },
-        "checkbox4": {
-          "label": "Live DJ",
-          "price": 1500.00,
-          "price-basis": "Per day"
-        }
+    "html-type": "product-group"
+  },
+  "section8": {
+    "order": 8,
+    "content": "Select Your Upgrades Below",
+    "html-type": "h2"
+  },
+  "section9": {
+    "order": 9,
+    "content": {
+      "checbox1": {
+        "label": "Matcha Upgrade (Ceremonial Grade)",
+        "price": 23,
+        "price-basis": "Per guest"
+      },
+      "checbox2": {
+        "label": "Kids Menu",
+        "price": 15,
+        "price-basis": "Per guest"
+      },
+      "checkbox3": {
+        "label": "Non-Dairy options",
+        "price": 2,
+        "price-basis": "Per guest"
+      },
+      "checkbox4": {
+        "label": "Live DJ",
+        "price": 1500,
+        "price-basis": "Per day"
       }
-    }
+    },
+    "html-type": "checkbox-group"
   }
+}

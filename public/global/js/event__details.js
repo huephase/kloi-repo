@@ -309,16 +309,13 @@ function resetFormFields() {
         return;
     }
     
-    // 🟡🟡🟡 - [FORM RESET] Clear all input fields except radio buttons and country code
+    // 🟡🟡🟡 - [FORM RESET] Clear input fields except radio buttons, country code, and first 3 fields (firstName, lastName, the-customer-phone)
     const fieldsToReset = [
-        'firstName',
-        'lastName',
         'buildingName',
         'houseNumber', 
         'floorNumber',
         'unitNumber',
         'street',
-        'the-customer-phone',
         'email',
         'additionalDirections'
     ];

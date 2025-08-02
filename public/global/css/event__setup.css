@@ -41,6 +41,16 @@
     margin-bottom: 15px;
 }
 
+.checkbox-group input.checkbox-input {
+    width: 30px;
+    height: 30px;
+    margin: 0;
+    accent-color: var(--kloi-accent);
+}
+.checkbox-group span.checkbox-text {
+    width: 90%;
+}
+
 .radio-option, .checkbox-option, .product-item {
     display: flex;
     flex-direction: column;
@@ -53,7 +63,8 @@
 }
 
 .radio-option:hover, .checkbox-option:hover, .product-item:hover {
-    border-color: #007bff;
+    border-color: var(--kloi-text);
+    border-width: var(--border-highlight-width);
     transform: translateY(-2px);
 }
 
@@ -79,6 +90,11 @@
     flex: 1;
     width: 100%;
     text-align: left;
+}
+.product-label {
+    flex-direction: column;
+    gap: 0;
+    margin: auto 0 1rem;
 }
 
 /* 🟡🟡🟡 - [MODERN RADIO BUTTONS] Custom radio button styling */
@@ -136,7 +152,6 @@
 
 .price {
     font-weight: bold;
-    font-size: 1.2em;
 }
 
 .price-basis {
@@ -144,12 +159,11 @@
     font-style: italic;
 }
 
-/* 🟡🟡🟡 - [RESPONSIVE DESIGN] Mobile improvements */
-@media (max-width: 768px) {
-    .radio-option, .checkbox-option, .product-item {
-        padding: 0;
-    }
+
+.radio-option, .checkbox-option, .product-item {
+    padding: 12px 15px;
 }
+
 
 .view-details-btn {
     background: var(--kloi-white);
@@ -177,30 +191,33 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
 }
 
 .quantity-btn {
-    background: #007bff;
-    color: white;
+    background: var(--kloi-text);
+    color: var(--kloi-background);
     border: none;
-    width: 30px;
+    width: 25%;
     height: 30px;
-    border-radius: 50%;
     cursor: pointer;
-    font-size: 16px;
-    font-weight: bold;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 0;
 }
 
 .quantity-btn:hover {
-    background: #0056b3;
+    background: transparent;
+    border: 1px solid var(--kloi-text);
+    color: var(--kloi-text);
 }
 
 .quantity-input {
-    width: 60px;
+    width: 50%;
     text-align: center;
     border: 1px solid #ddd;
-    border-radius: 4px;
     padding: 5px;
+    margin: 0 auto;
 }
 
 .submit-section {
