@@ -118,14 +118,29 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
       // Get Redis info
       const redisInfo = await redisClient.info('server');
       const redisMemory = await redisClient.info('memory');
+
+      // Parse Redis connection details from env for accurate reporting
+      const redisUrl = process.env.REDIS_URL;
+      let reportedHost = process.env.REDIS_HOST || 'localhost';
+      let reportedPort: number | string = process.env.REDIS_PORT || 6379;
+      if (redisUrl) {
+        try {
+          const parsed = new URL(redisUrl);
+          reportedHost = parsed.hostname || reportedHost;
+          reportedPort = parsed.port || reportedPort;
+        } catch (e) {
+          console.log('🟤🟤🟤 - [HEALTH CHECK] Could not parse REDIS_URL; falling back to host/port');
+        }
+      }
       
       results.push({
         name: 'Redis Connection',
         status: 'success',
         message: 'Redis connection healthy',
         details: {
-          host: process.env.REDIS_HOST || 'localhost',
-          port: process.env.REDIS_PORT || 6379,
+          urlConfigured: !!redisUrl,
+          host: reportedHost,
+          port: reportedPort,
           connectionTime: `${redisTime}ms`,
           serverInfo: redisInfo,
           memoryInfo: redisMemory
@@ -137,12 +152,14 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
       console.log('✅✅✅ - [HEALTH CHECK] Redis check passed');
       
     } catch (error) {
+      const redisUrl = process.env.REDIS_URL;
       results.push({
         name: 'Redis Connection',
         status: 'error',
         message: 'Redis connection failed',
         details: {
           error: error instanceof Error ? error.message : 'Unknown error',
+          urlConfigured: !!redisUrl,
           host: process.env.REDIS_HOST || 'localhost',
           port: process.env.REDIS_PORT || 6379
         },
@@ -155,14 +172,18 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
     // 👍👍👍👍👍👍 - 2024-12-28 - Environment Variables Check
     try {
       const envStart = Date.now();
-      
-      const criticalEnvVars = [
+
+      // When REDIS_URL is provided, REDIS_HOST/REDIS_PORT are optional
+      const criticalEnvVarsBase = [
         'DATABASE_URL',
-        'REDIS_HOST',
-        'REDIS_PORT',
         'REDIS_SESSION_SECRET',
         'SESSION_COOKIE_NAME'
       ];
+      const criticalEnvVarsRedisSplit = ['REDIS_HOST', 'REDIS_PORT'];
+      const useRedisUrl = !!process.env.REDIS_URL;
+      const criticalEnvVars = useRedisUrl
+        ? [...criticalEnvVarsBase, 'REDIS_URL']
+        : [...criticalEnvVarsBase, ...criticalEnvVarsRedisSplit];
       
       const envStatus: Record<string, boolean> = {};
       criticalEnvVars.forEach(varName => {

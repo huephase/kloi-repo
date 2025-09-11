@@ -666,7 +666,19 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           (request.session as any).customerId = customer?.id || null;
           
         } catch (dbError) {
-          console.error('❌❌❌ - [DATABASE SAVE] Failed to save order:', dbError);
+          const prismaErr = dbError as any;
+          const errorPayload = {
+            message: prismaErr?.message,
+            code: prismaErr?.code,
+            meta: prismaErr?.meta,
+            // Avoid logging PII; include only structural hints
+            hasValidatedData: !!validatedData,
+            hasSessionId: !!request.session?.sessionId,
+            dbUrlConfigured: !!process.env.DATABASE_URL,
+            nodeEnv: process.env.NODE_ENV
+          };
+          console.error('❗❗❗ - [DATABASE SAVE] Prisma error details:', JSON.stringify(errorPayload, null, 2));
+          console.error('❗❗❗ - [DATABASE SAVE] Failed to save order:', prismaErr);
           return reply.status(500).send({
             success: false,
             message: 'Failed to save order information. Please try again.',
