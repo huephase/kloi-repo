@@ -776,11 +776,18 @@ function initializeAjaxFormSubmission() {
             credentials: 'same-origin' // Include session cookies
         })
         .then(response => {
-            console.log('🟡🟡🟡 - [AJAX FORM] Server response status:', response.status);
+            console.log('❗❗❗ - [AJAX FORM][DEBUG] Request URL:', form.action);
+            console.log('❗❗❗ - [AJAX FORM][DEBUG] Request Body Keys:', Object.keys(data));
+            console.log('❗❗❗ - [AJAX FORM][DEBUG] Response status:', response.status);
+            console.log('❗❗❗ - [AJAX FORM][DEBUG] Response ok:', response.ok);
+            console.log('❗❗❗ - [AJAX FORM][DEBUG] Response headers (content-type):', response.headers.get('content-type'));
             return response.json();
         })
         .then(result => {
             console.log('🟡🟡🟡 - [AJAX FORM] Server response:', result);
+            if (!result || typeof result !== 'object') {
+                console.error('❗❗❗ - [AJAX FORM][DEBUG] Invalid JSON response structure');
+            }
             
             if (result.success) {
                 console.log('✅✅✅ - [AJAX FORM] Form submission successful');
@@ -797,8 +804,7 @@ function initializeAjaxFormSubmission() {
                 
             } else {
                 console.log('❗❗❗ - [AJAX FORM] Form submission failed with validation errors');
-                
-                // Display validation errors
+                console.log('❗❗❗ - [AJAX FORM][DEBUG] Error keys:', result && result.errors ? Object.keys(result.errors) : []);
                 displayFormErrors(result.errors || {});
                 
                 // Reset submit button
@@ -846,6 +852,9 @@ function clearFormErrors() {
 // 🟡🟡🟡 - [ERROR HANDLING] Display form validation errors
 function displayFormErrors(errors) {
     console.log('❗❗❗ - [ERROR HANDLING] Displaying form errors:', errors);
+    const knownFields = ['firstName','lastName','phone','email','propertyType','street','buildingName','houseNumber','floorNumber','unitNumber','additionalDirections','general','database'];
+    console.log('❗❗❗ - [ERROR HANDLING][DEBUG] Known fields:', knownFields);
+    console.log('❗❗❗ - [ERROR HANDLING][DEBUG] Received fields:', Object.keys(errors || {}));
     
     // Map server field names to client field names if needed
     const fieldMapping = {
@@ -886,7 +895,7 @@ function displayFormErrors(errors) {
             
             // Show general error if field not found
             if (fieldName === 'general' || fieldName === 'database') {
-                // Display general error at top of form or in a toast
+                console.error('❗❗❗ - [ERROR HANDLING][DEBUG] General/Database error incoming:', errorMessage);
                 console.error('❌❌❌ - [ERROR HANDLING] General/Database error:', errorMessage);
                 alert('Error: ' + errorMessage); // Simple fallback - could be improved with better UI
             }

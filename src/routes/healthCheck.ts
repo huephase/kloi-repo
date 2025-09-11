@@ -57,17 +57,57 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
     // 👍👍👍👍👍👍 - 2024-12-28 - Database Connection Check
     try {
       const dbStart = Date.now();
+      console.log('❗❗❗ - [HEALTH CHECK][DB] Connecting to database... NODE_ENV=', process.env.NODE_ENV);
+      console.log('❗❗❗ - [HEALTH CHECK][DB] DATABASE_URL configured:', !!process.env.DATABASE_URL);
       await prisma.$connect();
-      
-      // Test a simple query
+
+      // 2025-09-11 - Detailed step-by-step DB diagnostics
+      console.log('❗❗❗ - [HEALTH CHECK][DB] Running SELECT version(), now()');
       const testQuery = await prisma.$queryRaw`SELECT version() as db_version, now() as current_time`;
-      const connectionTime = Date.now() - dbStart;
+      console.log('❗❗❗ - [HEALTH CHECK][DB] Version/Time OK');
       
-      // Get table counts
-      const customerCount = await prisma.customers.count();
-      const sessionCount = await prisma.session.count();
-      const orderCount = await prisma.kloiOrdersTable.count();
-      const menuCount = await prisma.menus.count();
+      const connectionTime = Date.now() - dbStart;
+
+      let customerCount = -1;
+      let sessionCount = -1;
+      let orderCount = -1;
+      let menuCount = -1;
+
+      try {
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Counting Customers...');
+        customerCount = await prisma.customers.count();
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Customers count =', customerCount);
+      } catch (e: any) {
+        console.error('❗❗❗ - [HEALTH CHECK][DB] Customers count FAILED:', e?.code, e?.message);
+        throw e;
+      }
+
+      try {
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Counting Session...');
+        sessionCount = await prisma.session.count();
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Session count =', sessionCount);
+      } catch (e: any) {
+        console.error('❗❗❗ - [HEALTH CHECK][DB] Session count FAILED:', e?.code, e?.message);
+        throw e;
+      }
+
+      try {
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Counting kloiOrdersTable...');
+        orderCount = await prisma.kloiOrdersTable.count();
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Orders count =', orderCount);
+      } catch (e: any) {
+        console.error('❗❗❗ - [HEALTH CHECK][DB] Orders count FAILED:', e?.code, e?.message);
+        throw e;
+      }
+
+      try {
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Counting Menus...');
+        menuCount = await prisma.menus.count();
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Menus count =', menuCount);
+      } catch (e: any) {
+        console.error('❗❗❗ - [HEALTH CHECK][DB] Menus count FAILED:', e?.code, e?.message);
+        throw e;
+      }
       
       results.push({
         name: 'Database Connection',
@@ -104,7 +144,12 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
       
       console.error('❗❗❗ - [HEALTH CHECK] Database check failed:', error);
     } finally {
-      await prisma.$disconnect();
+      try {
+        console.log('❗❗❗ - [HEALTH CHECK][DB] Disconnecting Prisma');
+        await prisma.$disconnect();
+      } catch (e) {
+        console.error('❗❗❗ - [HEALTH CHECK][DB] Disconnect failed:', e);
+      }
     }
     
     // 👍👍👍👍👍👍 - 2024-12-28 - Redis Connection Check
