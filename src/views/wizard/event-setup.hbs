@@ -22,6 +22,7 @@
 
     {{#if hasMenuData}}
         <form id="eventSetupForm" class="menu-form">
+
             {{! 🟡🟡🟡 - [MENU SECTIONS] Render each menu section in order }}
             {{#each menuSections}}
                 <div class="menu-section {{className}}" data-section-id="{{id}}" data-order="{{order}}">
@@ -145,6 +146,22 @@
                     {{/if}}
                 </div>
             {{/each}}
+
+            {{! 🟡🟡🟡 - KLOI GUEST COUNTER - Will be positioned after first image via JavaScript }}
+            <div id="guest-counter-container" style="display: none;">
+                <div class="product-item" data-product-id="guest-count">
+                    <div class="product-info">
+                        <label class="product-label">
+                            <strong>Your Guest Count</strong>
+                        </label>
+                    </div>
+                    <div class="quantity-controls">
+                        <button type="button" class="quantity-btn minus" data-action="decrease">-</button>
+                        <input type="number" class="quantity-input" name="guest-count" value="0" min="0" max="999">
+                        <button type="button" class="quantity-btn plus" data-action="increase">+</button>
+                    </div>
+                </div>
+            </div>
 
             <div id="koi-live-quote">
                 <div class="kloi-calculator"></div>
@@ -524,6 +541,26 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅✅✅ - [EVENT SETUP JS] Event listeners initialized');
     }
     
+    // 🟡🟡🟡 - [GUEST COUNTER POSITIONING] Position guest counter after first image
+    function positionGuestCounter() {
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Positioning guest counter after first image');
+        
+        const firstImage = document.querySelector('.menu-image');
+        const guestCounterContainer = document.getElementById('guest-counter-container');
+        
+        if (firstImage && guestCounterContainer) {
+            // 🟡🟡🟡 - [POSITIONING] Insert guest counter after the first image's parent container
+            const imageSection = firstImage.closest('.image-section');
+            if (imageSection) {
+                imageSection.parentNode.insertBefore(guestCounterContainer, imageSection.nextSibling);
+                guestCounterContainer.style.display = 'block';
+                console.log('✅✅✅ - [EVENT SETUP JS] Guest counter positioned after first image');
+            }
+        } else {
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] No first image or guest counter container found');
+        }
+    }
+    
     // 🟡🟡🟡 - [INITIALIZATION] Initialize all functionality
     function initialize() {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing event setup page');
@@ -534,6 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeFormSubmission();
         initializeEventListeners();
         updateOrderSummary();
+        positionGuestCounter();
         
         console.log('✅✅✅ - [EVENT SETUP JS] Event setup page initialized');
     }

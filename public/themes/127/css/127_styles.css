@@ -10,4 +10,5 @@
 
 body {
     background-color: var(--kloi-background);
+    color: var(--kloi-text);
 }
