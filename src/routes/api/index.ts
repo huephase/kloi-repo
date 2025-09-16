@@ -594,25 +594,67 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             if (customer) {
               console.log('✅✅✅ - [CUSTOMER CREATION] Existing customer found, updating:', customer.id);
               // Update existing customer with new information
-              customer = await prisma.customers.update({
-                where: { id: customer.id },
-                data: {
-                  firstName: validatedData.firstName,
-                  lastName: validatedData.lastName,
-                  email: validatedData.email || null,
+              try {
+                customer = await prisma.customers.update({
+                  where: { id: customer.id },
+                  data: {
+                    firstName: validatedData.firstName,
+                    lastName: validatedData.lastName,
+                    email: validatedData.email || null,
+                  }
+                });
+              } catch (updateErr: any) {
+                // 2025-09-16: Temporary defensive fallback for production DBs with NOT NULL email
+                // 🟤🟤🟤 - This is a temporary workaround until migration makes email nullable
+                console.error('❗❗❗ - [CUSTOMER CREATION] Update failed, attempting fallback email string due to constraint:', updateErr?.code || updateErr?.message);
+                if (updateErr?.code === 'P2011' && Array.isArray(updateErr?.meta?.constraint) && updateErr.meta.constraint.includes('email')) {
+                  const fallbackEmail = validatedData.email && validatedData.email.trim() !== '' ? validatedData.email : '';
+                  console.log('🟡🟡🟡 - [CUSTOMER CREATION] Retrying update with fallback email string length:', String(fallbackEmail).length);
+                  customer = await prisma.customers.update({
+                    where: { id: customer.id },
+                    data: {
+                      firstName: validatedData.firstName,
+                      lastName: validatedData.lastName,
+                      // 🟤🟤🟤 - Fallback to empty string to satisfy NOT NULL until migration lands
+                      email: fallbackEmail,
+                    }
+                  });
+                } else {
+                  throw updateErr;
                 }
-              });
+              }
             } else {
               console.log('🟡🟡🟡 - [CUSTOMER CREATION] No existing customer found, creating new customer');
               // Create new customer
-              customer = await prisma.customers.create({
-                data: {
-                  phone: validatedData.phone,
-                  firstName: validatedData.firstName,
-                  lastName: validatedData.lastName,
-                  email: validatedData.email || null,
+              try {
+                customer = await prisma.customers.create({
+                  data: {
+                    phone: validatedData.phone,
+                    firstName: validatedData.firstName,
+                    lastName: validatedData.lastName,
+                    email: validatedData.email || null,
+                  }
+                });
+              } catch (createErr: any) {
+                // 2025-09-16: Temporary defensive fallback for production DBs with NOT NULL email
+                // 🟤🟤🟤 - This is a temporary workaround until migration makes email nullable
+                console.error('❗❗❗ - [CUSTOMER CREATION] Create failed, attempting fallback email string due to constraint:', createErr?.code || createErr?.message);
+                if (createErr?.code === 'P2011' && Array.isArray(createErr?.meta?.constraint) && createErr.meta.constraint.includes('email')) {
+                  const fallbackEmail = validatedData.email && validatedData.email.trim() !== '' ? validatedData.email : '';
+                  console.log('🟡🟡🟡 - [CUSTOMER CREATION] Retrying create with fallback email string length:', String(fallbackEmail).length);
+                  customer = await prisma.customers.create({
+                    data: {
+                      phone: validatedData.phone,
+                      firstName: validatedData.firstName,
+                      lastName: validatedData.lastName,
+                      // 🟤🟤🟤 - Fallback to empty string to satisfy NOT NULL until migration lands
+                      email: fallbackEmail,
+                    }
+                  });
+                } else {
+                  throw createErr;
                 }
-              });
+              }
             }
             
             console.log('✅✅✅ - [CUSTOMER CREATION] Customer saved successfully:', customer.id);
