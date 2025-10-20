@@ -586,8 +586,9 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           if (validatedData.phone) {
             console.log('🟡🟡🟡 - [CUSTOMER CREATION] Creating/updating customer with phone:', validatedData.phone);
             
-            // Try to find existing customer by phone
-            customer = await prisma.customers.findUnique({
+            // ⚠️⚠️⚠️ NOTE: Using findFirst instead of findUnique due to Prisma client type issue
+            // 🟡🟡🟡 - [CUSTOMER LOOKUP] Searching for existing customer by phone number
+            customer = await prisma.customers.findFirst({
               where: { phone: validatedData.phone }
             });
 

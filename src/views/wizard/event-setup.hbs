@@ -194,6 +194,7 @@
 
 
 {{! 🟡🟡🟡 - [JAVASCRIPT] Event setup functionality }}
+<script src="/public/global/js/kloi_calculator.js"></script>
 <script>
 // 🟡🟡🟡 - [POPUP DATA] Server-side popup data will be loaded from data attribute
 
@@ -211,15 +212,26 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 🟡🟡🟡 - [POPUP DATA] Store popup content data
     const popupData = {};
+
+    // 🟡🟡🟡 - [KLOI CALC] Initialize calculator early from server data
+    const serverDataDiv = document.getElementById('serverData');
+    const menuSectionsData = serverDataDiv?.dataset.menuSections;
+    let calc = null;
+    if (menuSectionsData && window.KloiCalculator) {
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing KLOI calculator with server menu data');
+        calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0 });
+        if (!calc) {
+            console.error('❗❗❗ - [EVENT SETUP JS] Calculator failed to initialize');
+        }
+    } else {
+        console.error('❗❗❗ - [EVENT SETUP JS] Missing menu data or calculator module');
+    }
     
     // 🟡🟡🟡 - [POPUP INITIALIZATION] Initialize popup data from server data
     function initializePopupData() {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing popup data from server');
         
         // 🟡🟡🟡 - [SERVER DATA] Get server data from hidden div
-        const serverDataDiv = document.getElementById('serverData');
-        const menuSectionsData = serverDataDiv?.dataset.menuSections;
-        
         if (menuSectionsData) {
             try {
                 const serverPopupData = JSON.parse(menuSectionsData);
@@ -328,13 +340,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 input.value = value;
                 updateOrderSummary();
+
+                // 🟡🟡🟡 - [KLOI CALC] Reflect changes into calculator
+                if (calc) {
+                    const productEl = this.closest('.product-item');
+                    if (productEl && productEl.dataset.productId === 'guest-count') {
+                        calc.setGuestCount(value);
+                    } else {
+                        const productKey = input.name;
+                        calc.setProductQty(productKey, value);
+                    }
+                }
             });
         });
         
         // 🟡🟡🟡 - [QUANTITY INPUT] Handle direct input changes
         const quantityInputs = document.querySelectorAll('.quantity-input');
         quantityInputs.forEach(input => {
-            input.addEventListener('change', updateOrderSummary);
+            input.addEventListener('change', function() {
+                updateOrderSummary();
+                if (calc) {
+                    const productEl = this.closest('.product-item');
+                    const value = parseInt(this.value) || 0;
+                    if (productEl && productEl.dataset.productId === 'guest-count') {
+                        calc.setGuestCount(value);
+                    } else {
+                        calc.setProductQty(this.name, value);
+                    }
+                }
+            });
         });
         
         console.log('✅✅✅ - [EVENT SETUP JS] Quantity controls initialized');
@@ -512,6 +546,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         
                         console.log('✅✅✅ - [EVENT SETUP JS] Radio option expanded:', this.value);
+
+                        // 🟡🟡🟡 - [KLOI CALC] Reflect radio into calculator
+                        if (calc) {
+                            const groupId = this.name; // matches section id
+                            const optionKey = this.value;
+                            calc.setRadio(groupId, optionKey);
+                        }
                     }
                 });
             });
@@ -535,7 +576,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // 🟡🟡🟡 - [FORM CHANGES] Update summary when form changes
         const formInputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
         formInputs.forEach(input => {
-            input.addEventListener('change', updateOrderSummary);
+            input.addEventListener('change', function () {
+                updateOrderSummary();
+                if (!calc) return;
+                if (this.type === 'checkbox') {
+                    const optionKey = this.value;
+                    calc.setCheckbox(optionKey, this.checked);
+                }
+                if (this.type === 'radio' && this.checked) {
+                    const groupId = this.name;
+                    const optionKey = this.value;
+                    calc.setRadio(groupId, optionKey);
+                }
+            });
         });
         
         console.log('✅✅✅ - [EVENT SETUP JS] Event listeners initialized');
@@ -572,6 +625,25 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeEventListeners();
         updateOrderSummary();
         positionGuestCounter();
+
+        // 🟡🟡🟡 - [KLOI CALC] Seed initial selections into calculator
+        if (calc) {
+            // Guest count
+            const guestInput = document.querySelector('#guest-counter-container .quantity-input[name="guest-count"]');
+            if (guestInput) {
+                calc.setGuestCount(parseInt(guestInput.value) || 0);
+            }
+            // Radios
+            const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
+            selectedRadios.forEach(r => calc.setRadio(r.name, r.value));
+            // Checkboxes
+            const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+            selectedCheckboxes.forEach(cb => calc.setCheckbox(cb.value, true));
+            // Products
+            const productInputs = document.querySelectorAll('.product-group .quantity-input');
+            productInputs.forEach(pi => calc.setProductQty(pi.name, parseInt(pi.value) || 0));
+            calc.recalc();
+        }
         
         console.log('✅✅✅ - [EVENT SETUP JS] Event setup page initialized');
     }
