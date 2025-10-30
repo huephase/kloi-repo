@@ -86,6 +86,21 @@ class DatePicker {
                 this.bookedDates = data.bookedDates;
                 console.log('✅✅✅ - [BOOKED DATES] Successfully loaded booked dates:', this.bookedDates.length);
                 console.log('🟡🟡🟡 - [BOOKED DATES] Sample booked dates:', this.bookedDates.slice(0, 5));
+
+                // 🟡🟡🟡 - [BOOKED DATES DEFAULT] If API returns no booked dates, mark first N days as booked
+                if (this.bookedDates.length === 0 && this.defaultBookedDays > 0) {
+                    const baseDate = new Date(this.today || new Date());
+                    baseDate.setHours(0, 0, 0, 0);
+                    const defaults = [];
+                    for (let i = 0; i < this.defaultBookedDays; i++) {
+                        const d = new Date(baseDate);
+                        d.setDate(baseDate.getDate() + i);
+                        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        defaults.push(dateStr);
+                    }
+                    this.bookedDates = defaults;
+                    console.log('🟡🟡🟡 - [BOOKED DATES DEFAULT] Applied default booked days:', this.bookedDates);
+                }
             } else {
                 console.warn('⚠️⚠️⚠️ - [BOOKED DATES] Invalid response format from booked-dates API');
                 this.bookedDates = [];
@@ -98,6 +113,21 @@ class DatePicker {
             // 🟤🟤🟤 - [BOOKED DATES] Show user-friendly warning
             const warningMessage = 'Unable to load booked dates. Calendar may not show accurate availability.';
             this.showTimeWarning(warningMessage);
+        } finally {
+            // 🟡🟡🟡 - [BOOKED DATES DEFAULT] Ensure defaults are present when no booked dates available due to errors
+            if (this.bookedDates.length === 0 && this.defaultBookedDays > 0) {
+                const baseDate = new Date(this.today || new Date());
+                baseDate.setHours(0, 0, 0, 0);
+                const defaults = [];
+                for (let i = 0; i < this.defaultBookedDays; i++) {
+                    const d = new Date(baseDate);
+                    d.setDate(baseDate.getDate() + i);
+                    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    defaults.push(dateStr);
+                }
+                this.bookedDates = defaults;
+                console.log('🟡🟡🟡 - [BOOKED DATES DEFAULT] Applied default booked days in fallback:', this.bookedDates);
+            }
         }
     }
     

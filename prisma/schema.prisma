@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 // 🟡🟡🟡 - [ORDER STATUS ENUM] Centralized order status enum for database constraint
@@ -24,6 +25,10 @@ model Customers {
   createdAt DateTime @default(now()) @db.Timestamp(3)
   orders    kloiOrdersTable[]
   sessions  Session[]
+  
+  // 🟡🟡🟡 - [COMPOSITE UNIQUENESS] Composite unique constraint for phone and email combination
+  @@unique([phone, email], name: "unique_phone_email")
+  @@map("Customers")
 }
 
 model Session {

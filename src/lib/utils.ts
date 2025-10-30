@@ -28,3 +28,30 @@ export function sanitizeObject<T extends Record<string, any>>(obj: T): T {
   console.log('🟡🟡🟡 - [sanitizeObject] return:', clean);
   return clean;
 }
+
+// 🟡🟡🟡 - [EMAIL SANITIZATION] Normalize and sanitize email input
+export function sanitizeEmail(email: string | undefined | null): string | null {
+  console.log('🟡🟡🟡 - [sanitizeEmail] Input email:', email);
+  
+  // Handle null/undefined
+  if (!email) {
+    console.log('🟡🟡🟡 - [sanitizeEmail] No email provided, returning null');
+    return null;
+  }
+  
+  // Trim whitespace
+  const trimmed = email.trim();
+  console.log('🟡🟡🟡 - [sanitizeEmail] Trimmed email:', trimmed);
+  
+  // Convert empty string to null
+  if (trimmed === '') {
+    console.log('🟡🟡🟡 - [sanitizeEmail] Empty string after trim, returning null');
+    return null;
+  }
+  
+  // Convert to lowercase for consistency
+  const normalized = trimmed.toLowerCase();
+  console.log('✅✅✅ - [sanitizeEmail] Normalized email:', normalized);
+  
+  return normalized;
+}

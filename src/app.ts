@@ -63,6 +63,25 @@ app.register(fastifyView, {
   includeViewExtension: true,
 });
 
+// 🟡🟡🟡 - [HANDLEBARS PARTIALS] Register Handlebars partials manually
+console.log('🟡🟡🟡 - [app.ts] Registering Handlebars partials');
+const partialsDir = path.join(__dirname, 'views', 'partials');
+try {
+  const partialFiles = fs.readdirSync(partialsDir);
+  partialFiles.forEach(file => {
+    if (file.endsWith('.hbs')) {
+      const partialName = file.replace('.hbs', '');
+      const partialPath = path.join(partialsDir, file);
+      const partialContent = fs.readFileSync(partialPath, 'utf8');
+      handlebars.registerPartial(partialName, partialContent);
+      console.log('✅✅✅ - [app.ts] Registered partial:', partialName);
+    }
+  });
+  console.log('✅✅✅ - [app.ts] All Handlebars partials registered successfully');
+} catch (error) {
+  console.error('❗❗❗ - [app.ts] Error registering partials:', error);
+}
+
 // console.log('🟡🟡🟡 - [app.ts] Registering static assets');
 app.register(fastifyStatic, {
   root: path.join(__dirname, '../public'),

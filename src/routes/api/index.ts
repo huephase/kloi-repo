@@ -1,10 +1,12 @@
 // src/routes/api/index.ts
 // Aggregates API routes. All POST routes are handled here.
 import { FastifyInstance, FastifyPluginOptions, FastifyReply } from 'fastify';
-import { WizardStepConfig, OrderStatus, ORDER_STATUS_GROUPS } from '../../types/index';
+import { WizardStepConfig, OrderStatus } from '../../types/index';
 import { prisma } from '../../lib/prisma';
 import { eventDetailsSchema, locationDataSchema, dateSelectionSchema, eventSetupSchema } from '../../schemas/wizard.schemas';
 import { ZodError } from 'zod';
+import { sanitizeEmail } from '../../lib/utils';
+import { createCustomerSafely, resolveCustomerConflict } from '../../services/conflictResolutionService';
 
 // Maps wizard steps to session keys and redirect targets
 // The step parameter will be the wizard step, for eg. "location"
@@ -108,7 +110,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           },
           // 🟡🟡🟡 - [FILTER] Only include orders that are bookable (not cancelled or completed)
           status: {
-            in: [...ORDER_STATUS_GROUPS.BOOKABLE]
+            in: ['PENDING', 'IN_PROGRESS'] as any
           }
         },
         select: {
@@ -488,6 +490,81 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
     }
   });
 
+  // 🟡🟡🟡 - [CONFLICT RESOLUTION API] Endpoint to handle customer conflict resolution
+  app.post('/resolve-conflict', async (request, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [CONFLICT RESOLUTION API] Resolving customer conflict');
+    console.log('🟡🟡🟡 - [CONFLICT RESOLUTION API] Request body:', JSON.stringify(request.body, null, 2));
+    
+    if (!request.session || !request.session.sessionId) {
+      console.log('⚠️⚠️⚠️ - [CONFLICT RESOLUTION API] No session found');
+      return reply.status(401).send({
+        success: false,
+        message: 'Session not found. Please start from the beginning.',
+        errors: { session: 'Session not found' }
+      });
+    }
+
+    try {
+      const { phone, email, firstName, lastName, conflictType } = request.body as any;
+      
+      if (!phone || !conflictType) {
+        return reply.status(400).send({
+          success: false,
+          message: 'Missing required fields for conflict resolution',
+          errors: { data: 'Phone and conflict type are required' }
+        });
+      }
+
+      // 🟡🟡🟡 - [CONFLICT RESOLUTION] Resolve the conflict
+      const resolutionResult = await resolveCustomerConflict(
+        phone,
+        email,
+        firstName,
+        lastName,
+        conflictType
+      );
+
+      if (resolutionResult.success) {
+        console.log('✅✅✅ - [CONFLICT RESOLUTION API] Conflict resolved successfully:', resolutionResult.customerId);
+        
+        // Store customer ID in session for future reference
+        (request.session as any).customerId = resolutionResult.customerId;
+        
+        // Update session with the resolved customer data
+        (request.session as any).eventDetails = {
+          firstName: firstName,
+          lastName: lastName,
+          phone: phone,
+          email: email
+        };
+        
+        console.log('✅✅✅ - [CONFLICT RESOLUTION API] Session updated with resolved customer data');
+        
+        return reply.send({
+          success: true,
+          message: 'Customer conflict resolved successfully',
+          customerId: resolutionResult.customerId,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.log('❗❗❗ - [CONFLICT RESOLUTION API] Failed to resolve conflict:', resolutionResult.message);
+        return reply.status(500).send({
+          success: false,
+          message: 'Failed to resolve customer conflict',
+          error: resolutionResult.message
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌❌❌ - [CONFLICT RESOLUTION API] Error resolving conflict:', error);
+      return reply.status(500).send({
+        success: false,
+        message: 'Error resolving customer conflict',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   app.post<{
     Params: { step: string };
   }>('/session/:step', async (request, reply: FastifyReply) => {
@@ -581,86 +658,52 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             });
           }
 
-          // 🟡🟡🟡 - [CUSTOMER CREATION] Create or update customer record
+          // 🟡🟡🟡 - [CUSTOMER CREATION] Create or update customer record with conflict detection
           let customer = null;
+          let sanitizedEmail = null;
+          
           if (validatedData.phone) {
             console.log('🟡🟡🟡 - [CUSTOMER CREATION] Creating/updating customer with phone:', validatedData.phone);
             
-            // ⚠️⚠️⚠️ NOTE: Using findFirst instead of findUnique due to Prisma client type issue
-            // 🟡🟡🟡 - [CUSTOMER LOOKUP] Searching for existing customer by phone number
-            customer = await prisma.customers.findFirst({
-              where: { phone: validatedData.phone }
-            });
-
-            if (customer) {
-              console.log('✅✅✅ - [CUSTOMER CREATION] Existing customer found, updating:', customer.id);
-              // Update existing customer with new information
-              try {
-                customer = await prisma.customers.update({
-                  where: { id: customer.id },
-                  data: {
-                    firstName: validatedData.firstName,
-                    lastName: validatedData.lastName,
-                    email: validatedData.email || null,
-                  }
-                });
-              } catch (updateErr: any) {
-                // 2025-09-16: Temporary defensive fallback for production DBs with NOT NULL email
-                // 🟤🟤🟤 - This is a temporary workaround until migration makes email nullable
-                console.error('❗❗❗ - [CUSTOMER CREATION] Update failed, attempting fallback email string due to constraint:', updateErr?.code || updateErr?.message);
-                if (updateErr?.code === 'P2011' && Array.isArray(updateErr?.meta?.constraint) && updateErr.meta.constraint.includes('email')) {
-                  const fallbackEmail = validatedData.email && validatedData.email.trim() !== '' ? validatedData.email : '';
-                  console.log('🟡🟡🟡 - [CUSTOMER CREATION] Retrying update with fallback email string length:', String(fallbackEmail).length);
-                  customer = await prisma.customers.update({
-                    where: { id: customer.id },
-                    data: {
-                      firstName: validatedData.firstName,
-                      lastName: validatedData.lastName,
-                      // 🟤🟤🟤 - Fallback to empty string to satisfy NOT NULL until migration lands
-                      email: fallbackEmail,
-                    }
-                  });
-                } else {
-                  throw updateErr;
-                }
-              }
-            } else {
-              console.log('🟡🟡🟡 - [CUSTOMER CREATION] No existing customer found, creating new customer');
-              // Create new customer
-              try {
-                customer = await prisma.customers.create({
-                  data: {
-                    phone: validatedData.phone,
-                    firstName: validatedData.firstName,
-                    lastName: validatedData.lastName,
-                    email: validatedData.email || null,
-                  }
-                });
-              } catch (createErr: any) {
-                // 2025-09-16: Temporary defensive fallback for production DBs with NOT NULL email
-                // 🟤🟤🟤 - This is a temporary workaround until migration makes email nullable
-                console.error('❗❗❗ - [CUSTOMER CREATION] Create failed, attempting fallback email string due to constraint:', createErr?.code || createErr?.message);
-                if (createErr?.code === 'P2011' && Array.isArray(createErr?.meta?.constraint) && createErr.meta.constraint.includes('email')) {
-                  const fallbackEmail = validatedData.email && validatedData.email.trim() !== '' ? validatedData.email : '';
-                  console.log('🟡🟡🟡 - [CUSTOMER CREATION] Retrying create with fallback email string length:', String(fallbackEmail).length);
-                  customer = await prisma.customers.create({
-                    data: {
-                      phone: validatedData.phone,
-                      firstName: validatedData.firstName,
-                      lastName: validatedData.lastName,
-                      // 🟤🟤🟤 - Fallback to empty string to satisfy NOT NULL until migration lands
-                      email: fallbackEmail,
-                    }
-                  });
-                } else {
-                  throw createErr;
-                }
-              }
-            }
+            // 🟡🟡🟡 - [EMAIL SANITIZATION] Sanitize email input
+            sanitizedEmail = sanitizeEmail(validatedData.email);
+            console.log('🟡🟡🟡 - [CUSTOMER CREATION] Sanitized email:', sanitizedEmail);
             
-            console.log('✅✅✅ - [CUSTOMER CREATION] Customer saved successfully:', customer.id);
+            // 🟡🟡🟡 - [SAFE CUSTOMER CREATION] Use conflict-aware customer creation
+            const customerResult = await createCustomerSafely(
+              validatedData.phone,
+              validatedData.email,
+              validatedData.firstName,
+              validatedData.lastName
+            );
+            
+            if (customerResult.success) {
+              // Customer created successfully
+              console.log('✅✅✅ - [CUSTOMER CREATION] Customer created/updated successfully:', customerResult.customerId);
+              
+              // Fetch the customer record
+              customer = await prisma.customers.findUnique({
+                where: { id: customerResult.customerId! }
+              });
+            } else {
+              // Conflict detected, return conflict information to client
+              console.log('❗❗❗ - [CUSTOMER CREATION] Conflict detected:', customerResult.message);
+              
+              return reply.status(409).send({
+                success: false,
+                message: 'Customer conflict detected',
+                conflict: {
+                  type: customerResult.conflictType,
+                  existingCustomer: customerResult.existingCustomer,
+                  message: customerResult.message
+                },
+                requiresUserConfirmation: true
+              });
+            }
           } else {
             console.log('🟡🟡🟡 - [CUSTOMER CREATION] No phone provided, creating order without customer link');
+            // Still sanitize email for order creation
+            sanitizedEmail = sanitizeEmail(validatedData.email);
           }
 
           // Create order in database
@@ -670,7 +713,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
               firstName: validatedData.firstName,
               lastName: validatedData.lastName,
               phone: validatedData.phone,
-              email: validatedData.email || null,
+              email: sanitizedEmail,
               
               // Location data as JSONB
               location: locationData,

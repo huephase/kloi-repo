@@ -150,6 +150,70 @@
   </form>
 </div>
 
+{{!-- 🟡🟡🟡 - [CONFLICT POPUP] Include conflict resolution popup --}}
+{{> conflict-popup}}
+
 {{!-- 🟡🟡🟡 - [EVENT DETAILS] Load page-specific JavaScript --}}
 <script src="/public/global/js/kloi_phonepicker.js"></script>
 <script src="/public/global/js/event__details.js"></script>
+
+{{!-- 🟡🟡🟡 - [CONFLICT HANDLING] JavaScript for handling customer conflicts --}}
+<script>
+// 🟡🟡🟡 - [CONFLICT HANDLING] Handle customer conflict resolution
+function handleCustomerConflict(conflictData) {
+  console.log('🟡🟡🟡 - [CONFLICT HANDLING] Handling customer conflict:', conflictData);
+  console.log('🟡🟡🟡 - [CONFLICT HANDLING] Conflict type:', conflictData.type);
+  console.log('🟡🟡🟡 - [CONFLICT HANDLING] Existing customer:', conflictData.existingCustomer);
+  
+  // Show conflict popup
+  showConflictPopup(conflictData.existingCustomer, function() {
+    console.log('✅✅✅ - [CONFLICT HANDLING] User confirmed conflict resolution');
+    
+    // Resolve the conflict via API
+    resolveConflict(conflictData);
+  });
+}
+
+function resolveConflict(conflictData) {
+  console.log('🟡🟡🟡 - [CONFLICT HANDLING] Resolving conflict via API');
+  
+  const formData = new FormData(document.querySelector('.event-details-customer-info-form'));
+  const requestData = {
+    phone: formData.get('phone'),
+    email: formData.get('email'),
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName'),
+    conflictType: conflictData.type
+  };
+  
+  console.log('🟡🟡🟡 - [CONFLICT HANDLING] Sending conflict resolution request:', requestData);
+  
+  fetch('/api/resolve-conflict', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('🟡🟡🟡 - [CONFLICT HANDLING] Conflict resolution response:', data);
+    
+    if (data.success) {
+      console.log('✅✅✅ - [CONFLICT HANDLING] Conflict resolved successfully');
+      // Proceed directly to next step without re-submitting the form
+      console.log('✅✅✅ - [CONFLICT HANDLING] Proceeding to next step: /date-picker');
+      window.location.href = '/date-picker';
+    } else {
+      console.error('❗❗❗ - [CONFLICT HANDLING] Failed to resolve conflict:', data.message);
+      alert('Failed to resolve customer conflict. Please try again.');
+    }
+  })
+  .catch(error => {
+    console.error('❌❌❌ - [CONFLICT HANDLING] Error resolving conflict:', error);
+    alert('Error resolving customer conflict. Please try again.');
+  });
+}
+
+// 🟡🟡🟡 - [FORM SUBMISSION] Handled centrally in /public/global/js/event__details.js to avoid double submits
+</script>

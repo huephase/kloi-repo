@@ -1,0 +1,264 @@
+{{!-- 🟡🟡🟡 - [CONFLICT POPUP] Reusable conflict resolution popup component --}}
+<div id="conflict-popup" class="conflict-popup-overlay" style="display: none;">
+  <div class="conflict-popup-content">
+    <div class="conflict-popup-header">
+      <h3 class="conflict-popup-title">CONFIRM PHONE AND EMAIL</h3>
+      <button type="button" class="conflict-popup-close" onclick="closeConflictPopup()">&times;</button>
+    </div>
+    
+    <div class="conflict-popup-body">
+      <div class="conflict-popup-message">
+        <p>Please confirm the details below:</p>
+      </div>
+      
+      <div class="conflict-popup-details">
+        <div class="conflict-detail-row">
+          <label class="conflict-detail-label">Phone Number:</label>
+          <span class="conflict-detail-value" id="conflict-phone-display"></span>
+        </div>
+        
+        <div class="conflict-detail-row">
+          <label class="conflict-detail-label">Email Address:</label>
+          <span class="conflict-detail-value" id="conflict-email-display"></span>
+        </div>
+        
+        <div class="conflict-detail-row">
+          <label class="conflict-detail-label">Customer Name:</label>
+          <span class="conflict-detail-value" id="conflict-name-display"></span>
+        </div>
+      </div>
+      
+      <div class="conflict-popup-actions">
+        <button type="button" class="conflict-popup-cancel" onclick="closeConflictPopup()">
+          Cancel
+        </button>
+        <button type="button" class="conflict-popup-confirm" onclick="confirmConflictResolution()">
+          CONFIRM TO PROCEED
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* 🟡🟡🟡 - [CONFLICT POPUP STYLES] Styling for conflict resolution popup */
+.conflict-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conflict-popup-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.conflict-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.conflict-popup-title {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.conflict-popup-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conflict-popup-close:hover {
+  color: #333;
+}
+
+.conflict-popup-body {
+  padding: 20px;
+}
+
+.conflict-popup-message {
+  margin-bottom: 20px;
+}
+
+.conflict-popup-message p {
+  margin: 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+.conflict-popup-details {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.conflict-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.conflict-detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.conflict-detail-label {
+  font-weight: 600;
+  color: #333;
+  min-width: 120px;
+}
+
+.conflict-detail-value {
+  color: #666;
+  text-align: right;
+  flex: 1;
+}
+
+.conflict-popup-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.conflict-popup-cancel,
+.conflict-popup-confirm {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.conflict-popup-cancel {
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e0e0e0;
+}
+
+.conflict-popup-cancel:hover {
+  background: #e9ecef;
+}
+
+.conflict-popup-confirm {
+  background: #007bff;
+  color: white;
+}
+
+.conflict-popup-confirm:hover {
+  background: #0056b3;
+}
+
+/* 🟡🟡🟡 - [RESPONSIVE] Mobile-friendly styles */
+@media (max-width: 480px) {
+  .conflict-popup-content {
+    width: 95%;
+    margin: 10px;
+  }
+  
+  .conflict-popup-actions {
+    flex-direction: column;
+  }
+  
+  .conflict-popup-cancel,
+  .conflict-popup-confirm {
+    width: 100%;
+  }
+}
+</style>
+
+<script>
+// 🟡🟡🟡 - [CONFLICT POPUP JS] JavaScript functions for conflict resolution popup
+let conflictResolutionCallback = null;
+
+function showConflictPopup(conflictData, callback) {
+  console.log('🟡🟡🟡 - [CONFLICT POPUP] Showing conflict popup with data:', conflictData);
+  
+  // Store callback for when user confirms
+  conflictResolutionCallback = callback;
+  
+  // Populate popup with conflict data
+  document.getElementById('conflict-phone-display').textContent = conflictData.phone || 'N/A';
+  document.getElementById('conflict-email-display').textContent = conflictData.email || 'N/A';
+  document.getElementById('conflict-name-display').textContent = 
+    `${conflictData.firstName || ''} ${conflictData.lastName || ''}`.trim() || 'N/A';
+  
+  // Show popup
+  document.getElementById('conflict-popup').style.display = 'flex';
+  
+  // Prevent body scroll
+  document.body.style.overflow = 'hidden';
+}
+
+function closeConflictPopup() {
+  console.log('🟡🟡🟡 - [CONFLICT POPUP] Closing conflict popup');
+  
+  // Hide popup
+  document.getElementById('conflict-popup').style.display = 'none';
+  
+  // Restore body scroll
+  document.body.style.overflow = '';
+  
+  // Clear callback
+  conflictResolutionCallback = null;
+}
+
+function confirmConflictResolution() {
+  console.log('✅✅✅ - [CONFLICT POPUP] User confirmed conflict resolution');
+  
+  // Call the callback if it exists
+  if (conflictResolutionCallback) {
+    conflictResolutionCallback();
+  }
+  
+  // Close popup
+  closeConflictPopup();
+}
+
+// 🟡🟡🟡 - [CONFLICT POPUP] Close popup when clicking outside
+document.addEventListener('click', function(event) {
+  const popup = document.getElementById('conflict-popup');
+  if (event.target === popup) {
+    closeConflictPopup();
+  }
+});
+
+// 🟡🟡🟡 - [CONFLICT POPUP] Close popup with Escape key
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    const popup = document.getElementById('conflict-popup');
+    if (popup.style.display === 'flex') {
+      closeConflictPopup();
+    }
+  }
+});
+</script>
