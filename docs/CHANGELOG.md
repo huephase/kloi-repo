@@ -16,6 +16,79 @@
 
 ## 2025
 
+### Date Picker System with Booked Dates Integration
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented comprehensive date picker system with real-time booked dates synchronization, multi-day selection, and intelligent date reservation algorithm.
+
+#### Major Changes
+- **Date Picker Component**: Complete calendar-based date selection system (`date__picker.js`)
+  - **Multi-Month Display**: Shows 7 months ahead (current month + 6 months) with month navigation pills
+  - **6-Month Booking Window**: Limits date selection to 6 months from current date
+  - **Multi-Day Selection**: Support for selecting multiple dates for extended events
+  - **Time Range Selection**: Start and end time pickers (7:00 AM - 11:00 PM, with midnight option)
+  - **Time Validation**: Automatic end time adjustment to ensure end time is after start time
+  - **Past Date Prevention**: Disables selection of past dates and booked dates
+  - **Visual Feedback**: Clear indication of booked dates, selected dates, and unavailable dates
+
+- **Server Time Synchronization**: 
+  - **New API Endpoint**: `GET /api/server-time` - Provides server time for accurate date calculations
+  - Prevents client-side timezone issues
+  - Graceful fallback to client time with warning message
+
+- **Booked Dates Integration**:
+  - **New API Endpoint**: `GET /api/booked-dates` - Retrieves booked dates from database
+  - Real-time synchronization of booked dates from `KloiOrders` table
+  - Filters bookings by status (`PENDING`, `IN_PROGRESS`) to show only active bookings
+  - Extracts dates from `eventDateTime` JSONB field
+  - Automatic deduplication of dates from multiple orders
+
+- **Reserved Dates "Snake Pick" Algorithm**:
+  - Automatically reserves the next N unbooked days from current date (default: 3 days)
+  - Prevents double-booking by reserving upcoming days not yet in database
+  - Distinguishes between database-booked dates and system-reserved dates
+  - Configurable via `defaultBookedDays` property
+  - Fallback logic when booked dates API fails
+
+- **Booking Submission**:
+  - **API Integration**: `POST /api/session/date` - Submits selected dates and times
+  - Maintains booking data in session for wizard flow
+  - Loading states and success/error handling
+  - Automatic redirect to next wizard step on success
+
+- **User Experience Enhancements**:
+  - Auto-hiding warning messages (8-second display)
+  - Full month name display (e.g., "January 2025")
+  - Formatted date display in booking summary
+  - Error handling with user-friendly messages
+  - Session validation integration
+
+#### Direction Changes
+- **Real-Time Availability**: Shift from static availability to dynamic database-driven booking system
+- **Date Management**: Centralized date booking logic with server-side validation
+- **User Interface**: Calendar-based booking experience replacing simple form inputs
+- **Data Flow**: Integration of frontend calendar with backend order system
+
+#### Files Affected
+- `public/global/js/date__picker.js` (NEW/MODIFIED)
+- `src/routes/api/index.ts` (MODIFIED) - Added `/api/booked-dates` and `/api/server-time` endpoints
+- `src/routes/api/index.ts` (MODIFIED) - Enhanced `/api/session/date` endpoint
+- `src/routes/datePicker.ts` (MODIFIED)
+- `src/views/wizard/date-picker.hbs` (MODIFIED)
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- Booked dates API filters orders by status: only `PENDING` and `IN_PROGRESS` orders are considered
+- Date format: `YYYY-MM-DD` (ISO format)
+- Reserved dates are computed client-side to avoid unnecessary API calls
+- Server time endpoint ensures accurate date comparisons across timezones
+- The "snake pick" algorithm has a 365-day safety window to prevent infinite loops
+
+**Related Documentation**: Implementation comments in `date__picker.js` provide detailed code documentation
+
+---
+
 ### October 21, 2025 - Customer Conflict Resolution System
 
 **Type**: 🔴 BREAKING CHANGE | 🔵 MIGRATION REQUIRED
@@ -275,10 +348,11 @@ Any special migration instructions
 4. Event time refactoring (July 7, 2025)
 
 ### Strategic Direction Changes
-1. Email-optional customer registration (Sept 16, 2025)
-2. User-driven conflict resolution (Oct 21, 2025)
-3. Centralized order status management (Oct 21, 2025)
-4. Time-range event support (July 7, 2025)
+1. Calendar-based booking experience with real-time availability
+2. Email-optional customer registration (Sept 16, 2025)
+3. User-driven conflict resolution (Oct 21, 2025)
+4. Centralized order status management (Oct 21, 2025)
+5. Time-range event support (July 7, 2025)
 
 ---
 

@@ -22,6 +22,8 @@ class DatePicker {
         
         // 🟡🟡🟡 - [BOOKED DATES] Store booked dates from database
         this.bookedDates = [];
+        // 🟡🟡🟡 - [RESERVED DATES] Store dates reserved by defaultBookedDays logic (not from DB)
+        this.reservedDates = [];
         
         this.init();
     }
@@ -87,19 +89,34 @@ class DatePicker {
                 console.log('✅✅✅ - [BOOKED DATES] Successfully loaded booked dates:', this.bookedDates.length);
                 console.log('🟡🟡🟡 - [BOOKED DATES] Sample booked dates:', this.bookedDates.slice(0, 5));
 
-                // 🟡🟡🟡 - [BOOKED DATES DEFAULT] If API returns no booked dates, mark first N days as booked
-                if (this.bookedDates.length === 0 && this.defaultBookedDays > 0) {
-                    const baseDate = new Date(this.today || new Date());
-                    baseDate.setHours(0, 0, 0, 0);
-                    const defaults = [];
-                    for (let i = 0; i < this.defaultBookedDays; i++) {
-                        const d = new Date(baseDate);
-                        d.setDate(baseDate.getDate() + i);
+                // 🟡🟡🟡 - [BOOKED DATES SNAKE PICK] Accumulate next available days
+                if (this.defaultBookedDays > 0) {
+                    const bookedSet = new Set(this.bookedDates);
+                    const today = new Date(this.today || new Date());
+                    today.setHours(0,0,0,0);
+                    let picked = [];
+                    let attempts = 0;
+                    let d = new Date(today);
+                    while (picked.length < this.defaultBookedDays && attempts < 365) { // 1-year safety window
                         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                        defaults.push(dateStr);
+                        if (!bookedSet.has(dateStr) && !picked.includes(dateStr)) {
+                            picked.push(dateStr);
+                        }
+                        d.setDate(d.getDate() + 1);
+                        attempts++;
                     }
-                    this.bookedDates = defaults;
-                    console.log('🟡🟡🟡 - [BOOKED DATES DEFAULT] Applied default booked days:', this.bookedDates);
+                    if (picked.length) {
+                        // Add to bookedDates while avoiding duplicates
+                        const finalSet = Array.from(new Set([...this.bookedDates, ...picked]));
+                        // Reserved are only the newly picked that are not from DB
+                        const reserved = picked.filter(ds => !bookedSet.has(ds));
+                        this.reservedDates = reserved;
+                        this.bookedDates = finalSet;
+                        console.log(`🟡🟡🟡 - [BOOKED DATES SNAKE PICK] Picked ${picked.length} additional unbooked days from today:`, picked);
+                        console.log('🟡🟡🟡 - [RESERVED DATES] Default-reserved (non-DB) dates:', this.reservedDates);
+                    } else {
+                        console.error('❗❗❗ - [BOOKED DATES SNAKE PICK] Could not pick any extra days!');
+                    }
                 }
             } else {
                 console.warn('⚠️⚠️⚠️ - [BOOKED DATES] Invalid response format from booked-dates API');
@@ -114,19 +131,25 @@ class DatePicker {
             const warningMessage = 'Unable to load booked dates. Calendar may not show accurate availability.';
             this.showTimeWarning(warningMessage);
         } finally {
-            // 🟡🟡🟡 - [BOOKED DATES DEFAULT] Ensure defaults are present when no booked dates available due to errors
+            // 🟡🟡🟡 - [BOOKED DATES SNAKE PICK] Ensure fallback logic also finds the next N unbooked days
             if (this.bookedDates.length === 0 && this.defaultBookedDays > 0) {
-                const baseDate = new Date(this.today || new Date());
-                baseDate.setHours(0, 0, 0, 0);
-                const defaults = [];
-                for (let i = 0; i < this.defaultBookedDays; i++) {
-                    const d = new Date(baseDate);
-                    d.setDate(baseDate.getDate() + i);
+                const today = new Date(this.today || new Date());
+                today.setHours(0,0,0,0);
+                let picked = [];
+                let attempts = 0;
+                let d = new Date(today);
+                while (picked.length < this.defaultBookedDays && attempts < 365) {
                     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    defaults.push(dateStr);
+                    if (!picked.includes(dateStr)) {
+                        picked.push(dateStr);
+                    }
+                    d.setDate(d.getDate() + 1);
+                    attempts++;
                 }
-                this.bookedDates = defaults;
-                console.log('🟡🟡🟡 - [BOOKED DATES DEFAULT] Applied default booked days in fallback:', this.bookedDates);
+                this.bookedDates = picked;
+                this.reservedDates = picked;
+                console.log('🟡🟡🟡 - [BOOKED DATES SNAKE PICK] Fallback picked days:', picked);
+                console.log('🟡🟡🟡 - [RESERVED DATES] Fallback reserved dates:', this.reservedDates);
             }
         }
     }
@@ -294,6 +317,10 @@ class DatePicker {
             if (this.bookedDates.includes(dateStr)) {
                 statusText.textContent = 'BOOKED';
                 dayCell.classList.add('booked');
+                // 🟡🟡🟡 - [RESERVED FLAG] Mark reserved days chosen by default logic
+                if (Array.isArray(this.reservedDates) && this.reservedDates.includes(dateStr)) {
+                    dayCell.classList.add('reserved');
+                }
             }
             
             dayCell.appendChild(statusText);
