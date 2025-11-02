@@ -34,7 +34,7 @@
     border-bottom: none;
 }
 
-.radio-group, .checkbox-group, .product-group {
+.radio-group, .checkbox-group, .product-group, .div-group {
     display: flex;
     flex-direction: column;
     gap: 15px;

@@ -131,6 +131,12 @@ export class MenuService {
             console.error('❗❗❗ - [MENU SERVICE] Missing required image properties (src, alt) in section:', sectionId);
             return false;
           }
+        } else if (section['html-type'] === 'div-group') {
+          // 🟡🟡🟡 - [DIV-GROUP VALIDATION] For div-group (minimum orders), content must exist and be an object
+          if (!section.content || typeof section.content !== 'object') {
+            console.error('❗❗❗ - [MENU SERVICE] Missing or invalid content in div-group section:', sectionId);
+            return false;
+          }
         } else {
           // For other types, check for content field
           if (!section.content) {

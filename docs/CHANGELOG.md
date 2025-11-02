@@ -16,6 +16,44 @@
 
 ## 2025
 
+### November 2, 2025 - Back Button UX Fix: PENDING Orders Don't Lock Dates
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical UX issue where customers hitting browser back button would see their own selected dates locked as "BOOKED", preventing them from modifying their date selection.
+
+#### Major Changes
+- **Booked Dates API Logic Update**: Modified `/api/booked-dates` endpoint to exclude `PENDING` orders from locking dates
+  - **Before**: Dates from `PENDING` and `IN_PROGRESS` orders were locked
+  - **After**: Only dates from `IN_PROGRESS`, `CANCELLED`, and `COMPLETED` orders lock dates
+  - **Business Logic**: Dates remain available until checkout is completed (order status progresses beyond PENDING)
+
+- **Session-Aware Query**: Enhanced booked dates endpoint to accept session context for better debugging and future enhancements
+  - Extracts `sessionId` from request for logging and potential future optimizations
+  - Added status breakdown logging for better monitoring
+
+#### Direction Changes
+- **Booking Availability Logic**: Shift from locking dates immediately upon selection to locking only after order confirmation
+- **User Experience**: Improved flexibility for customers to modify selections before checkout completion
+- **Order Status Integration**: Aligned date locking behavior with order status lifecycle
+
+#### Files Affected
+- `src/routes/api/index.ts` (MODIFIED) - Updated `/api/booked-dates` endpoint filtering logic
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- Dates are locked only when order status is beyond `PENDING`:
+  - `PENDING`: Does NOT lock dates (customer can still modify)
+  - `IN_PROGRESS`: Locks dates (order confirmed/in progress)
+  - `CANCELLED`: Locks dates (prevents immediate re-booking)
+  - `COMPLETED`: Locks dates (event completed)
+- This ensures dates remain selectable until checkout is fully completed
+- Back button functionality now works correctly - customers can return to date picker and modify their selections if order is still PENDING
+
+**Related Documentation**: Implementation aligns with `docs/ORDER_STATUS_SYSTEM.md` order status definitions
+
+---
+
 ### Date Picker System with Booked Dates Integration
 
 **Type**: 🟠 MAJOR CHANGE
@@ -40,7 +78,8 @@
 - **Booked Dates Integration**:
   - **New API Endpoint**: `GET /api/booked-dates` - Retrieves booked dates from database
   - Real-time synchronization of booked dates from `KloiOrders` table
-  - Filters bookings by status (`PENDING`, `IN_PROGRESS`) to show only active bookings
+  - Filters bookings by status (`IN_PROGRESS`, `CANCELLED`, `COMPLETED`) to show only confirmed bookings
+  - ⚠️⚠️⚠️ **UPDATED**: Excludes `PENDING` orders - dates only lock after checkout completion (see Nov 2, 2025 entry)
   - Extracts dates from `eventDateTime` JSONB field
   - Automatic deduplication of dates from multiple orders
 
@@ -79,7 +118,8 @@
 
 #### Technical Notes
 ⚠️⚠️⚠️ **Important Implementation Details**:
-- Booked dates API filters orders by status: only `PENDING` and `IN_PROGRESS` orders are considered
+- Booked dates API filters orders by status: only `IN_PROGRESS`, `CANCELLED`, and `COMPLETED` orders lock dates
+- ⚠️⚠️⚠️ **UPDATED (Nov 2, 2025)**: `PENDING` orders are excluded - dates remain available until checkout completion
 - Date format: `YYYY-MM-DD` (ISO format)
 - Reserved dates are computed client-side to avoid unnecessary API calls
 - Server time endpoint ensures accurate date comparisons across timezones
@@ -341,6 +381,9 @@ Any special migration instructions
 4. `20250708171636_merge_event_datetime_columns` - Event time refactoring
 5. `20250707185421_update_customers_schema_for_first_last_name` - Name field split
 
+### Recent UX Improvements
+1. Back button fix - PENDING orders don't lock dates (Nov 2, 2025)
+
 ### Active Breaking Changes
 1. Customer composite uniqueness constraint (Oct 21, 2025)
 2. Order status enum system (Oct 21, 2025)
@@ -349,10 +392,11 @@ Any special migration instructions
 
 ### Strategic Direction Changes
 1. Calendar-based booking experience with real-time availability
-2. Email-optional customer registration (Sept 16, 2025)
-3. User-driven conflict resolution (Oct 21, 2025)
-4. Centralized order status management (Oct 21, 2025)
-5. Time-range event support (July 7, 2025)
+2. Booking availability tied to order status lifecycle - dates unlockable until checkout (Nov 2, 2025)
+3. Email-optional customer registration (Sept 16, 2025)
+4. User-driven conflict resolution (Oct 21, 2025)
+5. Centralized order status management (Oct 21, 2025)
+6. Time-range event support (July 7, 2025)
 
 ---
 
@@ -365,5 +409,5 @@ Any special migration instructions
 
 ---
 
-*Last Updated: October 21, 2025*
+*Last Updated: November 2, 2025*
 

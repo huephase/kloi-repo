@@ -1,9 +1,9 @@
-// 🟡🟡🟡 - [2025-10-19 00:00:00] KLOI Live Quote Calculator Module
+// 🟡🟡🟡 - KLOI Live Quote Calculator Module
 
 ;(function () {
   "use strict";
 
-  // 🟡🟡🟡 - [2025-10-19 00:00:00] Utils
+  // 🟡🟡🟡 - Utils
   function toNumber(value) {
     const n = Number(value)
     return Number.isFinite(n) ? n : 0
@@ -13,13 +13,15 @@
     return `AED ${aed.toFixed(2)}`
   }
 
-  // 🟡🟡🟡 - [2025-10-19 00:00:00] Calculator Engine
+  // 🟡🟡🟡 - Calculator Engine
   class KloiCalculatorEngine {
-    constructor(menuSections) {
-      // ⚪⚪⚪ - [2025-10-19 00:00:00] Persist raw menu for reference/debug
+    constructor(menuSections, options = {}) {
+      // ⚪⚪⚪ - Persist raw menu for reference/debug
       this.menuSections = Array.isArray(menuSections) ? menuSections : []
       // 🟡🟡🟡 - Build price maps by section and option/product keys
       this.priceIndex = this.buildPriceIndex(this.menuSections)
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Store number of days from options (default to 1 if not provided)
+      this.numberOfDays = options.numberOfDays && options.numberOfDays > 0 ? Math.floor(options.numberOfDays) : 1
       // 🟡🟡🟡 - Current selections/state shape
       this.state = {
         guestCount: 0,
@@ -30,6 +32,7 @@
       // 🔵🔵🔵 - Modifiers pipeline (e.g., tax, discounts)
       this.modifiers = []
       console.log('🟡🟡🟡 - [KLOI CALC] Engine initialized with sections:', this.menuSections.length)
+      console.log('🟡🟡🟡 - [KLOI CALC] Number of days for minimum orders:', this.numberOfDays)
     }
 
     // 🟡🟡🟡 - Build a look-up of prices and bases
@@ -38,6 +41,7 @@
         radios: {}, // { sectionId: { optionKey: { price, basis } } }
         checkboxes: {}, // { optionKey: { price, basis } }
         products: {}, // { productKey: { price, basis } }
+        minimumOrders: {}, // { orderKey: { price, basis, label } }
       }
 
       sections.forEach((section) => {
@@ -71,6 +75,21 @@
             index.products[productKey] = {
               price: toNumber(productData.price),
               basis: productData['price-basis'] || 'Per guest',
+            }
+          })
+        }
+
+        // 🟡🟡🟡 - [MINIMUM ORDERS] Extract minimum order data from div-group sections
+        if (type === 'div-group') {
+          Object.entries(content).forEach(([orderKey, orderData]) => {
+            const price = toNumber(orderData.price)
+            // 🟡🟡🟡 - Only include if price > 0 (ignore zero prices)
+            if (price > 0) {
+              index.minimumOrders[orderKey] = {
+                price: price,
+                basis: orderData['price-basis'] || 'Per event',
+                label: orderData.label || orderKey,
+              }
             }
           })
         }
@@ -147,6 +166,45 @@
         breakdown.push({ kind: 'product', key: productKey, basis, qty, amount: lineTotal })
       })
 
+      // 🟡🟡🟡 - [MINIMUM ORDERS] Calculate minimum order requirements
+      // 🟡🟡🟡 - [DYNAMIC NUMBER OF DAYS] Use numberOfDays from engine (set from database/session data)
+      const numberOfDays = this.numberOfDays
+      let minimumOrderTotal = 0
+      const minimumOrderBreakdown = []
+
+      Object.entries(this.priceIndex.minimumOrders).forEach(([orderKey, orderMeta]) => {
+        const basePrice = orderMeta.price
+        const basis = orderMeta.basis
+        let lineTotal = 0
+
+        if (basis === 'Per day') {
+          // 🟡🟡🟡 - Multiply by number of days (from database/session)
+          lineTotal = basePrice * numberOfDays
+          minimumOrderBreakdown.push({
+            kind: 'minimum-order',
+            key: orderKey,
+            label: orderMeta.label,
+            basis: basis,
+            amount: lineTotal,
+            days: numberOfDays
+          })
+        } else if (basis === 'Per event') {
+          // 🟡🟡🟡 - Add directly as fixed amount
+          lineTotal = basePrice
+          minimumOrderBreakdown.push({
+            kind: 'minimum-order',
+            key: orderKey,
+            label: orderMeta.label,
+            basis: basis,
+            amount: lineTotal
+          })
+        }
+
+        if (lineTotal > 0) {
+          minimumOrderTotal += lineTotal
+        }
+      })
+
       // Apply modifiers pipeline
       let total = subtotal
       const modifiersMeta = []
@@ -162,8 +220,13 @@
         }
       })
 
-      console.log('✅✅✅ - [KLOI CALC] Calculated', { guestCount, subtotal, total, breakdown, modifiersMeta })
-      return { guestCount, subtotal, total, breakdown, modifiersMeta }
+      // 🟡🟡🟡 - [MINIMUM ORDER ADDITION] Add minimum order to total (if any)
+      if (minimumOrderTotal > 0) {
+        total += minimumOrderTotal
+      }
+
+      console.log('✅✅✅ - [KLOI CALC] Calculated', { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown })
+      return { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown }
     }
   }
 
@@ -176,18 +239,35 @@
     }
 
     render() {
-      const { subtotal, total, breakdown, modifiersMeta } = this.engine.calculate()
+      const { subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown } = this.engine.calculate()
       const lines = breakdown
         .map((l) => `<div class="calc-line">${l.key}${l.qty ? ` × ${l.qty}` : ''}: ${formatCurrency(l.amount)}</div>`) 
         .join('')
       const mods = modifiersMeta
         .map((m) => `<div class="calc-mod">${m.name}: ${formatCurrency(m.delta)}</div>`) 
         .join('')
+      
+      // 🟡🟡🟡 - [MINIMUM ORDER DISPLAY] Render minimum order information
+      let minimumOrderHtml = ''
+      if (minimumOrderBreakdown && minimumOrderBreakdown.length > 0) {
+        minimumOrderHtml = `
+          <div class="calc-minimum-orders">
+            <div class="calc-min-order-title">Minimum Orders:</div>
+            ${minimumOrderBreakdown.map((mo) => {
+              const daysInfo = mo.days ? ` (${mo.days} day${mo.days > 1 ? 's' : ''})` : ''
+              return `<div class="calc-min-order-line">${mo.label}${daysInfo}: ${formatCurrency(mo.amount)}</div>`
+            }).join('')}
+            <div class="calc-min-order-total">Minimum Order Total: ${formatCurrency(minimumOrderTotal)}</div>
+          </div>
+        `
+      }
+
       const html = `
         <div class="calc-wrapper">
           <div class="calc-breakdown">${lines || '<div class="calc-line">No selections yet</div>'}</div>
           <div class="calc-subtotal">Subtotal: ${formatCurrency(subtotal)}</div>
           ${mods}
+          ${minimumOrderHtml}
           <div class="calc-total"><strong>Total: ${formatCurrency(total)}</strong></div>
         </div>
       `
@@ -203,7 +283,7 @@
         const sections = Array.isArray(menuSections)
           ? menuSections
           : JSON.parse(menuSections)
-        const engine = new KloiCalculatorEngine(sections)
+        const engine = new KloiCalculatorEngine(sections, options)
 
         // 🟡🟡🟡 - Optional: add tax modifier via options.taxPercent
         if (options.taxPercent && options.taxPercent > 0) {

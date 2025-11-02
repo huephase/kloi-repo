@@ -2,6 +2,7 @@
 // Route for GET /event-setup - Event setup with menu selection
 import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { MenuService } from '../services/menuService';
+import { prisma } from '../lib/prisma';
 
 // 🟡🟡🟡 - [EVENT SETUP ROUTE] Main route handler for event setup page
 export default async function eventSetupRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
@@ -48,12 +49,45 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
 
       console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Session data available:', Object.keys(sessionData).filter(key => (sessionData as any)[key]));
 
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate number of days from dateInfo.dates array
+      let numberOfDays = 1; // 🔵🔵🔵 - [DEFAULT] Default to 1 day if dateInfo not available
+      const dateInfo = sessionData.dateInfo as any;
+      if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+        numberOfDays = dateInfo.dates.length;
+        console.log('✅✅✅ - [EVENT SETUP ROUTE] Number of days calculated from dateInfo:', numberOfDays);
+      } else {
+        // 🟡🟡🟡 - [FALLBACK] Try to get from database if not in session
+        try {
+          const sessionId = request.session.sessionId;
+          if (sessionId) {
+            const existingOrder = await prisma.kloiOrdersTable.findFirst({
+              where: { sessionId: sessionId },
+              select: { eventSetup: true }
+            });
+            if (existingOrder && existingOrder.eventSetup && typeof existingOrder.eventSetup === 'object') {
+              const eventSetup = existingOrder.eventSetup as any;
+              if (eventSetup.dates && Array.isArray(eventSetup.dates) && eventSetup.dates.length > 0) {
+                numberOfDays = eventSetup.dates.length;
+                console.log('✅✅✅ - [EVENT SETUP ROUTE] Number of days retrieved from database:', numberOfDays);
+              }
+            }
+          }
+        } catch (dbError) {
+          console.error('❗❗❗ - [EVENT SETUP ROUTE] Error fetching dates from database:', dbError);
+          // Continue with default value
+        }
+        if (numberOfDays === 1) {
+          console.log('⚠️⚠️⚠️ - [EVENT SETUP ROUTE] Using default numberOfDays (1) - dateInfo not available');
+        }
+      }
+
       // 🟡🟡🟡 - [TEMPLATE DATA] Prepare data for template
       const templateData = {
         theme: theme,
         menuSections: menuSections,
         menuSectionsJson: menuSections ? JSON.stringify(menuSections) : 'null',
         sessionData: sessionData,
+        numberOfDays: numberOfDays,
         hasMenuData: !!menuSections,
         menuError: !menuSections && theme ? 'Unable to load menu data' : null
       };

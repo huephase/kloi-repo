@@ -33,6 +33,9 @@ class DatePicker {
         await this.fetchServerTime();
         await this.fetchBookedDates(); // 🟡🟡🟡 - [BOOKED DATES] Fetch booked dates from database
         
+        // 🟡🟡🟡 - [BUTTON STATE RESET] Reset submit button to initial state (fixes back button bug)
+        this.resetSubmitButton();
+        
         this.generateMonthPills();
         this.updateCurrentMonthDisplay();
         this.generateCalendar();
@@ -400,6 +403,37 @@ class DatePicker {
         endTimeSelect.value = '10:00';
     }
     
+    // 🟡🟡🟡 - [BUTTON STATE RESET] Reset submit button to initial state
+    // 🟡🟡🟡 - [BACK BUTTON FIX] Ensures button state is reset when page loads (fixes back button navigation bug)
+    resetSubmitButton() {
+        const submitButton = document.getElementById('submitButton');
+        if (submitButton) {
+            // 🟡🟡🟡 - Reset button to initial state
+            submitButton.disabled = false;
+            submitButton.classList.remove('btn-success');
+            
+            // 🟡🟡🟡 - Reset button content to default state
+            const summarySpan = submitButton.querySelector('.summary');
+            const confirmSpan = submitButton.querySelector('.confirm-text');
+            
+            if (summarySpan && confirmSpan) {
+                // 🟡🟡🟡 - Check if summary has id="bookingSummary" - if so, keep it for dynamic updates
+                if (summarySpan.id === 'bookingSummary') {
+                    summarySpan.textContent = 'Please select date and time';
+                    confirmSpan.textContent = 'Confirm';
+                } else {
+                    // 🟡🟡🟡 - If structure is different, reset entire button HTML
+                    submitButton.innerHTML = '<span class="summary" id="bookingSummary">Please select date and time</span><span class="confirm-text">Confirm</span>';
+                }
+            } else {
+                // 🟡🟡🟡 - Fallback: reset to default HTML structure
+                submitButton.innerHTML = '<span class="summary" id="bookingSummary">Please select date and time</span><span class="confirm-text">Confirm</span>';
+            }
+            
+            console.log('✅✅✅ - [DATE PICKER] Submit button reset to initial state');
+        }
+    }
+    
     bindEvents() {
         const multiDayToggle = document.getElementById('multiDayToggle');
         const startTimeSelect = document.getElementById('startTime');
@@ -595,11 +629,14 @@ class DatePicker {
     }
 }
 
+// 🟡🟡🟡 - [GLOBAL VARIABLE] Store date picker instance for pageshow event
+let datePickerInstance = null;
+
 // Initialize the date picker when the DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
     // console.log('🟡🟡🟡 - [DATE PICKER] DOM loaded, initializing date picker...');
     try {
-        const datePicker = new DatePicker();
+        datePickerInstance = new DatePicker();
         // console.log('✅✅✅ - [DATE PICKER] Date picker instance created successfully');
     } catch (error) {
         console.error('❗❗❗ - [DATE PICKER] Failed to initialize date picker:', error);
@@ -617,5 +654,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (container) {
             container.insertBefore(errorContainer, container.firstChild);
         }
+    }
+});
+
+// 🟡🟡🟡 - [BACK BUTTON FIX] Handle browser back/forward navigation
+// 🟡🟡🟡 - pageshow event fires when page is shown, including from browser cache (back button)
+window.addEventListener('pageshow', (event) => {
+    // 🟡🟡🟡 - event.persisted is true when page is loaded from cache (back/forward navigation)
+    if (event.persisted && datePickerInstance) {
+        console.log('🟡🟡🟡 - [DATE PICKER] Page loaded from cache (back/forward navigation), resetting button state');
+        // 🟡🟡🟡 - Reset submit button state when returning via back button
+        datePickerInstance.resetSubmitButton();
     }
 });

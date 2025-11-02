@@ -1,6 +1,6 @@
 // src/routes/api/index.ts
 // Aggregates API routes. All POST routes are handled here.
-import { FastifyInstance, FastifyPluginOptions, FastifyReply } from 'fastify';
+import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { WizardStepConfig, OrderStatus } from '../../types/index';
 import { prisma } from '../../lib/prisma';
 import { eventDetailsSchema, locationDataSchema, dateSelectionSchema, eventSetupSchema } from '../../schemas/wizard.schemas';
@@ -98,30 +98,44 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
   });
 
   // 🟡🟡🟡 - [BOOKED DATES API] Retrieve booked dates from database for date picker calendar
-  app.get('/booked-dates', async (_request, reply: FastifyReply) => {
+  app.get('/booked-dates', async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [API ROUTE] GET /api/booked-dates - Retrieving booked dates from database');
     
     try {
+      // 🟡🟡🟡 - [SESSION ID] Get session ID from request to exclude current user's PENDING orders
+      const sessionId = request.session?.sessionId;
+      console.log('🟡🟡🟡 - [BOOKED DATES] Session ID:', sessionId ? sessionId.substring(0, 8) : 'none');
+
       // 🟡🟡🟡 - [DATABASE QUERY] Get all orders with eventDateTime data
+      // ⚠️⚠️⚠️ - [BOOKING LOGIC] Only include orders with status beyond PENDING (IN_PROGRESS, CANCELLED, COMPLETED)
+      // 🟡🟡🟡 - PENDING orders should NOT lock dates as customer hasn't confirmed checkout yet
+      // 🟡🟡🟡 - [BACK BUTTON FIX] This fix ensures when user hits back button, their own PENDING order dates remain selectable
       const ordersWithDates = await prisma.kloiOrdersTable.findMany({
         where: {
           eventDateTime: {
             not: null as any
           },
-          // 🟡🟡🟡 - [FILTER] Only include orders that are bookable (not cancelled or completed)
+          // 🟡🟡🟡 - [STATUS FILTER] Only lock dates for confirmed orders (beyond PENDING status)
+          // 🟡🟡🟡 - Excluding PENDING means dates are only locked once order status progresses beyond pending
           status: {
-            in: ['PENDING', 'IN_PROGRESS'] as any
+            in: ['IN_PROGRESS', 'CANCELLED', 'COMPLETED'] as any
           }
         },
         select: {
           id: true,
           orderNumber: true,
           eventDateTime: true,
-          status: true
+          status: true,
+          sessionId: true
         }
       });
 
-      console.log('🟡🟡🟡 - [BOOKED DATES] Found orders with dates:', ordersWithDates.length);
+      console.log('🟡🟡🟡 - [BOOKED DATES] Found orders with dates (excluding PENDING):', ordersWithDates.length);
+      console.log('🟡🟡🟡 - [BOOKED DATES] Status breakdown:', {
+        IN_PROGRESS: ordersWithDates.filter(o => o.status === 'IN_PROGRESS').length,
+        CANCELLED: ordersWithDates.filter(o => o.status === 'CANCELLED').length,
+        COMPLETED: ordersWithDates.filter(o => o.status === 'COMPLETED').length
+      });
 
       // 🟡🟡🟡 - [DATA PROCESSING] Extract all booked dates from eventDateTime JSONB
       const bookedDates: string[] = [];

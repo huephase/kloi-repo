@@ -144,6 +144,22 @@
                             {{/each}}
                         </div>
                     {{/if}}
+
+                    {{! 🟡🟡🟡 - [DIV-GROUP] Handle div-group sections (minimum orders) }}
+                    {{#if (eq htmlType "div-group")}}
+                        <div class="div-group" data-group-name="{{id}}">
+                            {{#each content}}
+                                {{! 🟡🟡🟡 - [PRICE FILTER] Only render if price is greater than 0 }}
+                                {{#if (gt price 0)}}
+                                <div class="minimum_order" data-min-order-key="{{@key}}">
+                                    <h3>{{label}}</h3>
+                                    <p class="min-order-price">AED {{price}}</p>
+                                    <p class="min-order-basis">{{price-basis}}</p>
+                                </div>
+                                {{/if}}
+                            {{/each}}
+                        </div>
+                    {{/if}}
                 </div>
             {{/each}}
 
@@ -179,7 +195,7 @@
 </div>
 
 {{! 🟡🟡🟡 - [HIDDEN DATA] Server-side data for JavaScript }}
-<div id="serverData" data-menu-sections="{{menuSectionsJson}}" style="display: none;"></div>
+<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" style="display: none;"></div>
 
 {{! 🟡🟡🟡 - [POPUP MODAL] Modal for displaying popup content }}
 <div id="popupModal" class="popup-modal">
@@ -216,10 +232,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🟡🟡🟡 - [KLOI CALC] Initialize calculator early from server data
     const serverDataDiv = document.getElementById('serverData');
     const menuSectionsData = serverDataDiv?.dataset.menuSections;
+    const numberOfDaysData = serverDataDiv?.dataset.numberOfDays;
+    const numberOfDays = numberOfDaysData ? parseInt(numberOfDaysData, 10) : 1; // 🔵🔵🔵 - [DEFAULT] Default to 1 if not available
     let calc = null;
     if (menuSectionsData && window.KloiCalculator) {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing KLOI calculator with server menu data');
-        calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0 });
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Number of days from server:', numberOfDays);
+        calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0, numberOfDays: numberOfDays });
         if (!calc) {
             console.error('❗❗❗ - [EVENT SETUP JS] Calculator failed to initialize');
         }
