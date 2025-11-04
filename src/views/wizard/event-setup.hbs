@@ -183,6 +183,14 @@
                 <div class="kloi-calculator"></div>
             </div>
 
+            {{! 🟡🟡🟡 - [EDIT DATE BUTTON] Allow users to edit event date by navigating to date picker }}
+            <div id="edit-date" class="edit-date-section">
+                <a href="/date-picker" class="edit-date-btn" title="Edit your selected event date and time">
+                    <span class="edit-icon">📅</span>
+                    <span class="edit-text">Edit Event Date</span>
+                </a>
+            </div>
+
             {{! 🟡🟡🟡 - [FORM SUBMISSION] Submit section }}
             <div class="submit-section">
                 <button type="submit" id="submitButton" class="submit-btn">
@@ -211,6 +219,7 @@
 
 {{! 🟡🟡🟡 - [JAVASCRIPT] Event setup functionality }}
 <script src="/public/global/js/kloi_calculator.js"></script>
+<script src="/public/global/js/wizard__progress.js"></script>
 <script>
 // 🟡🟡🟡 - [POPUP DATA] Server-side popup data will be loaded from data attribute
 
@@ -448,6 +457,8 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅✅✅ - [EVENT SETUP JS] Order summary updated:', totalItems, 'items');
     }
     
+    // 2025-11-03T00:00:00Z 🟡🟡🟡 - [PROGRESS MODULE] Using centralized wizard progress utilities
+    
     // 🟡🟡🟡 - [FORM SUBMISSION] Handle form submission
     function initializeFormSubmission() {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing form submission');
@@ -456,36 +467,10 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             console.log('🟡🟡🟡 - [EVENT SETUP JS] Form submission started');
             
-            // 🟡🟡🟡 - [FORM DATA] Collect form data
-            const formData = {
-                radioSelections: {},
-                checkboxSelections: {},
-                productQuantities: {}
-            };
-            
-            // 🟡🟡🟡 - [COLLECT RADIO SELECTIONS] Get selected radio options
-            const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
-            selectedRadios.forEach(radio => {
-                const groupName = radio.name;
-                formData.radioSelections[groupName] = radio.value;
-            });
-            
-            // 🟡🟡🟡 - [COLLECT CHECKBOX SELECTIONS] Get selected checkboxes
-            const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
-            selectedCheckboxes.forEach(checkbox => {
-                formData.checkboxSelections[checkbox.name] = checkbox.value;
-            });
-            
-            // 🟡🟡🟡 - [COLLECT PRODUCT QUANTITIES] Get product quantities
-            const quantityInputs = document.querySelectorAll('.quantity-input');
-            quantityInputs.forEach(input => {
-                const quantity = parseInt(input.value) || 0;
-                if (quantity > 0) {
-                    formData.productQuantities[input.name] = quantity;
-                }
-            });
-            
-            console.log('🟡🟡🟡 - [EVENT SETUP JS] Form data collected:', formData);
+            // 🟡🟡🟡 - [FORM DATA] Collect form data using centralized module
+            const formData = window.KloiWizardProgress
+                ? window.KloiWizardProgress.collectEventSetupFormData(form)
+                : { radioSelections: {}, checkboxSelections: {}, productQuantities: {} };
             
             // 🟡🟡🟡 - [SUBMIT TO API] Submit to API endpoint
             try {
@@ -610,6 +595,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
+        // 🟡🟡🟡 - [EDIT DATE LINK] Handle click with centralized handler
+        if (window.KloiWizardProgress) {
+            window.KloiWizardProgress.attachSaveBeforeNavigate(
+                '.edit-date-btn',
+                'event',
+                function () { return window.KloiWizardProgress.collectEventSetupFormData(form); }
+            );
+        }
+        
         console.log('✅✅✅ - [EVENT SETUP JS] Event listeners initialized');
     }
     
@@ -644,6 +638,16 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeEventListeners();
         updateOrderSummary();
         positionGuestCounter();
+
+        // 🟡🟡🟡 - [AUTO-SAVE] Enable continuous auto-save to protect against back button/page refresh
+        if (window.KloiWizardProgress) {
+            window.KloiWizardProgress.enableAutoSaveOnChange(
+                form,
+                'event',
+                function () { return window.KloiWizardProgress.collectEventSetupFormData(form); },
+                { debounceMs: 700, inputsSelector: 'input, select, textarea' }
+            );
+        }
 
         // 🟡🟡🟡 - [KLOI CALC] Seed initial selections into calculator
         if (calc) {

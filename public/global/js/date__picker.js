@@ -36,10 +36,13 @@ class DatePicker {
         // 🟡🟡🟡 - [BUTTON STATE RESET] Reset submit button to initial state (fixes back button bug)
         this.resetSubmitButton();
         
+        // 🟡🟡🟡 - [RESTORE FROM SESSION] Restore previously selected dates from session
+        this.restoreFromSession();
+        
         this.generateMonthPills();
         this.updateCurrentMonthDisplay();
-        this.generateCalendar();
-        this.generateTimeOptions();
+        this.generateTimeOptions(); // 🟡🟡🟡 - Generate time options before calendar (needs time values for restoration)
+        this.generateCalendar(); // 🟡🟡🟡 - Generate calendar after restoring dates so selected dates are highlighted
         this.bindEvents();
         this.updateSelectedDatesDisplay();
         this.updateBookingSummary();
@@ -398,9 +401,67 @@ class DatePicker {
         midnightOption.textContent = '00:00 (Midnight)';
         endTimeSelect.appendChild(midnightOption);
         
-        // Set default values
-        startTimeSelect.value = '09:00';
-        endTimeSelect.value = '10:00';
+        // 🟡🟡🟡 - [RESTORE FROM SESSION] Try to restore time values from session
+        const serverDataDiv = document.getElementById('serverDateData');
+        const dateInfoData = serverDataDiv?.dataset.dateInfo;
+        let restoredStartTime = '09:00';
+        let restoredEndTime = '10:00';
+        let restoredMultiDay = false;
+        
+        if (dateInfoData && dateInfoData !== 'null') {
+            try {
+                const dateInfo = JSON.parse(dateInfoData);
+                if (dateInfo.startTime) restoredStartTime = dateInfo.startTime;
+                if (dateInfo.endTime) restoredEndTime = dateInfo.endTime;
+                if (typeof dateInfo.isMultiDay === 'boolean') restoredMultiDay = dateInfo.isMultiDay;
+                console.log('🟡🟡🟡 - [DATE PICKER] Restored times from session:', { startTime: restoredStartTime, endTime: restoredEndTime });
+            } catch (error) {
+                console.error('❗❗❗ - [DATE PICKER] Error parsing date info for time restoration:', error);
+            }
+        }
+        
+        // Set values (restored from session or defaults)
+        startTimeSelect.value = restoredStartTime;
+        endTimeSelect.value = restoredEndTime;
+        
+        // 🟡🟡🟡 - Restore multi-day toggle state (matching what restoreFromSession set)
+        const multiDayToggle = document.getElementById('multiDayToggle');
+        if (multiDayToggle) {
+            multiDayToggle.checked = this.isMultiDay; // 🟡🟡🟡 - Use value already set by restoreFromSession()
+        }
+    }
+    
+    // 🟡🟡🟡 - [RESTORE FROM SESSION] Restore previously selected dates from session data
+    // 🟡🟡🟡 - [EDIT DATE UX] Allows users to edit their dates rather than redo from scratch
+    restoreFromSession() {
+        try {
+            const serverDataDiv = document.getElementById('serverDateData');
+            const dateInfoData = serverDataDiv?.dataset.dateInfo;
+            
+            if (dateInfoData && dateInfoData !== 'null') {
+                const dateInfo = JSON.parse(dateInfoData);
+                console.log('🟡🟡🟡 - [DATE PICKER] Restoring from session:', dateInfo);
+                
+                // 🟡🟡🟡 - Restore selected dates
+                if (dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+                    this.selectedDates = [...dateInfo.dates];
+                    console.log('✅✅✅ - [DATE PICKER] Restored dates:', this.selectedDates.length);
+                }
+                
+                // 🟡🟡🟡 - Restore multi-day flag
+                if (typeof dateInfo.isMultiDay === 'boolean') {
+                    this.isMultiDay = dateInfo.isMultiDay;
+                    console.log('🟡🟡🟡 - [DATE PICKER] Restored isMultiDay:', this.isMultiDay);
+                }
+            } else {
+                console.log('🟡🟡🟡 - [DATE PICKER] No date info in session, starting fresh');
+            }
+        } catch (error) {
+            console.error('❗❗❗ - [DATE PICKER] Error restoring from session:', error);
+            // Continue with empty state if restoration fails
+            this.selectedDates = [];
+            this.isMultiDay = false;
+        }
     }
     
     // 🟡🟡🟡 - [BUTTON STATE RESET] Reset submit button to initial state

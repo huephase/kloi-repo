@@ -244,6 +244,47 @@
     background: #218838;
 }
 
+/* 🟡🟡🟡 - [EDIT DATE BUTTON] Styling for edit event date link/button */
+.edit-date-section {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.edit-date-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: transparent;
+    color: var(--kloi-text, #333);
+    border: 2px solid var(--kloi-text, #333);
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.95em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.edit-date-btn:hover {
+    background: var(--kloi-text, #333);
+    color: var(--kloi-background, #fff);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.edit-date-btn:active {
+    transform: translateY(0);
+}
+
+.edit-date-btn .edit-icon {
+    font-size: 1.2em;
+}
+
+.edit-date-btn .edit-text {
+    font-weight: 600;
+}
+
 .summary {
     font-size: 0.9em;
     opacity: 0.8;

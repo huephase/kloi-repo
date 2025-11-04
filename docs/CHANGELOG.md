@@ -14,7 +14,84 @@
 
 ---
 
-## 2025
+### November 3, 2025 - Reusable Wizard Progress Module
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Any button or link that forces a page navigation or refresh must save the users progress to the session cookie, therefore a centralized JavaScript module has been introduced for single interception/save implementation across this wizard, ensuring consistent session persistence before any navigation or page refreshes.
+
+#### Major Changes
+- **New Module**: `public/global/js/wizard__progress.js`
+  - `saveWizardStep(step, payload)`: Generic POST to `/api/session/:step`
+  - `attachSaveBeforeNavigate(selector, step, payloadBuilder)`: Intercepts navigation, saves, then proceeds
+  - `collectEventSetupFormData(form)`: Standard collector for event-setup page
+- **Back Button/Data Loss Protection**: Added continuous auto-save and unload flush
+  - `enableAutoSaveOnChange(form, step, payloadBuilder, options)`: Debounced auto-save on input changes
+  - Final save attempt on `beforeunload`/`pagehide`/`visibilitychange` using `navigator.sendBeacon` with fetch keepalive fallback
+- **Refactor**: `src/views/wizard/event-setup.hbs` now uses the centralized module
+  - Removed duplicate local `collectFormData()` and `saveProgressToSession()`
+  - Uses `attachSaveBeforeNavigate('.edit-date-btn', 'event', ...)` for the Edit Date link
+  - Form submission collector unified via `collectEventSetupFormData()`
+
+#### Direction Changes
+- **Consolidation**: Progress saving logic moved from per-page scripts to a single reusable module
+- **Consistency**: Unified logging and behavior across all wizard navigation points
+
+#### Files Affected
+- `public/global/js/wizard__progress.js` (NEW)
+- `src/views/wizard/event-setup.hbs` (MODIFIED)
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- Navigation interception shows a warning but still proceeds if the save fails
+- Designed to be extended with additional collectors for other steps (e.g., customer details)
+- Emoji-prefixed logs included for observability per project standards
+ - Auto-save reduces risk of data loss when using browser back/forward or refresh
+
+---
+
+### November 2, 2025 - Wizard Progress Saving on Navigation
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented automatic progress saving when users navigate between wizard steps via links or buttons, ensuring user selections are preserved in session cookies before page navigation.
+
+#### Major Changes
+- **Progress Saving on Navigation**: Added automatic session save functionality for all navigation actions in the wizard
+  - **Edit Event Date Link**: "Edit Event Date" link on `/event-setup` now saves form selections to session before navigating to `/date-picker`
+  - **User Experience**: Users can now safely navigate back and forth between wizard steps without losing their progress
+  - **Form Data Collection**: Created reusable `collectFormData()` function to gather radio selections, checkbox selections, and product quantities
+  - **Session Save Function**: Implemented `saveProgressToSession()` function that saves current selections via `/api/session/event` endpoint
+
+- **Navigation Handler**: Enhanced "Edit Event Date" link with click handler that:
+  - Prevents default navigation
+  - Collects current form state
+  - Saves progress to session cookie via API
+  - Navigates only after successful save
+  - Provides user feedback if save fails
+
+#### Direction Changes
+- **Navigation Philosophy**: Shift from losing progress on navigation to preserving all user selections automatically
+- **Session Management**: Centralized progress saving ensures consistent behavior across all navigation points
+- **User Experience**: Improved confidence for users to explore and modify their selections throughout the wizard flow
+
+#### Files Affected
+- `src/views/wizard/event-setup.hbs` (MODIFIED) - Added progress saving functionality to "Edit Event Date" link
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- Progress is saved automatically before any navigation that would cause data loss
+- The `collectFormData()` function gathers:
+  - `radioSelections`: All selected radio button choices grouped by name
+  - `checkboxSelections`: All checked checkbox options
+  - `productQuantities`: All product quantity inputs with values > 0
+- Progress saving uses the same `/api/session/event` endpoint as form submission, ensuring consistency
+- If save fails, user is warned but navigation still proceeds to prevent blocking user workflow
+- This pattern should be applied to all navigation links/buttons throughout the wizard to maintain consistency
+
+**Related Documentation**: This complements the back button fix implemented in the previous entry (Nov 2, 2025 - Back Button UX Fix)
+
+---
 
 ### November 2, 2025 - Back Button UX Fix: PENDING Orders Don't Lock Dates
 
@@ -382,7 +459,8 @@ Any special migration instructions
 5. `20250707185421_update_customers_schema_for_first_last_name` - Name field split
 
 ### Recent UX Improvements
-1. Back button fix - PENDING orders don't lock dates (Nov 2, 2025)
+1. Wizard progress saving on navigation - automatic session save when navigating between steps (Nov 2, 2025)
+2. Back button fix - PENDING orders don't lock dates (Nov 2, 2025)
 
 ### Active Breaking Changes
 1. Customer composite uniqueness constraint (Oct 21, 2025)
@@ -391,12 +469,13 @@ Any special migration instructions
 4. Event time refactoring (July 7, 2025)
 
 ### Strategic Direction Changes
-1. Calendar-based booking experience with real-time availability
-2. Booking availability tied to order status lifecycle - dates unlockable until checkout (Nov 2, 2025)
-3. Email-optional customer registration (Sept 16, 2025)
-4. User-driven conflict resolution (Oct 21, 2025)
-5. Centralized order status management (Oct 21, 2025)
-6. Time-range event support (July 7, 2025)
+1. Automatic progress saving on navigation - preserve user selections across wizard steps (Nov 2, 2025)
+2. Calendar-based booking experience with real-time availability
+3. Booking availability tied to order status lifecycle - dates unlockable until checkout (Nov 2, 2025)
+4. Email-optional customer registration (Sept 16, 2025)
+5. User-driven conflict resolution (Oct 21, 2025)
+6. Centralized order status management (Oct 21, 2025)
+7. Time-range event support (July 7, 2025)
 
 ---
 

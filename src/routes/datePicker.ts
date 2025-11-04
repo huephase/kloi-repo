@@ -36,6 +36,14 @@ export default async function datePicker(app: FastifyInstance, _opts: FastifyPlu
     
     // console.log('🟡🟡🟡 - [DATE PICKER] Order info from session:', { orderId, orderNumber });
 
+    // 🟡🟡🟡 - [DATE INFO] Get existing date selection from session for restoration
+    const dateInfo = (request.session as any)?.dateInfo;
+    const dateInfoJson = dateInfo ? JSON.stringify(dateInfo) : 'null';
+    console.log('🟡🟡🟡 - [DATE PICKER] Date info from session:', dateInfo ? 'found' : 'not found');
+    if (dateInfo) {
+      console.log('🟡🟡🟡 - [DATE PICKER] Restoring dates:', dateInfo.dates?.length || 0, 'dates');
+    }
+
     // 🟡🟡🟡 Generate page class for template
     const templatePath = 'wizard/date-picker';
     const page_class = generatePageClass(templatePath);
@@ -48,6 +56,8 @@ export default async function datePicker(app: FastifyInstance, _opts: FastifyPlu
       customerInfo, // 🟡🟡🟡 - [FORM DATA] Pass customer info for context
       orderId, // 🟡🟡🟡 - [ORDER INFO] Pass order ID for reference
       orderNumber, // 🟡🟡🟡 - [ORDER INFO] Pass order number for display
+      dateInfo: dateInfo, // 🟡🟡🟡 - [DATE INFO] Pass date info for restoration
+      dateInfoJson: dateInfoJson, // 🟡🟡🟡 - [DATE INFO JSON] Pass as JSON string for JavaScript
     });
   });
 }
