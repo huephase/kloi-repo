@@ -588,6 +588,12 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
     console.log('⚪⚪⚪ - [API ROUTE] Request body:', JSON.stringify(request.body, null, 2));
     console.log('⚪⚪⚪ - [API ROUTE] Session ID:', request.session?.sessionId);
     console.log('⚪⚪⚪ - [API ROUTE] Current session data:', JSON.stringify(request.session, null, 2));
+    // 2025-11-04T00:00:00Z ⚪⚪⚪ - [API ROUTE] Detect autosave mode (query or header)
+    const q = (request as any).query || {};
+    const autosaveQuery = q.autosave === '1' || q.autosave === 1 || q.autosave === true;
+    const autosaveHeader = (request.headers['x-kloi-autosave'] === '1');
+    const isAutoSave = !!(autosaveQuery || autosaveHeader);
+    console.log('⚪⚪⚪ - [API ROUTE] Autosave mode detected:', isAutoSave);
     
     // Validate step is supported
     if (!step || !stepConfig[step]) {
@@ -612,52 +618,57 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
       const { sessionKey, redirectTo } = stepConfig[step];
       console.log(`🟡🟡🟡 - [API ROUTE] Using config: sessionKey=${sessionKey}, redirectTo=${redirectTo}`);
 
-      // 🟡🟡🟡 - [VALIDATION] Validate the request data based on the step
+      // 🟡🟡🟡 - [VALIDATION] Validate strictly for normal saves; be lenient for autosave
       let validatedData;
-      try {
-        validatedData = validateStepData(step, request.body);
-        console.log('✅✅✅ - [VALIDATION] Data validation successful for step:', step);
-        console.log('✅✅✅ - [VALIDATION] Validated data:', JSON.stringify(validatedData, null, 2));
-      } catch (validationError) {
-        if (validationError instanceof ZodError) {
-          console.log('❗❗❗ - [VALIDATION] Validation failed for step:', step);
-          console.log('❗❗❗ - [VALIDATION] Validation errors:', validationError.errors);
-          
-          const formattedErrors = formatValidationErrors(validationError);
-          
-          // 🟡🟡🟡 - [VALIDATION ERROR RESPONSE] Return validation errors to display in form
-          return reply.status(400).send({
-            success: false,
-            message: 'Please correct the errors below and try again.',
-            errors: formattedErrors,
-            timestamp: new Date().toISOString()
-          });
-        } else {
-          // Handle unexpected validation errors
-          console.error('❌❌❌ - [VALIDATION] Unexpected validation error:', validationError);
-          return reply.status(500).send({
-            success: false,
-            message: 'An unexpected error occurred during validation.',
-            errors: { general: 'Validation error' }
-          });
+      if (isAutoSave) {
+        // 2025-11-04T00:00:00Z 🟡🟡🟡 - [AUTOSAVE] Skip strict validation; merge partial payload
+        console.log('🟡🟡🟡 - [AUTOSAVE] Skipping strict validation for autosave payload');
+        validatedData = request.body as any;
+      } else {
+        try {
+          validatedData = validateStepData(step, request.body);
+          console.log('✅✅✅ - [VALIDATION] Data validation successful for step:', step);
+          console.log('✅✅✅ - [VALIDATION] Validated data:', JSON.stringify(validatedData, null, 2));
+        } catch (validationError) {
+          if (validationError instanceof ZodError) {
+            console.log('❗❗❗ - [VALIDATION] Validation failed for step:', step);
+            console.log('❗❗❗ - [VALIDATION] Validation errors:', validationError.errors);
+            
+            const formattedErrors = formatValidationErrors(validationError);
+            
+            // 🟡🟡🟡 - [VALIDATION ERROR RESPONSE] Return validation errors to display in form
+            return reply.status(400).send({
+              success: false,
+              message: 'Please correct the errors below and try again.',
+              errors: formattedErrors,
+              timestamp: new Date().toISOString()
+            });
+          } else {
+            // Handle unexpected validation errors
+            console.error('❌❌❌ - [VALIDATION] Unexpected validation error:', validationError);
+            return reply.status(500).send({
+              success: false,
+              message: 'An unexpected error occurred during validation.',
+              errors: { general: 'Validation error' }
+            });
+          }
         }
       }
 
-      // Store the validated data under the corresponding session key
+      // Store the data in session. For autosave, merge with existing data.
       if (sessionKey) {
         const beforeUpdate = { ...request.session };
         console.log('🟡🟡🟡 - [API ROUTE] Session BEFORE update:', JSON.stringify(beforeUpdate, null, 2));
-        
-        // Use type assertion to safely assign dynamic properties
-        (request.session as Record<string, any>)[sessionKey] = validatedData;
-        
-        console.log(`🟡🟡🟡 - [API ROUTE] Setting session[${sessionKey}] =`, JSON.stringify(validatedData, null, 2));
+        const current = ((request.session as any)[sessionKey]) || {};
+        const nextValue = isAutoSave ? { ...current, ...(validatedData as any) } : validatedData;
+        (request.session as Record<string, any>)[sessionKey] = nextValue;
+        console.log(`🟡🟡🟡 - [API ROUTE] Setting session[${sessionKey}] =`, JSON.stringify(nextValue, null, 2));
         console.log('🟡🟡🟡 - [API ROUTE] Session AFTER update:', JSON.stringify(request.session, null, 2));
       }
 
       // 🟡🟡🟡 - [DATABASE SAVE] Save to database for event-details step
       let savedOrder = null;
-      if (step === 'event-details') {
+      if (step === 'event-details' && !isAutoSave) {
         try {
           console.log('🟡🟡🟡 - [DATABASE SAVE] Starting database save for event-details');
           

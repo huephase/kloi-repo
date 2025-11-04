@@ -8,12 +8,20 @@
   /**
    * 2025-11-03T00:00:00Z - Save wizard step payload to session via generic endpoint
    */
-  async function saveWizardStep(step, data) {
+  async function saveWizardStep(step, data, options) {
+    // 2025-11-04T00:00:00Z 🟡🟡🟡 - [WIZARD PROGRESS] Support autosave mode for lenient server handling
     console.log('🟡🟡🟡 - [WIZARD PROGRESS] Saving step to session:', step, data);
     try {
-      const res = await fetch(`/api/session/${step}`, {
+      var isAutosave = options && options.autosave === true;
+      var url = `/api/session/${step}` + (isAutosave ? '?autosave=1' : '');
+      var headers = { 'Content-Type': 'application/json' };
+      if (isAutosave) {
+        headers['X-KLOI-AutoSave'] = '1';
+      }
+
+      const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify(data)
       });
       const json = await res.json();
@@ -92,7 +100,7 @@
       try {
         pending = true;
         var payload = payloadBuilder ? payloadBuilder() : {};
-        var result = await saveWizardStep(step, payload);
+        var result = await saveWizardStep(step, payload, { autosave: true });
         if (!result.ok) {
           console.error('❗❗❗ - [WIZARD PROGRESS] Auto-save failed for step:', step);
         } else {
@@ -113,11 +121,12 @@
         var payload = payloadBuilder ? payloadBuilder() : {};
         var data = JSON.stringify(payload);
         var blob = new Blob([data], { type: 'application/json' });
-        var url = '/api/session/' + step;
+        // 2025-11-04T00:00:00Z 🟡🟡🟡 - [WIZARD PROGRESS] Mark unload flush as autosave via query for server-side leniency
+        var url = '/api/session/' + step + '?autosave=1';
         var beaconOk = navigator.sendBeacon && navigator.sendBeacon(url, blob);
         if (!beaconOk) {
           // Fallback: synchronous fetch with keepalive (best-effort)
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data, keepalive: true })
+          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-KLOI-AutoSave': '1' }, body: data, keepalive: true })
             .catch(function(err){ console.error('❗❗❗ - [WIZARD PROGRESS] keepalive save failed:', err); });
         }
         console.log('🟡🟡🟡 - [WIZARD PROGRESS] Unload flush attempted for step:', step);

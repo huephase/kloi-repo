@@ -14,6 +14,39 @@
 
 ---
 
+### November 4, 2025 - Wizard Autosave Mode and Partial Session Merge
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Improved reliability of progress saving on back/refresh/navigation by introducing an autosave mode in the client module and lenient, partial-merge handling on the server. This prevents data loss when users use the browser back button or close/refresh mid-edit.
+
+#### Major Changes
+- **Client Autosave Mode**: `public/global/js/wizard__progress.js`
+  - `saveWizardStep(step, payload, { autosave: true })` now appends `?autosave=1` and sends header `X-KLOI-AutoSave: 1`
+  - `enableAutoSaveOnChange()` performs debounced autosaves using autosave mode
+  - Unload/back-button flush posts with autosave markers and keepalive fallback
+- **Server Partial Merge + Lenient Validation**: `POST /api/session/:step`
+  - Detects autosave via query `?autosave=1` OR header `X-KLOI-AutoSave: 1`
+  - Skips strict Zod validation for autosave requests
+  - Merges partial payloads into existing `session[sessionKey]` instead of replacing
+  - Skips DB writes in autosave context (e.g., for `event-details`)
+
+#### Direction Changes
+- **Resilience-first Persistence**: Treat navigation/back/unload saves as best-effort and non-blocking while still preserving user progress
+- **Consistency**: Uniform autosave semantics across wizard steps via centralized module
+
+#### Files Affected
+- `public/global/js/wizard__progress.js` (MODIFIED)
+- `src/routes/api/index.ts` (MODIFIED)
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- Autosave signals: query `?autosave=1` and header `X-KLOI-AutoSave: 1`
+- Autosave merges into existing session state and avoids strict validation/DB writes
+- Normal submissions retain strict validation and existing redirect behavior
+
+---
+
 ### November 3, 2025 - Reusable Wizard Progress Module
 
 **Type**: 🟠 MAJOR CHANGE
@@ -46,11 +79,11 @@
 - Navigation interception shows a warning but still proceeds if the save fails
 - Designed to be extended with additional collectors for other steps (e.g., customer details)
 - Emoji-prefixed logs included for observability per project standards
- - Auto-save reduces risk of data loss when using browser back/forward or refresh
+- Auto-save reduces risk of data loss when using browser back/forward or refresh
 
 ---
 
-### November 2, 2025 - Wizard Progress Saving on Navigation
+### November 3, 2025 - Wizard Progress Saving on Navigation
 
 **Type**: 🟠 MAJOR CHANGE
 
@@ -488,5 +521,5 @@ Any special migration instructions
 
 ---
 
-*Last Updated: November 2, 2025*
+*Last Updated: November 4, 2025*
 
