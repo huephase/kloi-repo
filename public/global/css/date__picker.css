@@ -74,6 +74,10 @@
 
 .calendar-day:hover:not(.past):not(.future):not(.booked) {
     background: var(--kloi-white);
+    background: transparent;
+    border: 1px solid var(--kloi-white);
+    box-sizing: border-box;
+    color: var(--kloi-white);
 }
 
 .calendar-day.empty {
