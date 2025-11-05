@@ -189,6 +189,18 @@ export const eventSetupSchema = z.object({
   radioSelections: z.record(z.string()).optional(),
   checkboxSelections: z.record(z.string()).optional(),
   productQuantities: z.record(z.number().int().min(0)).optional(),
+  // 2025-11-05T00:00:00Z 🟡🟡🟡 - [CALCULATOR] Accept calculator snapshot for persistence
+  calculator: z.object({
+    guestCount: z.number().int().min(0).optional(),
+    numberOfDays: z.number().int().min(1).optional(),
+    totals: z.object({
+      subtotal: z.number().min(0),
+      total: z.number().min(0),
+      minimumOrderTotal: z.number().min(0).optional(),
+    }).optional(),
+    breakdown: z.array(z.any()).optional(),
+    minimumOrderBreakdown: z.array(z.any()).optional(),
+  }).optional(),
 });
 // console.log('🟡🟡🟡 - [wizard.schemas] eventSetupSchema created');
 

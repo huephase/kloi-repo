@@ -58,9 +58,9 @@
                     {{#if (eq htmlType "radio-group")}}
                         <div class="radio-group" data-group-name="{{id}}">
                             {{#each content}}
-                                <div class="radio-option contracted" data-option-id="{{@key}}">
+                                <div class="radio-option contracted" data-option-id="{{@key}}" data-option-label="{{label}}">
                                     <label class="radio-label">
-                                        <input type="radio" name="{{../id}}" value="{{@key}}" class="radio-input">
+                                        <input type="radio" name="{{../id}}" value="{{@key}}" data-label="{{label}}" class="radio-input">
                                         <div class="radio-custom"></div>
                                         <span class="radio-text">
                                             <strong>{{label}}</strong>
@@ -92,7 +92,7 @@
                     {{#if (eq htmlType "product-group")}}
                         <div class="product-group" data-group-name="{{id}}">
                             {{#each content}}
-                                <div class="product-item" data-product-id="{{@key}}">
+                                <div class="product-item" data-product-id="{{@key}}" data-product-label="{{label}}">
                                     <div class="product-info">
                                         <label class="product-label">
                                             <strong>{{label}}</strong>
@@ -107,7 +107,7 @@
                                     </div>
                                     <div class="quantity-controls">
                                         <button type="button" class="quantity-btn minus" data-action="decrease">-</button>
-                                        <input type="number" class="quantity-input" name="{{@key}}" value="0" min="0" max="999">
+                                        <input type="number" class="quantity-input" name="{{@key}}" data-label="{{label}}" value="0" min="0" max="999">
                                         <button type="button" class="quantity-btn plus" data-action="increase">+</button>
                                     </div>
                                 </div>
@@ -119,9 +119,9 @@
                     {{#if (eq htmlType "checkbox-group")}}
                         <div class="checkbox-group" data-group-name="{{id}}">
                             {{#each content}}
-                                <div class="checkbox-option" data-option-id="{{@key}}">
+                                <div class="checkbox-option" data-option-id="{{@key}}" data-option-label="{{label}}">
                                     <label class="checkbox-label">
-                                        <input type="checkbox" name="{{@key}}" value="{{@key}}" class="checkbox-input">
+                                        <input type="checkbox" name="{{@key}}" value="{{@key}}" data-label="{{label}}" class="checkbox-input">
                                         <span class="checkbox-text">
                                             <strong>{{label}}</strong>
                                             {{#if price}}
@@ -219,6 +219,7 @@
 
 {{! 🟡🟡🟡 - [JAVASCRIPT] Event setup functionality }}
 <script src="/public/global/js/kloi_calculator.js"></script>
+<script src="/public/global/js/menu_labels.js"></script>
 <script src="/public/global/js/wizard__progress.js"></script>
 <script>
 // 🟡🟡🟡 - [POPUP DATA] Server-side popup data will be loaded from data attribute
@@ -244,6 +245,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const numberOfDaysData = serverDataDiv?.dataset.numberOfDays;
     const numberOfDays = numberOfDaysData ? parseInt(numberOfDaysData, 10) : 1; // 🔵🔵🔵 - [DEFAULT] Default to 1 if not available
     let calc = null;
+    // 2025-11-05T00:00:00Z 🟡🟡🟡 - [MENU LABELS] Initialize label maps for UI-friendly display across pages
+    if (menuSectionsData && window.KloiMenuLabels) {
+        try {
+            window.KloiMenuLabels.initFromMenuSections(menuSectionsData);
+            window.KloiMenuLabels.annotateDomLabels(document);
+            console.log('✅✅✅ - [EVENT SETUP JS] Menu labels initialized and DOM annotated');
+        } catch (e) {
+            console.error('❗❗❗ - [EVENT SETUP JS] Menu labels init failed:', e);
+        }
+    }
+
     if (menuSectionsData && window.KloiCalculator) {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing KLOI calculator with server menu data');
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Number of days from server:', numberOfDays);
@@ -251,6 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!calc) {
             console.error('❗❗❗ - [EVENT SETUP JS] Calculator failed to initialize');
         }
+      try { window.__kloiCalc = calc; console.log('⚪⚪⚪ - [EVENT SETUP JS] Global calculator reference set'); } catch(_e) {}
     } else {
         console.error('❗❗❗ - [EVENT SETUP JS] Missing menu data or calculator module');
     }

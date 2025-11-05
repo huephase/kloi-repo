@@ -798,6 +798,73 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         }
       }
 
+      // 🟡🟡🟡 - [DATABASE SAVE] Persist event setup selections and calculator results on normal submit
+      if (step === 'event' && !isAutoSave) {
+        try {
+          console.log('🟡🟡🟡 - [DATABASE SAVE] Starting database save for event step');
+
+          const sessionId = request.session.sessionId;
+          if (!sessionId) {
+            console.log('⚠️⚠️⚠️ - [DATABASE SAVE] No session ID found');
+            return reply.status(400).send({
+              success: false,
+              message: 'Session not found. Please start from the beginning.',
+              errors: { session: 'Session ID missing' }
+            });
+          }
+
+          // Find existing order by sessionId
+          const existingOrder = await prisma.kloiOrdersTable.findFirst({
+            where: { sessionId: sessionId }
+          });
+
+          const eventSetupPayload = validatedData; // Already validated against eventSetupSchema
+
+          if (existingOrder) {
+            console.log('🟡🟡🟡 - [DATABASE SAVE] Found existing order, updating eventSetup:', existingOrder.id);
+            await prisma.kloiOrdersTable.update({
+              where: { id: existingOrder.id },
+              data: {
+                eventSetup: eventSetupPayload,
+              }
+            });
+            console.log('✅✅✅ - [DATABASE SAVE] Updated order.eventSetup');
+          } else {
+            console.log('🟡🟡🟡 - [DATABASE SAVE] No existing order found, creating new order with eventSetup');
+            const locationData = (request.session as any).locationData || null;
+            const eventDetails = (request.session as any).eventDetails || null;
+
+            const newOrder = await prisma.kloiOrdersTable.create({
+              data: {
+                // Optional customer info from prior steps
+                firstName: eventDetails?.firstName || null,
+                lastName: eventDetails?.lastName || null,
+                phone: eventDetails?.phone || null,
+                email: eventDetails?.email || null,
+                // Optional location/event details JSON
+                location: locationData || undefined,
+                eventDetails: eventDetails || undefined,
+                // Persist event setup payload
+                eventSetup: eventSetupPayload,
+                // Session reference and status
+                sessionId: sessionId,
+                status: OrderStatus.PENDING,
+              }
+            });
+            console.log('✅✅✅ - [DATABASE SAVE] Created new order with eventSetup:', newOrder.id);
+            (request.session as any).orderId = newOrder.id;
+            (request.session as any).orderNumber = newOrder.orderNumber;
+          }
+        } catch (dbErr) {
+          console.error('❌❌❌ - [DATABASE SAVE] Failed to persist event setup:', dbErr);
+          return reply.status(500).send({
+            success: false,
+            message: 'Failed to save event setup information. Please try again.',
+            errors: { database: 'Event setup save failed' }
+          });
+        }
+      }
+
       // 🟡🟡🟡 - [DATABASE UPDATE] Update database with date/time info for date step
       if (step === 'date') {
         try {

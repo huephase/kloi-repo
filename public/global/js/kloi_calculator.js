@@ -9,8 +9,10 @@
     return Number.isFinite(n) ? n : 0
   }
 
+  // 🟡🟡🟡 - Format currency with thousand separators for better readability
   function formatCurrency(aed) {
-    return `AED ${aed.toFixed(2)}`
+    // 🟡🟡🟡 - Use toLocaleString to add thousand separators (commas) and ensure 2 decimal places
+    return `AED ${aed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
   // 🟡🟡🟡 - Calculator Engine
@@ -154,14 +156,19 @@
         breakdown.push({ kind: 'checkbox', key: optionKey, basis, amount: lineTotal })
       })
 
-      // Products with quantities
+      // 🟡🟡🟡 - Products with quantities
+      // ⚠️⚠️⚠️ NOTE: For "Per guest" items, the quantity input already represents how many guests get this add-on
+      // So we should NOT multiply by the main guest count - only by the item's own quantity input
+      // The quantity input represents the number of units/guests for this specific product
       Object.entries(this.state.products).forEach(([productKey, qty]) => {
         const meta = this.priceIndex.products[productKey]
         if (!meta) return
         const basePrice = meta.price
         const basis = meta.basis
-        const unit = basis === 'Per guest' ? basePrice * guestCount : basePrice
-        const lineTotal = unit * qty
+        // 🟡🟡🟡 - For products, always multiply basePrice by the quantity input (qty)
+        // The "Per guest" label means each unit costs basePrice, and qty represents how many units
+        // We do NOT multiply by the main guest count here - each product has its own quantity counter
+        const lineTotal = basePrice * qty
         subtotal += lineTotal
         breakdown.push({ kind: 'product', key: productKey, basis, qty, amount: lineTotal })
       })
@@ -241,7 +248,29 @@
     render() {
       const { subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown } = this.engine.calculate()
       const lines = breakdown
-        .map((l) => `<div class="calc-line">${l.key}${l.qty ? ` × ${l.qty}` : ''}: ${formatCurrency(l.amount)}</div>`) 
+        .map((l) => {
+          // 2025-11-05T00:00:00Z 🟡🟡🟡 - [LABELS] Use friendly labels from KloiMenuLabels where available
+          let display = l.key
+          try {
+            if (window.KloiMenuLabels) {
+              if (l.kind === 'radio') {
+                const parts = String(l.key).split('.')
+                const groupId = parts[0]
+                const optionKey = parts[1]
+                display = window.KloiMenuLabels.getOptionLabel(groupId, optionKey)
+              } else if (l.kind === 'checkbox') {
+                // Checkbox keys are flat in engine; try flat map via getOptionLabel without section
+                display = window.KloiMenuLabels.getOptionLabel(null, l.key)
+              } else if (l.kind === 'product') {
+                display = window.KloiMenuLabels.getProductLabel(l.key)
+              }
+            }
+          } catch (e) {
+            console.error('❗❗❗ - [KLOI CALC] Label resolution error:', e)
+          }
+          const qtyText = l.qty ? ` × ${l.qty}` : ''
+          return `<div class="calc-line">${display}${qtyText}: ${formatCurrency(l.amount)}</div>`
+        }) 
         .join('')
       const mods = modifiersMeta
         .map((m) => `<div class="calc-mod">${m.name}: ${formatCurrency(m.delta)}</div>`) 
@@ -304,7 +333,7 @@
         const ui = new KloiCalculatorUI(engine, container)
 
         // 🟡🟡🟡 - Return bindings for page to wire inputs
-        return {
+        const api = {
           engine,
           ui,
           recalc: () => ui.render(),
@@ -324,7 +353,38 @@
             engine.setProductQuantity(productKey, qty)
             ui.render()
           },
+          // 2025-11-05T00:00:00Z 🟡🟡🟡 - [API] Expose read-only getters for saving to session/DB
+          getState: () => {
+            try {
+              const state = {
+                guestCount: engine.state.guestCount,
+                radios: { ...engine.state.radios },
+                checkboxes: Array.from(engine.state.checkboxes),
+                products: { ...engine.state.products },
+                numberOfDays: engine.numberOfDays,
+              }
+              console.log('🟡🟡🟡 - [KLOI CALC] getState()', state)
+              return state
+            } catch (err) {
+              console.error('❗❗❗ - [KLOI CALC] getState() error:', err)
+              return null
+            }
+          },
+          getQuote: () => {
+            try {
+              const { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown } = engine.calculate()
+              const quote = { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown, numberOfDays: engine.numberOfDays }
+              console.log('🟡🟡🟡 - [KLOI CALC] getQuote()', quote)
+              return quote
+            } catch (err) {
+              console.error('❗❗❗ - [KLOI CALC] getQuote() error:', err)
+              return null
+            }
+          },
         }
+        // ⚪⚪⚪ - [GLOBAL REF] Make current calculator accessible to other modules (e.g., wizard__progress)
+        try { window.__kloiCalc = api } catch (_e) {}
+        return api
       } catch (err) {
         console.error('❗❗❗ - [KLOI CALC] Initialization error:', err)
         return null
