@@ -957,4 +957,5 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
       });
     }
   });
+
 }

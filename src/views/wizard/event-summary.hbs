@@ -1,1 +1,80 @@
+{{!-- 🟡🟡🟡 - [EVENT SUMMARY VIEW] Semantic summary page using app theme/layout --}}
+
+<div class="{{page_class}} wizard-step event-summary">
+  <header class="page-header">
+    <h1>Event Summary</h1>
+    <p>Review your selections before continuing. Use the edit buttons to make changes.</p>
+  </header>
+
+  <section class="summary-section" id="summary-location">
+    <h2>Location</h2>
+    {{{renderLocation}}}
+    <div class="actions">
+      <a class="pill-bt edit-btn" href="/location" data-step="location">Edit LOCATION</a>
+    </div>
+  </section>
+
+  <section class="summary-section" id="summary-customer">
+    <h2>Customer</h2>
+    {{{renderCustomer}}}
+    <div class="actions">
+      <a class="pill-bt edit-btn" href="/event-details" data-step="event-details">Edit CUSTOMER</a>
+    </div>
+  </section>
+
+  <section class="summary-section" id="summary-event-details">
+    <h2>Event Details</h2>
+    {{{renderEventDetails}}}
+    <div class="actions">
+      <a class="pill-bt edit-btn" href="/event-details" data-step="event-details">Edit EVENT DETAILS</a>
+    </div>
+  </section>
+
+  <section class="summary-section" id="summary-date">
+    <h2>Date Selection</h2>
+    {{{renderDate}}}
+    <div class="actions">
+      <a class="pill-bt edit-btn" href="/date-picker" data-step="date">Edit DATE</a>
+    </div>
+  </section>
+
+  <section class="summary-section" id="summary-event-setup">
+    <h2>Event Setup</h2>
+    {{{renderEventSetup}}}
+    <div class="actions">
+      <a class="pill-bt edit-btn" href="/event-setup" data-step="event">Edit EVENT SETUP</a>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="pill-bt primary" type="button" id="confirmBtn">CONFIRM</button>
+  </div>
+</div>
+
+<script src="/public/global/js/wizard__progress.js"></script>
+<script>
+  // 🟡🟡🟡 - [EVENT SUMMARY VIEW] Initialize client-side handlers
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Loaded with theme:', '{{theme}}');
+
+    const editButtons = document.querySelectorAll('.edit-btn');
+    editButtons.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        const href = this.getAttribute('href');
+        const step = this.getAttribute('data-step');
+        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Edit click ->', step, href);
+        // Summary has no form; navigate directly, pages restore from session
+      });
+    });
+
+    const confirmBtn = document.getElementById('confirmBtn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', function() {
+        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Confirm clicked (placeholder)');
+        alert('⚠️⚠️⚠️ - Confirm functionality will be implemented later.');
+      });
+    }
+  });
+</script>
+
 {{! Event summary view }}
