@@ -18,3 +18,10 @@ export const errorResponseSchema = z.object({
   code: z.number().optional(),
 });
 console.log('🟡🟡🟡 - [common.schemas] errorResponseSchema created');
+
+// 2025-11-06 🟡🟡🟡 - Reverse geocode query schema
+export const reverseGeocodeQuerySchema = z.object({
+  lat: z.string().or(z.number()).transform((v) => Number(v)).refine((n) => isFinite(n), 'Invalid latitude'),
+  lng: z.string().or(z.number()).transform((v) => Number(v)).refine((n) => isFinite(n), 'Invalid longitude'),
+});
+console.log('🟡🟡🟡 - [common.schemas] reverseGeocodeQuerySchema created');

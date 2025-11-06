@@ -1,0 +1,37 @@
+{{!-- 2025-11-06 🟡🟡🟡 Delivery locations selector with Detect My Location --}}
+
+<section class="delivery-locations">
+  <h1>Choose your delivery location</h1>
+
+  <button id="detectLocationBtn" class="btn-primary">Detect My Location</button>
+  <p id="detectStatus" class="muted"></p>
+
+  <div class="districts">
+    {{#each locations}}
+      <details class="district">
+        <summary>{{this.district}}</summary>
+        <ul class="sublocalities">
+          {{#each this.sublocalities}}
+            <li>
+              <a class="sublocality-link" href="/location?district={{../this.district}}&sublocality={{this}}">{{this}}</a>
+            </li>
+          {{/each}}
+        </ul>
+      </details>
+    {{/each}}
+  </div>
+</section>
+
+<script src="/public/global/js/delivery-location.js" defer></script>
+
+<style>
+  .delivery-locations { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+  .btn-primary { padding: 0.75rem 1rem; margin: 0.5rem 0 1.5rem; }
+  details.district { margin-bottom: 1rem; }
+  .sublocalities { list-style: none; padding-left: 1rem; }
+  .sublocalities li { margin: 0.25rem 0; }
+  .muted { color: #666; font-size: 0.9rem; }
+  a.sublocality-link { text-decoration: underline; }
+</style>
+
+

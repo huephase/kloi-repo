@@ -5,6 +5,7 @@ import { WizardStepConfig, OrderStatus } from '../../types/index';
 import { prisma } from '../../lib/prisma';
 import { eventDetailsSchema, locationDataSchema, dateSelectionSchema, eventSetupSchema } from '../../schemas/wizard.schemas';
 import { ZodError } from 'zod';
+import { reverseGeocodeQuerySchema } from '../../schemas/common.schemas';
 import { sanitizeEmail } from '../../lib/utils';
 import { createCustomerSafely, resolveCustomerConflict } from '../../services/conflictResolutionService';
 
@@ -64,6 +65,63 @@ function validateStepData(step: string, data: any) {
 }
 
 export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
+  // 🟡🟡🟡 - [GEO API] Reverse geocoding via Google Maps
+  app.get('/geo/reverse', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const q = (request as any).query || {};
+      const parsed = reverseGeocodeQuerySchema.safeParse(q);
+      if (!parsed.success) {
+        console.error('❗❗❗ - [GEO API] Query validation failed:', parsed.error.flatten());
+        return reply.status(400).send({ success: false, message: 'Invalid lat/lng' });
+      }
+      const { lat, lng } = parsed.data;
+      console.log('🟡🟡🟡 - [API ROUTE] GET /api/geo/reverse', { lat, lng });
+
+      if (!isFinite(lat) || !isFinite(lng)) {
+        console.error('❗❗❗ - [GEO API] Invalid lat/lng');
+        return reply.status(400).send({ success: false, message: 'Invalid lat/lng' });
+      }
+
+      const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        console.error('❗❗❗ - [GEO API] GOOGLE_MAPS_API_KEY missing');
+        return reply.status(500).send({ success: false, message: 'Geocoding not configured' });
+      }
+
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat + ',' + lng)}&key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      console.log('🟡🟡🟡 - [GEO API] Google response status:', data.status);
+
+      let district: string | null = null;
+      let sublocality: string | null = null;
+      if (Array.isArray(data.results)) {
+        for (const r of data.results) {
+          if (!r.address_components) continue;
+          const comps = r.address_components as Array<{ long_name: string; short_name: string; types: string[] }>;
+          for (const c of comps) {
+            if (!district && (c.types.includes('administrative_area_level_2') || c.types.includes('sublocality_level_1'))) {
+              district = c.long_name;
+            }
+            if (!sublocality && (c.types.includes('sublocality') || c.types.includes('neighborhood') || c.types.includes('locality'))) {
+              sublocality = c.long_name;
+            }
+          }
+          if (district && sublocality) break;
+        }
+      }
+
+      return reply.send({
+        success: true,
+        district: district || null,
+        sublocality: sublocality || null,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('❗❗❗ - [GEO API] Reverse geocode error:', err);
+      return reply.status(500).send({ success: false, message: 'Reverse geocode failed' });
+    }
+  });
   
   // 👍👍👍👍👍👍 - 2024-12-28 - SERVER TIME API ENDPOINT
   // This endpoint provides reliable server time to avoid dependency on user device time

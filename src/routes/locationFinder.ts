@@ -26,12 +26,19 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     const templatePath = 'wizard/location-finder';
     const page_class = generatePageClass(templatePath);
 
+    const q = (request as any).query || {};
+    const prefillDistrict = q.district || null;
+    const prefillSublocality = q.sublocality || null;
+    console.log('🟡🟡🟡 - [LOCATION FINDER] Prefill params:', { prefillDistrict, prefillSublocality });
+
     return reply.view(templatePath, {
       submitted: false,
       theme,
       page_class,
       googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
       googleMapsMapId: process.env.GOOGLE_MAPS_ID || 'GOOGLE_MAPS_ID MISSING!',
+      prefillDistrict,
+      prefillSublocality,
     });
   });
 }
