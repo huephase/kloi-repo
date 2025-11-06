@@ -90,7 +90,17 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
 
       const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat + ',' + lng)}&key=${encodeURIComponent(apiKey)}`;
       const res = await fetch(url);
-      const data = await res.json();
+      // 🟡🟡🟡 - [GEO API] Type the Google Maps Geocoding API response
+      const data = await res.json() as {
+        status: string;
+        results?: Array<{
+          address_components?: Array<{
+            long_name: string;
+            short_name: string;
+            types: string[];
+          }>;
+        }>;
+      };
       console.log('🟡🟡🟡 - [GEO API] Google response status:', data.status);
 
       let district: string | null = null;
@@ -642,10 +652,10 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
   }>('/session/:step', async (request, reply: FastifyReply) => {
     const step = request.params.step;
     
-    console.log('⚪⚪⚪ - [API ROUTE] POST /session/:step called with step:', step);
-    console.log('⚪⚪⚪ - [API ROUTE] Request body:', JSON.stringify(request.body, null, 2));
-    console.log('⚪⚪⚪ - [API ROUTE] Session ID:', request.session?.sessionId);
-    console.log('⚪⚪⚪ - [API ROUTE] Current session data:', JSON.stringify(request.session, null, 2));
+    // console.log('⚪⚪⚪ - [API ROUTE] POST /session/:step called with step:', step);
+    // console.log('⚪⚪⚪ - [API ROUTE] Request body:', JSON.stringify(request.body, null, 2));
+    // console.log('⚪⚪⚪ - [API ROUTE] Session ID:', request.session?.sessionId);
+    // console.log('⚪⚪⚪ - [API ROUTE] Current session data:', JSON.stringify(request.session, null, 2));
     // 2025-11-04T00:00:00Z ⚪⚪⚪ - [API ROUTE] Detect autosave mode (query or header)
     const q = (request as any).query || {};
     const autosaveQuery = q.autosave === '1' || q.autosave === 1 || q.autosave === true;
@@ -715,13 +725,13 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
 
       // Store the data in session. For autosave, merge with existing data.
       if (sessionKey) {
-        const beforeUpdate = { ...request.session };
-        console.log('🟡🟡🟡 - [API ROUTE] Session BEFORE update:', JSON.stringify(beforeUpdate, null, 2));
+        // const beforeUpdate = { ...request.session };
+        // console.log('🟡🟡🟡 - [API ROUTE] Session BEFORE update:', JSON.stringify(beforeUpdate, null, 2));
         const current = ((request.session as any)[sessionKey]) || {};
         const nextValue = isAutoSave ? { ...current, ...(validatedData as any) } : validatedData;
         (request.session as Record<string, any>)[sessionKey] = nextValue;
-        console.log(`🟡🟡🟡 - [API ROUTE] Setting session[${sessionKey}] =`, JSON.stringify(nextValue, null, 2));
-        console.log('🟡🟡🟡 - [API ROUTE] Session AFTER update:', JSON.stringify(request.session, null, 2));
+        // console.log(`🟡🟡🟡 - [API ROUTE] Setting session[${sessionKey}] =`, JSON.stringify(nextValue, null, 2));
+        // console.log('🟡🟡🟡 - [API ROUTE] Session AFTER update:', JSON.stringify(request.session, null, 2));
       }
 
       // 🟡🟡🟡 - [DATABASE SAVE] Save to database for event-details step

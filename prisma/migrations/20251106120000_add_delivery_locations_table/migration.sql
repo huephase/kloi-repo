@@ -1,6 +1,8 @@
 -- 🟡🟡🟡 2025-11-06 - Create deliveryLocations table
 CREATE TABLE IF NOT EXISTS "deliveryLocations" (
   id BIGSERIAL PRIMARY KEY,
+  country TEXT NOT NULL,
+  city TEXT NOT NULL,
   district TEXT NOT NULL UNIQUE,
   sublocalities JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

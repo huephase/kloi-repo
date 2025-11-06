@@ -14,6 +14,8 @@ SQL (for pgAdmin):
 ```sql
 CREATE TABLE IF NOT EXISTS "deliveryLocations" (
   id BIGSERIAL PRIMARY KEY,
+  country TEXT NOT NULL,
+  city TEXT NOT NULL,
   district TEXT NOT NULL UNIQUE,
   sublocalities JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -43,6 +45,8 @@ Prisma model (if using Prisma for access):
 ```prisma
 model deliveryLocations {
   id           BigInt    @id @default(autoincrement())
+  country      String
+  city         String
   district     String    @unique
   sublocalities Json
   created_at   DateTime  @default(now())
@@ -70,12 +74,14 @@ Mapping:
 
 - major_area -> deliveryLocations.district
 - communities -> deliveryLocations.sublocalities (JSONB array of strings)
+- country -> deliveryLocations.country (e.g., 'UAE')
+- city -> deliveryLocations.city (e.g., 'Dubai')
 
 Example inserts (pgAdmin), per district:
 
 ```sql
-INSERT INTO "deliveryLocations" (district, sublocalities)
-VALUES ('Deira', '["Nakhlat Deira (Palm Deira/Deira Island)","Al Corniche","Al Ras"]'::jsonb)
+INSERT INTO "deliveryLocations" (country, city, district, sublocalities)
+VALUES ('UAE', 'Dubai', 'Deira', '["Nakhlat Deira (Palm Deira/Deira Island)","Al Corniche","Al Ras"]'::jsonb)
 ON CONFLICT (district) DO UPDATE SET sublocalities = EXCLUDED.sublocalities;
 ```
 
@@ -85,12 +91,14 @@ Optional bulk import (if you paste the whole JSON into a `:json_payload` paramet
 WITH payload AS (
   SELECT CAST($YOUR_JSON_HERE$ AS jsonb) AS j
 ), rows AS (
-  SELECT x->>'major_area' AS district,
+  SELECT 'UAE' AS country,
+         'Dubai' AS city,
+         x->>'major_area' AS district,
          (x->'communities')::jsonb AS sublocalities
   FROM payload, LATERAL jsonb_array_elements(j->'dubai_localities') AS x
 )
-INSERT INTO "deliveryLocations" (district, sublocalities)
-SELECT district, sublocalities FROM rows
+INSERT INTO "deliveryLocations" (country, city, district, sublocalities)
+SELECT country, city, district, sublocalities FROM rows
 ON CONFLICT (district) DO UPDATE SET sublocalities = EXCLUDED.sublocalities;
 ```
 
