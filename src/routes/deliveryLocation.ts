@@ -11,13 +11,19 @@ export default async function deliveryLocation(app: FastifyInstance, _opts: Fast
     const page_class = generatePageClass(templatePath);
 
     try {
-      const locations = await getAllDeliveryLocations();
-      console.log('✅✅✅ - [deliveryLocation.ts] Locations loaded:', locations.length);
+      const cities = await getAllDeliveryLocations();
+      console.log('✅✅✅ - [deliveryLocation.ts] Locations loaded for city selector:', {
+        cities: cities.length,
+        sublocalities: cities.reduce((acc, city) => acc + city.combinedSublocalities.length, 0)
+      });
+
+      const deliveryDataJson = JSON.stringify(cities).replace(/</g, '\\u003c');
 
       return reply.view(templatePath, {
         theme,
         page_class,
-        locations,
+        cities,
+        deliveryDataJson,
         year: new Date().getFullYear(),
       });
     } catch (err) {

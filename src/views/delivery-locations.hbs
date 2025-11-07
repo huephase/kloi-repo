@@ -1,37 +1,56 @@
-{{!-- 2025-11-06 🟡🟡🟡 Delivery locations selector with Detect My Location --}}
+{{!-- 2025-11-07T00:00:00Z 🟡🟡🟡 Delivery locations single page selector with city + sublocality workflow --}}
 
-<section class="delivery-locations">
-  <h1>Choose your delivery location</h1>
+<section class="delivery-locations" data-theme="{{theme}}">
+  <header class="delivery-header">
+    <h1>Choose your delivery location</h1>
+    <p class="delivery-intro">Start by selecting your city, then pick the sublocality that best matches where we will serve you.</p>
+  </header>
 
-  <button id="detectLocationBtn" class="btn-primary">Detect My Location</button>
-  <p id="detectStatus" class="muted"></p>
+  {{#if cities}}
+    <div class="city-selector" id="citySelector" role="group" aria-label="Available cities">
+      {{#each cities}}
+        <button type="button" class="city-option" data-city="{{this.city}}" data-country="{{this.country}}">
+          {{this.city}}
+        </button>
+      {{/each}}
+    </div>
 
-  <div class="districts">
-    {{#each locations}}
-      <details class="district">
-        <summary>{{this.district}}</summary>
-        <ul class="sublocalities">
-          {{#each this.sublocalities}}
-            <li>
-              <a class="sublocality-link" href="/location?district={{../this.district}}&sublocality={{this}}">{{this}}</a>
-            </li>
-          {{/each}}
-        </ul>
-      </details>
-    {{/each}}
+    <div class="sublocality-workflow" id="sublocalityWorkflow">
+      <label for="sublocalitySearch" class="sublocality-label" style="display: none;">Search for your area</label>
+      <input
+        id="sublocalitySearch"
+        class="sublocality-input"
+        type="search"
+        placeholder="Start typing your area"
+        autocomplete="off"
+        aria-controls="sublocalitySelect"
+      />
+
+      <select
+        id="sublocalitySelect"
+        class="sublocality-select"
+        size="8"
+        aria-label="Available sublocalities"
+      ></select>
+
+      <button id="confirmSelectionBtn" class="confirm-btn" disabled>Confirm selection</button>
+      <p id="selectionStatus" class="muted" role="status" aria-live="polite"></p>
+    </div>
+  {{else}}
+    <div class="empty-state">
+      <p class="muted">Delivery locations are being prepared. Please check back soon.</p>
+    </div>
+  {{/if}}
+
+  <div class="detect-wrapper">
+    <button id="detectLocationBtn" class="link-button">Detect My Location</button>
+    <p id="detectStatus" class="muted" role="status" aria-live="polite"></p>
   </div>
 </section>
 
+<script id="delivery-data" type="application/json">
+  {{{deliveryDataJson}}}
+</script>
+<link rel="stylesheet" href="/public/global/css/delivery_locations.css"/>
+<script src="/public/global/js/wizard__progress.js"></script>
 <script src="/public/global/js/delivery-location.js" defer></script>
-
-<style>
-  .delivery-locations { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-  .btn-primary { padding: 0.75rem 1rem; margin: 0.5rem 0 1.5rem; }
-  details.district { margin-bottom: 1rem; }
-  .sublocalities { list-style: none; padding-left: 1rem; }
-  .sublocalities li { margin: 0.25rem 0; }
-  .muted { color: #666; font-size: 0.9rem; }
-  a.sublocality-link { text-decoration: underline; }
-</style>
-
-

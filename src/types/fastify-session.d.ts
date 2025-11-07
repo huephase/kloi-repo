@@ -12,12 +12,18 @@ declare module 'fastify' {
     wizardStarted?: boolean;
     lastVisited?: string;
     locationData?: {
-      placeId: string;
+      // 2025-11-07T00:00:00Z 🟡🟡🟡 - Allow flexible location payload including manual dropdown workflow
       fullAddress: string;
-      city: string;
-      country: string;
-      latitude: number;
-      longitude: number;
+      placeId?: string;
+      city?: string;
+      country?: string;
+      district?: string;
+      sublocality?: string;
+      latitude?: number;
+      longitude?: number;
+      surcharge?: number | string;
+      components?: Record<string, string>;
+      selectionSource?: string;
     };
     // Add other wizard state data properties as needed
     customerInfo?: {
@@ -44,12 +50,18 @@ declare module '@fastify/session' {
     wizardStarted?: boolean;
     lastVisited?: string;
     locationData?: {
-      placeId: string;
+      // 2025-11-07T00:00:00Z 🟡🟡🟡 - Allow flexible location payload including manual dropdown workflow
       fullAddress: string;
-      city: string;
-      country: string;
-      latitude: number;
-      longitude: number;
+      placeId?: string;
+      city?: string;
+      country?: string;
+      district?: string;
+      sublocality?: string;
+      latitude?: number;
+      longitude?: number;
+      surcharge?: number | string;
+      components?: Record<string, string>;
+      selectionSource?: string;
     };
     // Add other wizard state data properties as needed
     customerInfo?: {

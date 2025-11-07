@@ -14,6 +14,45 @@
 
 ---
 
+### November 7, 2025 - Delivery Location City/Sublocality Selector
+
+**Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED
+
+**Summary**: Rebuilt the delivery location intake experience with city-first selection, searchable sublocality dropdown, and session persistence that now carries surcharge metadata pulled from the new `deliveryLocations` schema.
+
+#### Major Changes
+- **Delivery Locations Service Aggregation**: `src/services/deliveryLocationsService.ts`
+  - Normalizes JSONB sublocalities into typed structures containing `name`, `district`, and `surcharge`
+  - Aggregates rows per city so UI can render merged dropdowns even when districts live in separate DB rows
+- **Delivery Location Route Payload**: `src/routes/deliveryLocation.ts`
+  - Serializes the aggregated city payload safely for client consumption
+  - Supplies JSON data for the city/sub-locality workflow
+- **New Single-Page UI**: `src/views/delivery-locations.hbs`
+  - Guides user through city selection, searchable/touch-friendly sublocality dropdown, and confirmation CTA
+  - Hooks into centralized wizard progress utilities for session saves
+- **Client Workflow Enhancements**: `public/global/js/delivery-location.js`
+  - Implements city tabbing, autocomplete filter, confirm flow, and geolocation auto-select with surcharge persistence
+  - Saves selected sublocality + surcharge into `session.locationData` via `/api/session/location`
+- **Dedicated Styling**: `public/global/css/delivery_locations.css`
+  - Moved inline CSS into standalone stylesheet following app-wide conventions
+- **Session Typings**: `src/types/fastify-session.d.ts`
+  - Expanded `locationData` shape to allow surcharge, district, and manual selection metadata
+
+#### Migration Notes
+- 🔵 `prisma/migrations/20251106120000_add_delivery_locations_table` must be deployed (or corresponding SQL executed) so new `country` and `city` columns exist alongside `sublocalities`
+- Seed/update data using the new structure (see `ADD-DISTRICTS.sql` as reference)
+
+#### Files Affected
+- `src/services/deliveryLocationsService.ts`
+- `src/routes/deliveryLocation.ts`
+- `src/views/delivery-locations.hbs`
+- `public/global/js/delivery-location.js`
+- `public/global/css/delivery_locations.css`
+- `src/types/fastify-session.d.ts`
+- `prisma/migrations/20251106120000_add_delivery_locations_table`
+
+---
+
 ### November 4, 2025 - Wizard Autosave Mode and Partial Session Merge
 
 **Type**: 🟠 MAJOR CHANGE
@@ -520,6 +559,3 @@ Any special migration instructions
 - 🔍 Search codebase for deprecated patterns before removing features
 
 ---
-
-*Last Updated: November 4, 2025*
-

@@ -1,0 +1,141 @@
+.delivery-locations {
+  max-width: 640px;
+  margin: 2.5rem auto;
+  padding: 0 1.25rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.delivery-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.delivery-header h1 {
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  margin: 0;
+}
+
+.delivery-intro {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.city-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.city-option {
+  min-width: 120px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  border: 2px solid #222;
+  background: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.city-option[aria-pressed="true"],
+.city-option.is-active {
+  background: #222;
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.sublocality-workflow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.sublocality-label {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.sublocality-input {
+  padding: 0.9rem 1rem;
+  font-size: 1.05rem;
+  border-radius: 16px;
+  border: 2px solid #222;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sublocality-select {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 16px;
+  border: 2px solid #222;
+  font-size: 1.1rem;
+  text-align-last: left;
+}
+
+.confirm-btn {
+  padding: 1rem;
+  border-radius: 16px;
+  background: #222;
+  color: #fff;
+  font-size: 1.1rem;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.confirm-btn.is-loading {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.confirm-btn:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.muted {
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.detect-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #222;
+  text-decoration: underline;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .delivery-locations {
+    padding: 0 1rem 2rem;
+  }
+
+  .city-option {
+    width: 100%;
+  }
+
+  .sublocality-select {
+    font-size: 1rem;
+  }
+}

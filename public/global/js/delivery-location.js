@@ -1,59 +1,268 @@
-// 2025-11-06 🟡🟡🟡 Client script for delivery locations page
-(function(){
-  const btn = document.getElementById('detectLocationBtn');
-  const statusEl = document.getElementById('detectStatus');
+// 2025-11-07T00:00:00Z 🟡🟡🟡 Client script for delivery locations page with city + sublocality workflow
+(function () {
+  const now = () => new Date().toISOString();
+  const logInfo = (message, payload) => console.log(`🟡🟡🟡 - [delivery-location.js ${now()}] ${message}`, payload ?? '');
+  const logSuccess = (message, payload) => console.log(`✅✅✅ - [delivery-location.js ${now()}] ${message}`, payload ?? '');
+  const logWarn = (message, payload) => console.warn(`⚠️⚠️⚠️ - [delivery-location.js ${now()}] ${message}`, payload ?? '');
+  const logError = (message, payload) => console.error(`❗❗❗ - [delivery-location.js ${now()}] ${message}`, payload ?? '');
 
-  function log(msg) {
-    const ts = new Date().toISOString();
-    console.log(`🟡🟡🟡 - [delivery-location.js ${ts}] ${msg}`);
+  const cityButtons = Array.from(document.querySelectorAll('.city-option'));
+  const searchInput = document.getElementById('sublocalitySearch');
+  const sublocalitySelect = document.getElementById('sublocalitySelect');
+  const confirmBtn = document.getElementById('confirmSelectionBtn');
+  const selectionStatus = document.getElementById('selectionStatus');
+  const detectBtn = document.getElementById('detectLocationBtn');
+  const detectStatus = document.getElementById('detectStatus');
+  const deliveryDataScript = document.getElementById('delivery-data');
+
+  if (!deliveryDataScript) {
+    logError('Missing delivery data payload; aborting initialization');
+    return;
   }
 
-  if (!btn) return;
+  let parsedData = [];
+  try {
+    parsedData = JSON.parse(deliveryDataScript.textContent || '[]');
+    logSuccess('Parsed delivery data payload', { cities: parsedData.length });
+  } catch (err) {
+    logError('Failed to parse delivery data payload', err);
+    return;
+  }
 
-  btn.addEventListener('click', function(){
-    if (!navigator.geolocation) {
-      statusEl.textContent = 'Geolocation is not supported by your browser.';
-      console.error('❗❗❗ - [delivery-location.js] Geolocation not supported');
+  if (!Array.isArray(parsedData) || parsedData.length === 0) {
+    logWarn('No delivery cities available to initialize workflow');
+    return;
+  }
+
+  let selectedCity = null;
+  let filteredOptions = [];
+  let selectedOption = null;
+
+  function updateCityButtons(activeCity) {
+    cityButtons.forEach((btn) => {
+      const isActive = btn.dataset.city === activeCity?.city && btn.dataset.country === activeCity?.country;
+      btn.classList.toggle('is-active', Boolean(isActive));
+      btn.setAttribute('aria-pressed', String(isActive));
+    });
+  }
+
+  function getCityByButton(button) {
+    return parsedData.find((city) => city.city === button.dataset.city && city.country === button.dataset.country) || null;
+  }
+
+  function refreshOptions(filterTerm) {
+    if (!selectedCity) {
+      sublocalitySelect.innerHTML = '';
+      confirmBtn.disabled = true;
       return;
     }
 
-    statusEl.textContent = 'Detecting your location…';
-    log('Attempting geolocation');
+    const normalizedFilter = (filterTerm || '').trim().toLowerCase();
+    const allOptions = selectedCity.combinedSublocalities || [];
+    filteredOptions = normalizedFilter
+      ? allOptions.filter((entry) => `${entry.district} ${entry.name}`.toLowerCase().includes(normalizedFilter))
+      : allOptions.slice();
+
+    sublocalitySelect.innerHTML = '';
+    filteredOptions.forEach((entry) => {
+      const optionEl = document.createElement('option');
+      optionEl.value = `${entry.district}::${entry.name}`;
+      optionEl.textContent = entry.name;
+      optionEl.dataset.district = entry.district;
+      optionEl.dataset.surcharge = String(entry.surcharge ?? 0);
+      sublocalitySelect.appendChild(optionEl);
+    });
+
+    if (filteredOptions.length > 0) {
+      sublocalitySelect.selectedIndex = 0;
+      selectedOption = filteredOptions[0];
+      confirmBtn.disabled = false;
+      selectionStatus.textContent = `Ready to confirm ${filteredOptions[0].name}.`;
+      logInfo('Sublocality options refreshed', { city: selectedCity.city, count: filteredOptions.length });
+    } else {
+      selectedOption = null;
+      confirmBtn.disabled = true;
+      selectionStatus.textContent = 'No matching sublocalities found, please adjust your search.';
+      logInfo('No sublocality matches for filter', { filter: normalizedFilter });
+    }
+  }
+
+  cityButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const city = getCityByButton(button);
+      if (!city) {
+        logError('City button clicked but no matching city data found', { cityLabel: button.dataset.city });
+        return;
+      }
+
+      selectedCity = city;
+      selectedOption = null;
+      searchInput.value = '';
+      selectionStatus.textContent = `Showing sublocalities for ${city.city}.`;
+      updateCityButtons(city);
+      refreshOptions('');
+      logSuccess('City selection updated', { city: city.city, districts: city.districts.length });
+    });
+  });
+
+  // 2025-11-07T00:00:00Z Auto select the first city to streamline UX
+  if (cityButtons.length > 0) {
+    cityButtons[0].click();
+  }
+
+  searchInput?.addEventListener('input', (event) => {
+    refreshOptions(event.target.value || '');
+  });
+
+  sublocalitySelect?.addEventListener('change', (event) => {
+    const value = event.target.value;
+    selectedOption = filteredOptions.find((entry) => `${entry.district}::${entry.name}` === value) || null;
+    if (selectedOption) {
+      confirmBtn.disabled = false;
+      selectionStatus.textContent = `Selected ${selectedOption.name} in ${selectedOption.district}.`;
+      logSuccess('User selected sublocality from dropdown', { name: selectedOption.name, district: selectedOption.district });
+    } else {
+      confirmBtn.disabled = true;
+      selectionStatus.textContent = 'Please choose a sublocality to continue.';
+    }
+  });
+
+  async function persistSelection(payload) {
+    if (window.KloiWizardProgress && typeof window.KloiWizardProgress.saveWizardStep === 'function') {
+      return window.KloiWizardProgress.saveWizardStep('location', payload);
+    }
+
+    logInfo('Fallback save invoked because KloiWizardProgress is unavailable');
+
+    const response = await fetch('/api/session/location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return { ok: response.ok, json: await response.json() };
+  }
+
+  confirmBtn?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    if (!selectedCity || !selectedOption) {
+      selectionStatus.textContent = 'Please choose a sublocality before confirming.';
+      confirmBtn.disabled = true;
+      return;
+    }
+
+    confirmBtn.disabled = true;
+    confirmBtn.classList.add('is-loading');
+    selectionStatus.textContent = 'Saving your location selection…';
+
+    const payload = {
+      fullAddress: `${selectedOption.name}, ${selectedOption.district}, ${selectedCity.city}`,
+      components: {
+        city: selectedCity.city,
+        country: selectedCity.country,
+        district: selectedOption.district,
+        sublocality: selectedOption.name,
+        surcharge: String(selectedOption.surcharge ?? 0),
+        selectionSource: 'manual-dropdown',
+      },
+    };
+
+    try {
+      const result = await persistSelection(payload);
+      if (result && result.ok) {
+        selectionStatus.textContent = 'Location saved! Redirecting to continue…';
+        logSuccess('Location selection saved to session', payload);
+        setTimeout(() => {
+          const redirectUrl = `/location?district=${encodeURIComponent(selectedOption.district)}&sublocality=${encodeURIComponent(selectedOption.name)}`;
+          window.location.href = redirectUrl;
+        }, 400);
+      } else {
+        confirmBtn.disabled = false;
+        selectionStatus.textContent = 'We could not save your selection. Please try again.';
+        logError('Failed to persist location selection', result?.json || result?.error);
+      }
+    } catch (err) {
+      confirmBtn.disabled = false;
+      selectionStatus.textContent = 'Unexpected error saving your selection. Please try again.';
+      logError('Unexpected error while saving selection', err);
+    } finally {
+      confirmBtn.classList.remove('is-loading');
+    }
+  });
+
+  function attemptAutoSelect(district, sublocality) {
+    if (!district || !sublocality) {
+      return false;
+    }
+
+    let matchedCity = null;
+    parsedData.forEach((city) => {
+      const match = city.combinedSublocalities.find((entry) => entry.district === district && entry.name.toLowerCase() === sublocality.toLowerCase());
+      if (match) {
+        matchedCity = { city, entry: match };
+      }
+    });
+
+    if (!matchedCity) {
+      return false;
+    }
+
+    selectedCity = matchedCity.city;
+    updateCityButtons(selectedCity);
+    searchInput.value = '';
+    refreshOptions('');
+
+    const optionKey = `${matchedCity.entry.district}::${matchedCity.entry.name}`;
+    const targetIndex = filteredOptions.findIndex((entry) => `${entry.district}::${entry.name}` === optionKey);
+    if (targetIndex >= 0) {
+      sublocalitySelect.selectedIndex = targetIndex;
+      selectedOption = filteredOptions[targetIndex];
+      confirmBtn.disabled = false;
+      selectionStatus.textContent = `Detected ${selectedOption.name}. You can confirm or choose another option.`;
+      logSuccess('Auto-selected location from geolocation match', { district, sublocality });
+      return true;
+    }
+
+    return false;
+  }
+
+  detectBtn?.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      detectStatus.textContent = 'Geolocation is not supported by your browser.';
+      logError('Geolocation API not available');
+      return;
+    }
+
+    detectStatus.textContent = 'Detecting your location…';
+    logInfo('Attempting geolocation lookup');
     navigator.geolocation.getCurrentPosition(onDetectSuccess, onDetectError, { enableHighAccuracy: true, timeout: 10000 });
   });
 
-  function onDetectSuccess(position){
+  function onDetectSuccess(position) {
     const lat = position.coords.latitude;
     const lng = position.coords.longitude;
-    log(`Coordinates detected: ${lat}, ${lng}`);
+    logInfo('Coordinates detected', { lat, lng });
+
     fetch(`/api/geo/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data && data.district && data.sublocality) {
-          log(`Reverse geocode match: ${data.district} / ${data.sublocality}`);
-          window.location.href = `/location?district=${encodeURIComponent(data.district)}&sublocality=${encodeURIComponent(data.sublocality)}`;
-        } else if (data && data.district) {
-          log(`Reverse geocode partial match: ${data.district}`);
-          statusEl.textContent = 'We found your district. Please select a sublocality below.';
-          // Optionally expand the matching district section
-          const details = Array.from(document.querySelectorAll('details.district'));
-          const match = details.find(d => d.querySelector('summary')?.textContent === data.district);
-          if (match) match.open = true;
+      .then((response) => response.json())
+      .then((data) => {
+        if (attemptAutoSelect(data?.district, data?.sublocality)) {
+          detectStatus.textContent = `We found ${data.sublocality}. Review and confirm to continue.`;
+        } else if (data?.district) {
+          detectStatus.textContent = `We found your district (${data.district}). Please pick the exact sublocality.`;
+          logInfo('Reverse geocode partial match', data);
         } else {
-          statusEl.textContent = 'Could not determine your location. Please select manually.';
-          console.error('❗❗❗ - [delivery-location.js] Reverse geocode returned no match');
+          detectStatus.textContent = 'We could not detect your location. Please select manually.';
+          logError('Reverse geocode response missing district and sublocality', data);
         }
       })
-      .catch(err => {
-        statusEl.textContent = 'Failed to contact geocoding service.';
-        console.error('❗❗❗ - [delivery-location.js] Reverse geocode error:', err);
+      .catch((err) => {
+        detectStatus.textContent = 'Failed to contact geocoding service. Please select manually.';
+        logError('Reverse geocode request failed', err);
       });
   }
 
-  function onDetectError(err){
-    statusEl.textContent = 'Location detection failed. Please select manually.';
-    console.error('❗❗❗ - [delivery-location.js] Geolocation error:', err);
+  function onDetectError(err) {
+    detectStatus.textContent = 'Location detection failed. Please select manually.';
+    logError('Geolocation error', err);
   }
 })();
-
-
