@@ -92,3 +92,47 @@ INSERT INTO public."deliveryLocations" (district, sublocalities, country, city) 
  ]'::jsonb,
  'UAE',
  'Dubai');
+
+
+
+
+
+ INSERT INTO public."deliveryLocations" (district, sublocalities, country, city) VALUES
+('Abu Dhabi Island',
+ '[
+  {"name": "Al Bateen", "surcharge": 0}, {"name": "Al Dana", "surcharge": 0}, {"name": "Al Etihad", "surcharge": 0},
+  {"name": "Al Falah Street", "surcharge": 0}, {"name": "Al Hosn", "surcharge": 0}, {"name": "Al Karamah", "surcharge": 0},
+  {"name": "Al Khalidiyah", "surcharge": 0}, {"name": "Al Manhal", "surcharge": 0}, {"name": "Al Maqtaa", "surcharge": 0},
+  {"name": "Al Markaziyah", "surcharge": 0}, {"name": "Al Mina", "surcharge": 0}, {"name": "Al Muroor", "surcharge": 0},
+  {"name": "Al Mushrif", "surcharge": 0}, {"name": "Al Muzoon", "surcharge": 0}, {"name": "Al Nahyan", "surcharge": 0},
+  {"name": "Al Ras Al Akhdar", "surcharge": 0}, {"name": "Al Rowdah", "surcharge": 0}, {"name": "Al Wahda", "surcharge": 0},
+  {"name": "Al Zaab", "surcharge": 0}, {"name": "Al Zahraa", "surcharge": 0}, {"name": "Al Zahiyah (Tourist Club Area)", "surcharge": 0},
+  {"name": "Bain Al Jisrain (Between Two Bridges)", "surcharge": 0}, {"name": "Corniche Area", "surcharge": 0},
+  {"name": "Emirates Palace", "surcharge": 0}, {"name": "Hadbat Al Zaafran", "surcharge": 0}, {"name": "Hamdan Street", "surcharge": 0},
+  {"name": "Khor Al Bateen", "surcharge": 0}, {"name": "Madinat Zayed (Downtown)", "surcharge": 0}, {"name": "Marina Village", "surcharge": 0},
+  {"name": "Qasr El Bahr", "surcharge": 0}, {"name": "Qasr El Shatie", "surcharge": 0}
+ ]'::jsonb,
+ 'UAE',
+ 'Abu Dhabi');
+
+INSERT INTO public."deliveryLocations" (district, sublocalities, country, city) VALUES
+('Abu Dhabi Mainland & Islands',
+ '[
+  {"name": "Abu Dhabi Gate City (Officers City)", "surcharge": 0}, {"name": "Abu Dhabi International Airport", "surcharge": 0},
+  {"name": "Al Bahia", "surcharge": 0}, {"name": "Al Bandar", "surcharge": 0}, {"name": "Al Falah", "surcharge": 0},
+  {"name": "Al Forsan Village", "surcharge": 0}, {"name": "Al Ghadeer", "surcharge": 0}, {"name": "Al Gurm", "surcharge": 0},
+  {"name": "Al Jubail Island", "surcharge": 0}, {"name": "Al Maryah Island", "surcharge": 0}, {"name": "Al Muneera", "surcharge": 0},
+  {"name": "Al Raha Beach", "surcharge": 0}, {"name": "Al Raha Gardens", "surcharge": 0}, {"name": "Al Rahba", "surcharge": 0},
+  {"name": "Al Reef", "surcharge": 0}, {"name": "Al Reem Island", "surcharge": 0}, {"name": "Al Samha", "surcharge": 0},
+  {"name": "Al Shahama", "surcharge": 0}, {"name": "Al Shamkha", "surcharge": 0}, {"name": "Al Shawamekh", "surcharge": 0},
+  {"name": "Al Wathba", "surcharge": 0}, {"name": "Al Zeina", "surcharge": 0}, {"name": "Baniyas", "surcharge": 0},
+  {"name": "Bloom Gardens", "surcharge": 0}, {"name": "Dalma Island", "surcharge": 0}, {"name": "Ghantoot", "surcharge": 0},
+  {"name": "Golf Gardens", "surcharge": 0}, {"name": "Hudayriyat Island", "surcharge": 0}, {"name": "Hydra Village", "surcharge": 0},
+  {"name": "Khalifa City", "surcharge": 0}, {"name": "Masdar City", "surcharge": 0}, {"name": "Mohammed Bin Zayed City (MBZ City)", "surcharge": 0},
+  {"name": "Mussafah", "surcharge": 0}, {"name": "Mussafah Industrial Area", "surcharge": 0}, {"name": "Nurai Island", "surcharge": 0},
+  {"name": "Ramhan Island", "surcharge": 0}, {"name": "Saadiyat Island", "surcharge": 0}, {"name": "Sas Al Nakhl Village", "surcharge": 0},
+  {"name": "Shakhbout City", "surcharge": 0}, {"name": "Sweihan", "surcharge": 0}, {"name": "Yas Island", "surcharge": 0},
+  {"name": "Zayed City (Madinat Al Riyad)", "surcharge": 0}, {"name": "Zayed Military City", "surcharge": 0}
+ ]'::jsonb,
+ 'UAE',
+ 'Abu Dhabi');

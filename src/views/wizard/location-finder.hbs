@@ -2,11 +2,8 @@
 {{! Location finder view }}
 
 <!-- Developer Note: Use {{theme}}, {{themeColor}}, and {{googleMapsApiKey}} from the route handler. -->
+<!-- 2025-11-07T00:00:00Z 🟡🟡🟡 - [location-finder.hbs] Autocomplete input removed - location is now selected from delivery-locations page -->
 <div class="kloi-location-finder">
-  <div class="lf-autocomplete-container">
-      <input id="lf-autocomplete-input" type="text" placeholder="Search for a location" class="lf-autocomplete-input" autocomplete="off" />
-      <button type="button" id="lf-clear-btn" aria-label="Clear input">&#10006;</button>
-  </div>
   <div id="GOOGLE_CONTAINER" style="min-width:80%;min-height:300px;"></div>
   <div class="lf-location-controls">
   <button type="button" id="lf-detect-btn" class="lf-detect-btn pill-bt">Detect My Location</button>
@@ -33,12 +30,19 @@
 </div>
 <script src="public/global/js/maps.js"></script>
 <script>
+  // 2025-11-07T00:00:00Z 🟡🟡🟡 - [location-finder.hbs] Initialize map with session location data
   window.addEventListener('DOMContentLoaded', function() {
+    // 🟡🟡🟡 - [location-finder.hbs] Parse session location data from JSON string
+    let sessionLocationData = null;
+    try {
+      sessionLocationData = {{{locationDataJson}}};
+    } catch (err) {
+      console.error('❗❗❗ - [location-finder.hbs] Failed to parse location data:', err);
+    }
     window.initLocationFinderMap({
       apiKey: '{{googleMapsApiKey}}',
       mapId: '{{googleMapsMapId}}',
       containerId: 'GOOGLE_CONTAINER',
-      autocompleteInputId: 'lf-autocomplete-input',
       detectBtnId: 'lf-detect-btn',
       formId: 'location-details',
       confirmBtnId: 'confirm-location',
@@ -56,7 +60,8 @@
         latitude: 'lf-latitude-hidden',
         longitude: 'lf-longitude-hidden'
       },
-      errorMsgId: 'lf-error-msg'
+      errorMsgId: 'lf-error-msg',
+      initialLocationData: sessionLocationData
     });
   });
 </script>

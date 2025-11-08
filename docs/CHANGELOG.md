@@ -14,6 +14,88 @@
 
 ---
 
+### November 8, 2025 - Location Finder Integration with Delivery Locations & Enhanced Database Location Storage
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Integrated the location finder page with the delivery locations workflow, removed Google autocomplete functionality, and enhanced database location storage to include all delivery location metadata (country, city, sublocality, surcharge) collected from the delivery-locations page.
+
+#### Major Changes
+- **Location Finder Route Integration**: `src/routes/locationFinder.ts`
+  - Now reads `locationData` from session (set by delivery-locations page)
+  - Redirects to `/delivery-location` if no location data exists in session
+  - Passes location data to template as JSON for map initialization
+  - Removed query parameter dependency (district/sublocality from URL)
+- **Google Maps Autocomplete Removal**: `src/views/wizard/location-finder.hbs` & `public/global/js/maps.js`
+  - Removed autocomplete input container and clear button from template
+  - Removed all autocomplete-related code from maps.js (input handlers, autocomplete instance, places library)
+  - Map now centers on user's selected location from delivery-locations page using session data
+  - Removed default center fallback - map always uses session location data
+  - Added geocoding functionality to convert session address to coordinates if needed
+- **Delivery Location Redirect Update**: `public/global/js/delivery-location.js`
+  - Changed redirect from `/location?district=...&sublocality=...` to `/location`
+  - Session data is now the single source of truth for location information
+- **Route Reference Cleanup**: `src/routes/eventSetup.ts` & `src/hooks/sessionHooks.ts`
+  - Updated eventSetup redirect from `/location-finder` to `/delivery-location`
+  - Removed `/location-finder` from public routes (route is `/location`)
+  - Updated session hook documentation to reflect new entry point
+- **CSS Cleanup**: `public/global/css/kloi_global.css`
+  - Removed unused autocomplete container and input styles
+- **Enhanced Database Location Storage**: `src/routes/api/index.ts`
+  - Created `buildLocationObject()` helper function to construct complete location object from session data
+  - **Critical Component Preservation Logic**: When map page (`/location`) submits location data, the system preserves the `components` object from delivery-location page
+    - Map page only sends: `latitude`, `longitude`, `fullAddress` (from geocoding)
+    - Delivery-location `components` (country, city, sublocality, district, surcharge, selectionSource) are preserved in session
+    - Merge logic: `{ ...mapData, components: existingComponents }` ensures delivery-location metadata is never lost
+  - Location JSONB now includes all delivery location fields:
+    - `latitude` and `longitude` (from map selection/geocoding)
+    - `fullAddress` (from map geocoding, may differ from delivery-location address)
+    - `country` (from delivery-locations selection via `components.country`)
+    - `city` (from delivery-locations selection via `components.city`)
+    - `sublocality` (from delivery-locations selection via `components.sublocality`)
+    - `district` (from delivery-locations selection via `components.district`)
+    - `surcharge` (from delivery-locations selection via `components.surcharge`, converted to number)
+    - `selectionSource` (metadata about how location was selected, e.g., "manual-dropdown")
+  - Updated all order creation points to use enhanced location object:
+    - Event-details step order creation
+    - Date-picker step order creation (when creating new order)
+    - Event-setup step order creation (when creating new order)
+
+#### Direction Changes
+- **Workflow Integration**: Location finder is now a continuation of delivery-locations workflow rather than standalone
+- **Session-First Architecture**: Session data is the primary source of location information, eliminating URL parameter dependencies
+- **Simplified User Flow**: Removed redundant autocomplete search - users select area from delivery-locations page, then fine-tune on map
+- **Complete Location Metadata**: Database now stores comprehensive location information including delivery surcharges for accurate pricing
+
+#### Files Affected
+- `src/routes/locationFinder.ts` (MODIFIED)
+- `src/views/wizard/location-finder.hbs` (MODIFIED)
+- `public/global/js/maps.js` (MODIFIED)
+- `public/global/js/delivery-location.js` (MODIFIED)
+- `src/routes/eventSetup.ts` (MODIFIED)
+- `src/hooks/sessionHooks.ts` (MODIFIED)
+- `public/global/css/kloi_global.css` (MODIFIED)
+- `src/routes/api/index.ts` (MODIFIED)
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- Location finder page now requires valid `locationData` in session - redirects to `/delivery-location` if missing
+- Google Maps Places library no longer loaded (autocomplete removed)
+- Map initialization uses `initialLocationData` parameter from session
+- **Component Preservation Flow**:
+  1. Delivery-location page saves: `{ fullAddress, components: { city, country, district, sublocality, surcharge, selectionSource } }`
+  2. Map page updates: `{ latitude, longitude, fullAddress }` (components NOT included in request)
+  3. Server merge logic preserves existing `components` from session: `{ ...mapData, components: existingComponents }`
+  4. Final session contains: map coordinates + delivery-location metadata
+- Location object in database includes all delivery location metadata for complete order context
+- `buildLocationObject()` function prioritizes `components.*` values over top-level fields (ensures delivery-location data takes precedence over map geocoding)
+- Surcharge is converted from string to number for proper database storage
+- **Critical**: Delivery-location metadata (country, city, sublocality, district, surcharge, selectionSource) MUST come from `/delivery-location` page, NOT from map geocoding
+
+**Related Documentation**: This builds upon the delivery location selector implementation (Nov 7, 2025 entry)
+
+---
+
 ### November 7, 2025 - Delivery Location City/Sublocality Selector
 
 **Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED

@@ -14,8 +14,9 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
     try {
       // 🟡🟡🟡 - [SESSION VALIDATION] Ensure session exists and wizard is started
       if (!request.session || !request.session.wizardStarted) {
-        console.log('⚠️⚠️⚠️ - [EVENT SETUP ROUTE] No valid session found, redirecting to location finder');
-        return reply.redirect('/location-finder');
+        console.log('⚠️⚠️⚠️ - [EVENT SETUP ROUTE] No valid session found, redirecting to delivery location');
+        // 2025-11-07T00:00:00Z 🟡🟡🟡 - [eventSetup.ts] Redirect to delivery-location (entry point) instead of location-finder
+        return reply.redirect('/delivery-location');
       }
 
       // 🟡🟡🟡 - [THEME DETECTION] Get theme from request

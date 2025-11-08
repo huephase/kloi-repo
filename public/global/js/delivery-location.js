@@ -77,12 +77,12 @@
       sublocalitySelect.selectedIndex = 0;
       selectedOption = filteredOptions[0];
       confirmBtn.disabled = false;
-      selectionStatus.textContent = `Ready to confirm ${filteredOptions[0].name}.`;
+      selectionStatus.textContent = `${filteredOptions[0].name}, ${selectedCity.city}`;
       logInfo('Sublocality options refreshed', { city: selectedCity.city, count: filteredOptions.length });
     } else {
       selectedOption = null;
       confirmBtn.disabled = true;
-      selectionStatus.textContent = 'No matching sublocalities found, please adjust your search.';
+      selectionStatus.textContent = '';
       logInfo('No sublocality matches for filter', { filter: normalizedFilter });
     }
   }
@@ -98,7 +98,7 @@
       selectedCity = city;
       selectedOption = null;
       searchInput.value = '';
-      selectionStatus.textContent = `Showing sublocalities for ${city.city}.`;
+      selectionStatus.textContent = '';
       updateCityButtons(city);
       refreshOptions('');
       logSuccess('City selection updated', { city: city.city, districts: city.districts.length });
@@ -119,11 +119,11 @@
     selectedOption = filteredOptions.find((entry) => `${entry.district}::${entry.name}` === value) || null;
     if (selectedOption) {
       confirmBtn.disabled = false;
-      selectionStatus.textContent = `Selected ${selectedOption.name} in ${selectedOption.district}.`;
+      selectionStatus.textContent = `${selectedOption.name}, ${selectedCity.city}`;
       logSuccess('User selected sublocality from dropdown', { name: selectedOption.name, district: selectedOption.district });
     } else {
       confirmBtn.disabled = true;
-      selectionStatus.textContent = 'Please choose a sublocality to continue.';
+      selectionStatus.textContent = '';
     }
   });
 
@@ -145,14 +145,14 @@
   confirmBtn?.addEventListener('click', async (event) => {
     event.preventDefault();
     if (!selectedCity || !selectedOption) {
-      selectionStatus.textContent = 'Please choose a sublocality before confirming.';
+      selectionStatus.textContent = '';
       confirmBtn.disabled = true;
       return;
     }
 
     confirmBtn.disabled = true;
     confirmBtn.classList.add('is-loading');
-    selectionStatus.textContent = 'Saving your location selection…';
+    selectionStatus.textContent = `${selectedOption.name}, ${selectedCity.city}`;
 
     const payload = {
       fullAddress: `${selectedOption.name}, ${selectedOption.district}, ${selectedCity.city}`,
@@ -169,20 +169,21 @@
     try {
       const result = await persistSelection(payload);
       if (result && result.ok) {
-        selectionStatus.textContent = 'Location saved! Redirecting to continue…';
+        selectionStatus.textContent = `${selectedOption.name}, ${selectedCity.city}`;
         logSuccess('Location selection saved to session', payload);
         setTimeout(() => {
-          const redirectUrl = `/location?district=${encodeURIComponent(selectedOption.district)}&sublocality=${encodeURIComponent(selectedOption.name)}`;
+          // 2025-11-07T00:00:00Z 🟡🟡🟡 - [delivery-location.js] Redirect to location finder page (session data will be used)
+          const redirectUrl = `/location`;
           window.location.href = redirectUrl;
         }, 400);
       } else {
         confirmBtn.disabled = false;
-        selectionStatus.textContent = 'We could not save your selection. Please try again.';
+        selectionStatus.textContent = `${selectedOption.name}, ${selectedCity.city}`;
         logError('Failed to persist location selection', result?.json || result?.error);
       }
     } catch (err) {
       confirmBtn.disabled = false;
-      selectionStatus.textContent = 'Unexpected error saving your selection. Please try again.';
+      selectionStatus.textContent = `${selectedOption.name}, ${selectedCity.city}`;
       logError('Unexpected error while saving selection', err);
     } finally {
       confirmBtn.classList.remove('is-loading');
@@ -217,7 +218,7 @@
       sublocalitySelect.selectedIndex = targetIndex;
       selectedOption = filteredOptions[targetIndex];
       confirmBtn.disabled = false;
-      selectionStatus.textContent = `Detected ${selectedOption.name}. You can confirm or choose another option.`;
+      selectionStatus.textContent = `${selectedOption.name}, ${selectedCity.city}`;
       logSuccess('Auto-selected location from geolocation match', { district, sublocality });
       return true;
     }

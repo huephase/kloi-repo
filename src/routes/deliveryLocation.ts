@@ -5,6 +5,26 @@ import { getAllDeliveryLocations } from '../services/deliveryLocationsService';
 
 export default async function deliveryLocation(app: FastifyInstance, _opts: FastifyPluginOptions) {
   app.get('/delivery-location', async (request, reply) => {
+    // 2025-11-07T00:00:00Z 🟡🟡🟡 Ensure session exists before rendering delivery locations page
+    try {
+      if (!request.session) {
+        console.log('❗❗❗ - [deliveryLocation.ts] Session object missing on request, redirecting to splash');
+        return reply.redirect('/');
+      }
+
+      if (!(request.session as any).wizardStarted) {
+        (request.session as any).wizardStarted = true;
+        console.log('✅✅✅ - [deliveryLocation.ts] Wizard session flag initialized for delivery locations');
+      }
+
+      (request.session as any).lastVisited = new Date().toISOString();
+      request.session.touch();
+      console.log('⚪⚪⚪ - [deliveryLocation.ts] Session touched to persist wizard state:', request.session.sessionId?.substring(0, 8));
+    } catch (sessionError) {
+      console.error('❗❗❗ - [deliveryLocation.ts] Failed to initialize session for delivery locations:', sessionError);
+      return reply.redirect('/');
+    }
+
     console.log('🟡🟡🟡 - [deliveryLocation.ts] Rendering delivery locations page');
     const theme = (request as any).theme || 'default';
     const templatePath = 'delivery-locations';

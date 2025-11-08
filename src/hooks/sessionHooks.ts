@@ -6,30 +6,38 @@ console.log('🟡🟡🟡 - [SESSION HOOKS] Loading session validation hooks');
 
 /**
  * 🟡🟡🟡 Session validation hook for wizard routes
- * This hook ensures users cannot access wizard steps without first initializing their session at /location
+ * This hook ensures users cannot access wizard steps without first initializing their session at /delivery-location
  * Hook Logic: IF !request.session.wizardStarted → redirect to relative root /
- * Applied to all wizard page GET routes EXCEPT /location and /location-finder
+ * Applied to all wizard page GET routes EXCEPT /location and /delivery-location
  */
 export const validateWizardSession = async (request: FastifyRequest, reply: FastifyReply) => {
   console.log('🔵🔵🔵 - [SESSION HOOK] Validating wizard session for path:', request.url);
-  
-  // 🟡🟡🟡 Skip validation for non-wizard routes
-  const wizardRoutes = ['/event-details', '/date-picker', '/event-setup', '/event-summary', '/final-confirmation', '/checkout'];
-  const isWizardRoute = wizardRoutes.some(route => request.url.startsWith(route));
-  
-  if (!isWizardRoute) {
-    console.log('🟡🟡🟡 - [SESSION HOOK] Skipping validation - not a wizard route');
-    return;
-  }
 
-  // 🟡🟡🟡 Check if session exists and wizard was properly started
-  if (!request.session) {
-    console.log('❗❗❗ - [SESSION HOOK] No session found, redirecting to root');
+  // 2025-11-07T00:00:00Z 🟡🟡🟡 Allow select public routes to bootstrap sessions without redirect loops
+  const publicRoutes = ['/', '/location', '/delivery-location'];
+  const isPublicRoute = publicRoutes.some(route => request.url === route || request.url.startsWith(`${route}?`));
+
+  if (!request.session || !request.session.sessionId) {
+    if (isPublicRoute) {
+      console.log('⚪⚪⚪ - [SESSION HOOK] Missing session allowed for public route:', request.url);
+      return;
+    }
+
+    console.log('❗❗❗ - [SESSION HOOK] No session cookie detected, redirecting to splash');
     return reply.redirect('/');
   }
 
+  // 🟡🟡🟡 Skip validation for non-wizard routes once session cookie is confirmed
+  const wizardRoutes = ['/event-details', '/date-picker', '/event-setup', '/event-summary', '/final-confirmation', '/checkout'];
+  const isWizardRoute = wizardRoutes.some(route => request.url.startsWith(route));
+
+  if (!isWizardRoute) {
+    console.log('🟡🟡🟡 - [SESSION HOOK] Session present, route does not require wizard validation');
+    return;
+  }
+
   if (!request.session.wizardStarted) {
-    console.log('❗❗❗ - [SESSION HOOK] Wizard not started, redirecting to root');
+    console.log('❗❗❗ - [SESSION HOOK] Wizard not started, redirecting to splash');
     console.log('🟡🟡🟡 - [SESSION HOOK] Session data:', JSON.stringify({
       sessionId: request.session.sessionId?.substring(0, 8),
       wizardStarted: request.session.wizardStarted,

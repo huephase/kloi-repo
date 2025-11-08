@@ -1,10 +1,8 @@
 .delivery-locations {
-  max-width: 640px;
-  margin: 2.5rem auto;
-  padding: 0 1.25rem 3rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-height: 80vh;
 }
 
 .delivery-header {
@@ -35,18 +33,17 @@
   min-width: 120px;
   padding: 0.75rem 1.25rem;
   border-radius: 999px;
-  border: 2px solid #222;
-  background: #fff;
-  font-size: 1rem;
+  border: 1px solid var(--kloi-text);
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  font-weight: 800;
+  height: 45px;
 }
 
 .city-option[aria-pressed="true"],
 .city-option.is-active {
-  background: #222;
+  font-weight: 300;
+  background: var(--kloi-accent);
   color: #fff;
-  transform: translateY(-2px);
 }
 
 .sublocality-workflow {
@@ -62,32 +59,32 @@
 }
 
 .sublocality-input {
-  padding: 0.9rem 1rem;
-  font-size: 1.05rem;
-  border-radius: 16px;
-  border: 2px solid #222;
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--kloi-text);
   width: 100%;
   box-sizing: border-box;
+  box-shadow: 5px 5px 5px rgba(0, 0, 0, 0.5);
 }
 
 .sublocality-select {
-  width: 100%;
   padding: 1rem;
-  border-radius: 16px;
-  border: 2px solid #222;
+  border-radius: 10px;
+  border: 1px solid var(--kloi-text);
   font-size: 1.1rem;
-  text-align-last: left;
+  background: transparent;
+  box-sizing: border-box;
 }
 
 .confirm-btn {
+  font-weight: 800;
   padding: 1rem;
   border-radius: 16px;
-  background: #222;
-  color: #fff;
-  font-size: 1.1rem;
+  background: var(--kloi-text);
+  color: var(--kloi-accent);
+  font-size: 1.2rem;
   border: none;
   cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .confirm-btn:disabled {
@@ -104,10 +101,16 @@
   transform: translateY(1px);
 }
 
-.muted {
-  color: #666;
-  font-size: 0.95rem;
-  margin: 0;
+span#selectionStatus {
+  font-size: 1rem;
+  color: var(--kloi-text);
+  text-transform: none;
+  font-weight: 300;
+  margin-bottom: 0.5rem;
+  display: inline-block;
+  background: var(--kloi-accent);
+  padding: 0.5rem 2rem;
+  border-radius: 999px;
 }
 
 .detect-wrapper {
@@ -128,14 +131,6 @@
 
 @media (max-width: 600px) {
   .delivery-locations {
-    padding: 0 1rem 2rem;
-  }
-
-  .city-option {
-    width: 100%;
-  }
-
-  .sublocality-select {
-    font-size: 1rem;
+    padding: 0;
   }
 }

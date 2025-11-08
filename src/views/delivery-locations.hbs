@@ -2,8 +2,7 @@
 
 <section class="delivery-locations" data-theme="{{theme}}">
   <header class="delivery-header">
-    <h1>Choose your delivery location</h1>
-    <p class="delivery-intro">Start by selecting your city, then pick the sublocality that best matches where we will serve you.</p>
+    <h1>Please choose your area</h1>
   </header>
 
   {{#if cities}}
@@ -33,8 +32,10 @@
         aria-label="Available sublocalities"
       ></select>
 
-      <button id="confirmSelectionBtn" class="confirm-btn" disabled>Confirm selection</button>
-      <p id="selectionStatus" class="muted" role="status" aria-live="polite"></p>
+      <button id="confirmSelectionBtn" class="confirm-btn" disabled>
+        <span id="selectionStatus" role="status" aria-live="polite"></span><br>
+        <span>CONFIRM</span>
+      </button>
     </div>
   {{else}}
     <div class="empty-state">
@@ -44,7 +45,7 @@
 
   <div class="detect-wrapper">
     <button id="detectLocationBtn" class="link-button">Detect My Location</button>
-    <p id="detectStatus" class="muted" role="status" aria-live="polite"></p>
+    <p id="detectStatus" role="status" aria-live="polite"></p>
   </div>
 </section>
 

@@ -64,6 +64,65 @@ function validateStepData(step: string, data: any) {
   }
 }
 
+// 2025-11-07T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Helper function to build complete location object from session locationData
+function buildLocationObject(sessionLocationData: any): any {
+  const now = () => new Date().toISOString();
+  const logInfo = (message: string, payload?: any) => console.log(`🟡🟡🟡 - [buildLocationObject ${now()}] ${message}`, payload ?? '');
+  const logWarn = (message: string, payload?: any) => console.warn(`⚠️⚠️⚠️ - [buildLocationObject ${now()}] ${message}`, payload ?? '');
+  
+  if (!sessionLocationData) {
+    logWarn('No location data provided to buildLocationObject');
+    return null;
+  }
+  
+  // 2025-11-08T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Extract components from session locationData
+  // 2025-11-08T00:00:00Z ⚠️⚠️⚠️ - [LOCATION BUILDER] Components MUST come from delivery-location page, not from map geocoding
+  const components = sessionLocationData.components || {};
+  
+  // 2025-11-08T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Prioritize components (from delivery-location) over top-level fields (from map geocoding)
+  const city = components.city || sessionLocationData.city || null;
+  const country = components.country || sessionLocationData.country || null;
+  const sublocality = components.sublocality || sessionLocationData.sublocality || null;
+  const surchargeStr = components.surcharge || sessionLocationData.surcharge || '0';
+  const surcharge = typeof surchargeStr === 'string' ? parseFloat(surchargeStr) : (typeof surchargeStr === 'number' ? surchargeStr : 0);
+  
+  // 2025-11-08T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Log warning if components are missing (should come from delivery-location)
+  if (!components || Object.keys(components).length === 0) {
+    logWarn('No components found in locationData - delivery location metadata may be missing', {
+      hasLocationData: !!sessionLocationData,
+      locationDataKeys: sessionLocationData ? Object.keys(sessionLocationData) : []
+    });
+  }
+  
+  // 2025-11-07T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Build location object with all required fields
+  const locationObject: any = {
+    latitude: sessionLocationData.latitude ? Number(sessionLocationData.latitude) : null,
+    longitude: sessionLocationData.longitude ? Number(sessionLocationData.longitude) : null,
+    fullAddress: sessionLocationData.fullAddress || null,
+  };
+  
+  // 2025-11-07T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Add delivery location fields from components
+  if (country) locationObject.country = country;
+  if (city) locationObject.city = city;
+  if (sublocality) locationObject.sublocality = sublocality;
+  if (components.district) locationObject.district = components.district;
+  if (!isNaN(surcharge) && surcharge >= 0) locationObject.surcharge = surcharge;
+  
+  // 2025-11-07T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Include selection source if available
+  if (components.selectionSource) locationObject.selectionSource = components.selectionSource;
+  
+  logInfo('Built location object', {
+    hasCoordinates: !!(locationObject.latitude && locationObject.longitude),
+    hasAddress: !!locationObject.fullAddress,
+    country,
+    city,
+    sublocality,
+    surcharge
+  });
+  
+  return locationObject;
+}
+
 export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // 🟡🟡🟡 - [GEO API] Reverse geocoding via Google Maps
   app.get('/geo/reverse', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -687,6 +746,11 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
       console.log(`🟡🟡🟡 - [API ROUTE] Using config: sessionKey=${sessionKey}, redirectTo=${redirectTo}`);
 
       // 🟡🟡🟡 - [VALIDATION] Validate strictly for normal saves; be lenient for autosave
+      // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Log raw request body for location step to debug components
+      if (step === 'location') {
+        console.log('🟡🟡🟡 - [API ROUTE] Location step - Raw request body:', JSON.stringify(request.body, null, 2));
+      }
+      
       let validatedData;
       if (isAutoSave) {
         // 2025-11-04T00:00:00Z 🟡🟡🟡 - [AUTOSAVE] Skip strict validation; merge partial payload
@@ -697,6 +761,16 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           validatedData = validateStepData(step, request.body);
           console.log('✅✅✅ - [VALIDATION] Data validation successful for step:', step);
           console.log('✅✅✅ - [VALIDATION] Validated data:', JSON.stringify(validatedData, null, 2));
+          
+          // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Check if components were preserved after validation
+          if (step === 'location') {
+            const hasComponents = !!(validatedData as any)?.components;
+            console.log('🟡🟡🟡 - [API ROUTE] Location step - Components after validation:', {
+              hasComponents,
+              components: (validatedData as any)?.components,
+              allKeys: Object.keys(validatedData || {})
+            });
+          }
         } catch (validationError) {
           if (validationError instanceof ZodError) {
             console.log('❗❗❗ - [VALIDATION] Validation failed for step:', step);
@@ -723,15 +797,67 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         }
       }
 
-      // Store the data in session. For autosave, merge with existing data.
+      // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Store the data in session. For autosave, merge with existing data.
+      // 2025-11-08T00:00:00Z ⚠️⚠️⚠️ - [API ROUTE] Special handling for location step: preserve delivery-location components when updating from map
       if (sessionKey) {
-        // const beforeUpdate = { ...request.session };
-        // console.log('🟡🟡🟡 - [API ROUTE] Session BEFORE update:', JSON.stringify(beforeUpdate, null, 2));
         const current = ((request.session as any)[sessionKey]) || {};
-        const nextValue = isAutoSave ? { ...current, ...(validatedData as any) } : validatedData;
+        
+        // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Debug logging for location step
+        if (step === 'location') {
+          console.log('🟡🟡🟡 - [API ROUTE] Location step - Current session data:', JSON.stringify(current, null, 2));
+          console.log('🟡🟡🟡 - [API ROUTE] Location step - Incoming validated data:', JSON.stringify(validatedData, null, 2));
+          console.log('🟡🟡🟡 - [API ROUTE] Location step - Current components:', JSON.stringify((current as any)?.components, null, 2));
+        }
+        
+        let nextValue;
+        if (isAutoSave) {
+          // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Autosave: merge with existing data
+          nextValue = { ...current, ...(validatedData as any) };
+        } else if (step === 'location') {
+          // 2025-11-08T00:00:00Z ⚠️⚠️⚠️ - [API ROUTE] Location step: preserve delivery-location components when updating from map
+          // The map page only sends: latitude, longitude, fullAddress, city, country (from geocoding)
+          // We MUST preserve the components object (country, city, sublocality, district, surcharge, selectionSource) from delivery-location
+          const existingComponents = (current as any)?.components || {};
+          const mapData = validatedData as any;
+          
+          // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Check if components exist in incoming data (from delivery-location page)
+          const incomingComponents = (mapData as any)?.components || {};
+          
+          // 2025-11-08T00:00:00Z ⚠️⚠️⚠️ - [API ROUTE] Use incoming components if they exist (from delivery-location), otherwise preserve existing
+          const finalComponents = Object.keys(incomingComponents).length > 0 ? incomingComponents : existingComponents;
+          
+          console.log('🟡🟡🟡 - [API ROUTE] Location step - Component resolution:', {
+            hasExistingComponents: Object.keys(existingComponents).length > 0,
+            hasIncomingComponents: Object.keys(incomingComponents).length > 0,
+            existingComponentsKeys: Object.keys(existingComponents),
+            incomingComponentsKeys: Object.keys(incomingComponents),
+            finalComponentsKeys: Object.keys(finalComponents),
+            finalComponents: finalComponents
+          });
+          
+          // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Merge: keep components, update coordinates and address from map
+          nextValue = {
+            ...mapData, // latitude, longitude, fullAddress, city, country from map
+            components: finalComponents, // Preserve delivery-location metadata (country, city, sublocality, district, surcharge, selectionSource)
+          };
+          
+          console.log('✅✅✅ - [API ROUTE] Location update: final merged data', {
+            hasComponents: !!finalComponents && Object.keys(finalComponents).length > 0,
+            componentsKeys: Object.keys(finalComponents),
+            mapUpdates: { latitude: mapData.latitude, longitude: mapData.longitude, fullAddress: mapData.fullAddress },
+            finalLocationData: JSON.stringify(nextValue, null, 2)
+          });
+        } else {
+          // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Other steps: replace entirely
+          nextValue = validatedData;
+        }
+        
         (request.session as Record<string, any>)[sessionKey] = nextValue;
-        // console.log(`🟡🟡🟡 - [API ROUTE] Setting session[${sessionKey}] =`, JSON.stringify(nextValue, null, 2));
-        // console.log('🟡🟡🟡 - [API ROUTE] Session AFTER update:', JSON.stringify(request.session, null, 2));
+        
+        // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Debug: log final session value for location step
+        if (step === 'location') {
+          console.log('🟡🟡🟡 - [API ROUTE] Location step - Final session value:', JSON.stringify(nextValue, null, 2));
+        }
       }
 
       // 🟡🟡🟡 - [DATABASE SAVE] Save to database for event-details step
@@ -740,14 +866,25 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         try {
           console.log('🟡🟡🟡 - [DATABASE SAVE] Starting database save for event-details');
           
-          // Get location data from session
-          const locationData = (request.session as any).locationData;
-          if (!locationData) {
+          // 2025-11-07T00:00:00Z 🟡🟡🟡 - [DATABASE SAVE] Get location data from session and build complete location object
+          const sessionLocationData = (request.session as any).locationData;
+          if (!sessionLocationData) {
             console.log('⚠️⚠️⚠️ - [DATABASE SAVE] No location data found in session');
             return reply.status(400).send({
               success: false,
               message: 'Location data not found. Please select a location first.',
               errors: { location: 'Location data missing' }
+            });
+          }
+          
+          // 2025-11-07T00:00:00Z 🟡🟡🟡 - [DATABASE SAVE] Build complete location object with all delivery location fields
+          const locationData = buildLocationObject(sessionLocationData);
+          if (!locationData) {
+            console.log('⚠️⚠️⚠️ - [DATABASE SAVE] Failed to build location object from session data');
+            return reply.status(400).send({
+              success: false,
+              message: 'Invalid location data. Please select a location again.',
+              errors: { location: 'Invalid location data' }
             });
           }
 
@@ -899,7 +1036,9 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             console.log('✅✅✅ - [DATABASE SAVE] Updated order.eventSetup');
           } else {
             console.log('🟡🟡🟡 - [DATABASE SAVE] No existing order found, creating new order with eventSetup');
-            const locationData = (request.session as any).locationData || null;
+            // 2025-11-07T00:00:00Z 🟡🟡🟡 - [DATABASE SAVE] Build complete location object with all delivery location fields
+            const sessionLocationData = (request.session as any).locationData || null;
+            const locationData = sessionLocationData ? buildLocationObject(sessionLocationData) : null;
             const eventDetails = (request.session as any).eventDetails || null;
 
             const newOrder = await prisma.kloiOrdersTable.create({
@@ -909,7 +1048,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
                 lastName: eventDetails?.lastName || null,
                 phone: eventDetails?.phone || null,
                 email: eventDetails?.email || null,
-                // Optional location/event details JSON
+                // 2025-11-07T00:00:00Z 🟡🟡🟡 - [DATABASE SAVE] Location object includes all delivery location fields (country, city, sublocality, surcharge)
                 location: locationData || undefined,
                 eventDetails: eventDetails || undefined,
                 // Persist event setup payload
@@ -989,16 +1128,27 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           } else {
             console.log('🟡🟡🟡 - [DATABASE UPDATE] No existing order found, creating new order with sessionId');
             
-            // Get location data and event details from session for new order
-            const locationData = (request.session as any).locationData;
+            // 2025-11-07T00:00:00Z 🟡🟡🟡 - [DATABASE UPDATE] Get location data and event details from session for new order
+            const sessionLocationData = (request.session as any).locationData;
             const eventDetails = (request.session as any).eventDetails;
             
-            if (!locationData || !eventDetails) {
+            if (!sessionLocationData || !eventDetails) {
               console.log('⚠️⚠️⚠️ - [DATABASE UPDATE] Missing required session data for new order');
               return reply.status(400).send({
                 success: false,
                 message: 'Missing required information. Please complete previous steps first.',
                 errors: { data: 'Incomplete session data' }
+              });
+            }
+            
+            // 2025-11-07T00:00:00Z 🟡🟡🟡 - [DATABASE UPDATE] Build complete location object with all delivery location fields
+            const locationData = buildLocationObject(sessionLocationData);
+            if (!locationData) {
+              console.log('⚠️⚠️⚠️ - [DATABASE UPDATE] Failed to build location object from session data');
+              return reply.status(400).send({
+                success: false,
+                message: 'Invalid location data. Please select a location again.',
+                errors: { location: 'Invalid location data' }
               });
             }
 

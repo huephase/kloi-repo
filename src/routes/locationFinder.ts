@@ -26,10 +26,23 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     const templatePath = 'wizard/location-finder';
     const page_class = generatePageClass(templatePath);
 
-    const q = (request as any).query || {};
-    const prefillDistrict = q.district || null;
-    const prefillSublocality = q.sublocality || null;
-    console.log('🟡🟡🟡 - [LOCATION FINDER] Prefill params:', { prefillDistrict, prefillSublocality });
+    // 2025-11-07T00:00:00Z 🟡🟡🟡 - [locationFinder.ts] Read location data from session (set by delivery-locations page)
+    const locationData = (request.session as any)?.locationData || null;
+    if (locationData) {
+      console.log('✅✅✅ - [LOCATION FINDER] Location data found in session:', {
+        fullAddress: locationData.fullAddress,
+        city: locationData.components?.city || locationData.city,
+        district: locationData.components?.district || locationData.district,
+        sublocality: locationData.components?.sublocality || locationData.sublocality
+      });
+    } else {
+      console.log('⚠️⚠️⚠️ - [LOCATION FINDER] No location data in session - user should start from delivery-locations page');
+      // 🟡🟡🟡 - [LOCATION FINDER] Redirect to delivery-location if no location data exists
+      return reply.redirect('/delivery-location');
+    }
+
+    // 2025-11-07T00:00:00Z 🟡🟡🟡 - [locationFinder.ts] Stringify location data for safe template rendering
+    const locationDataJson = locationData ? JSON.stringify(locationData).replace(/</g, '\\u003c') : 'null';
 
     return reply.view(templatePath, {
       submitted: false,
@@ -37,8 +50,7 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
       page_class,
       googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
       googleMapsMapId: process.env.GOOGLE_MAPS_ID || 'GOOGLE_MAPS_ID MISSING!',
-      prefillDistrict,
-      prefillSublocality,
+      locationDataJson: locationDataJson,
     });
   });
 }
