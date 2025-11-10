@@ -20,7 +20,7 @@
 
 **Summary**: Implemented comprehensive geofence validation system to prevent users from selecting locations outside their chosen delivery area, protecting surcharge integrity. Added client-side and server-side validation with automatic marker recentering and user-friendly boundary violation popup.
 
-**Reminder**: The reason why the sublocality selection via `/delivery-location` route must come first prrior to showing the google map on `/location` is that to allow sublocalities to be removed or added subject to service availibility and market requirements. 
+**Reminder**: The reason why the sublocality selection via `/delivery-location` route must come first prrior to showing the google map on `/location` is that to allow sublocalities to be removed or added subject to service availibility and market requirements. This allows us to inform the user where we provide service so they are not forced to complete the wizard unnecessarily.
 
 #### Major Changes
 - **Server-Side Location Validation**: `src/routes/api/index.ts`
