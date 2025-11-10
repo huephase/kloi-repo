@@ -14,6 +14,84 @@
 
 ---
 
+### November 10, 2025 - Location Boundary Enforcement & Surcharge Protection System
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented comprehensive geofence validation system to prevent users from selecting locations outside their chosen delivery area, protecting surcharge integrity. Added client-side and server-side validation with automatic marker recentering and user-friendly boundary violation popup.
+
+**Reminder**: The reason why the sublocality selection via `/delivery-location` route must come first prrior to showing the google map on `/location` is that to allow sublocalities to be removed or added subject to service availibility and market requirements. 
+
+#### Major Changes
+- **Server-Side Location Validation**: `src/routes/api/index.ts`
+  - Created `validateLocationCoordinates()` helper function that reverse geocodes coordinates and validates against selected district/sublocality
+  - Integrated validation into `/api/session/location` endpoint - validates coordinates before saving to session
+  - Returns 400 error with detailed validation information if coordinates don't match selected area
+  - Validation only runs for non-autosave requests to prevent blocking user progress
+  - Uses Google Maps Geocoding API to extract district and sublocality from coordinates
+- **Client-Side Geofence System**: `public/global/js/maps.js`
+  - Stores last valid marker position from initial geocoding of selected area
+  - Initializes selected district/sublocality from session data for boundary validation
+  - Validates coordinates on marker drag, map click, and "Detect My Location" button
+  - Automatically recenters marker to last valid position when user moves outside boundary
+  - Calls `/api/geo/reverse` endpoint to validate coordinates against selected area
+  - Handles API failures gracefully - allows action but relies on server-side validation
+  - Added `logWarn` function for consistent logging (was missing and causing errors)
+- **Boundary Violation Popup**: `src/views/wizard/location-finder.hbs` & `public/global/css/kloi_global.css`
+  - Created popup UI component that appears when user moves marker outside selected area
+  - Displays selected area name (sublocality, district) in popup message
+  - "Change My Area" button redirects to `/delivery-location` for area reselection
+  - "OK, I'll Stay Here" button dismisses popup
+  - Auto-dismisses after 10 seconds if user doesn't interact
+  - Styled with animations and consistent with application design system
+  - Popup appears on both client-side validation failures (drag/click) and server-side validation failures (form submit)
+- **Form Submission Error Handling**: `public/global/js/maps.js`
+  - Enhanced form submission handler to detect boundary validation errors from server
+  - Automatically recenters marker and shows popup when server validation fails
+  - Provides clear user feedback when location is outside selected delivery area
+
+#### Direction Changes
+- **Area Selection Requirement**: Users MUST select their delivery area via `/delivery-location` route before accessing the map page
+  - **Business Reason**: Sublocalities can be added or removed from the system based on market demand, operational capacity, and business strategy
+  - **Technical Reason**: The selected area determines the surcharge amount, and this must be locked in before map interaction to prevent surcharge manipulation
+  - Map page (`/location`) now enforces this workflow - redirects to `/delivery-location` if no area is selected
+- **Surcharge Protection**: Prevents users from selecting a lower surcharge area and then moving the marker to a higher surcharge area to avoid paying the correct delivery fee
+- **User Experience**: Provides clear guidance when users attempt to move outside their selected area, with option to change their area selection if needed
+
+#### Files Affected
+- `src/routes/api/index.ts` (MODIFIED) - Added `validateLocationCoordinates()` function and integrated validation into location step handler
+- `public/global/js/maps.js` (MODIFIED) - Added geofence validation, last valid position tracking, popup display logic, and form submission error handling
+- `src/views/wizard/location-finder.hbs` (MODIFIED) - Added boundary violation popup HTML structure
+- `public/global/css/kloi_global.css` (MODIFIED) - Added popup styling with animations and responsive design
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- **Validation Flow**:
+  1. User selects area on `/delivery-location` → session stores district, sublocality, and surcharge
+  2. User navigates to `/location` → map initializes with selected area and stores initial position as last valid position
+  3. User drags/clicks marker → client validates via `/api/geo/reverse` endpoint
+  4. If outside boundary → marker recenters, popup appears
+  5. User submits form → server validates coordinates again before saving
+  6. If server validation fails → popup appears, marker recenters, error message displayed
+- **Validation Strategy**: Dual-layer validation (client + server) ensures surcharge integrity
+  - Client-side validation provides immediate feedback and prevents invalid marker positions
+  - Server-side validation is the final authority and prevents API manipulation
+- **Error Handling**: 
+  - If reverse geocoding API fails (e.g., `REQUEST_DENIED`), client allows action but server will validate
+  - If reverse geocoding returns null district/sublocality, client allows but server validates
+  - Server validation failures trigger popup and marker recentering for better UX
+- **Last Valid Position**: Stored when map initializes and updated whenever marker is moved to a valid location within the selected area
+- **Popup Display**: Shows selected area name dynamically from session data (sublocality, district)
+- **Area Selection Requirement**: 
+  - Users cannot access `/location` without first selecting an area on `/delivery-location`
+  - This ensures surcharge is always tied to a valid delivery area from the database
+  - Sublocalities are managed in the database and can be updated based on market conditions
+- **Surcharge Integrity**: The surcharge amount is determined by the area selection on `/delivery-location` and cannot be changed by moving the marker on the map
+
+**Related Documentation**: This builds upon the location finder integration (Nov 8, 2025 entry) and delivery location selector (Nov 7, 2025 entry)
+
+---
+
 ### November 8, 2025 - Location Finder Integration with Delivery Locations & Enhanced Database Location Storage
 
 **Type**: 🟠 MAJOR CHANGE

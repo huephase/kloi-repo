@@ -50,6 +50,7 @@
     const now = () => new Date().toISOString();
     const logInfo = (message, payload) => console.log(`🟡🟡🟡 - [maps.js ${now()}] ${message}`, payload ?? '');
     const logSuccess = (message, payload) => console.log(`✅✅✅ - [maps.js ${now()}] ${message}`, payload ?? '');
+    const logWarn = (message, payload) => console.warn(`⚠️⚠️⚠️ - [maps.js ${now()}] ${message}`, payload ?? '');
     const logError = (message, payload) => console.error(`❗❗❗ - [maps.js ${now()}] ${message}`, payload ?? '');
 
     // Required options
@@ -77,6 +78,12 @@
     let isValidUAE = false;
     let hasFullAddress = false;
     let map, marker, geocoder;
+    
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Geofence state: store last valid position and selected area info
+    let lastValidPosition = null; // { lat, lng }
+    let selectedDistrict = null;
+    let selectedSublocality = null;
+    let isValidationInProgress = false;
 
     // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Function to sync form state to display and hidden fields
     function syncDisplay() {
@@ -187,7 +194,7 @@
     }
 
     // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Function to handle detect location button click
-    function handleDetectLocation() {
+    async function handleDetectLocation() {
       setError(errorMsgId, '');
       if (!navigator.geolocation) {
         setError(errorMsgId, 'Geolocation is not supported by your browser.');
@@ -198,15 +205,33 @@
       setText(detectBtnId, 'Detecting...');
       logInfo('Detecting user location');
       navigator.geolocation.getCurrentPosition(
-        ({ coords }) => {
-          form.latitude = coords.latitude.toString();
-          form.longitude = coords.longitude.toString();
-          marker.setPosition({ lat: coords.latitude, lng: coords.longitude });
-          map.setCenter({ lat: coords.latitude, lng: coords.longitude });
-          reverseGeocodeAndUpdateForm(coords.latitude, coords.longitude);
+        async ({ coords }) => {
+          const lat = coords.latitude;
+          const lng = coords.longitude;
+          
+          // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Validate detected location against selected area
+          const validation = await validateCoordinatesAgainstArea(lat, lng);
+          
+          if (!validation.valid) {
+            logWarn('Detected location outside selected area - recentering', { lat, lng });
+            recenterToLastValidPosition();
+            showBoundaryViolationPopup();
+            setBtnDisabled(detectBtnId, false);
+            setText(detectBtnId, 'Detect My Location');
+            setError(errorMsgId, 'Detected location is outside your selected delivery area.');
+            return;
+          }
+          
+          // Valid location - update marker and store as last valid position
+          form.latitude = lat.toString();
+          form.longitude = lng.toString();
+          marker.setPosition({ lat, lng });
+          map.setCenter({ lat, lng });
+          lastValidPosition = { lat, lng };
+          reverseGeocodeAndUpdateForm(lat, lng);
           setBtnDisabled(detectBtnId, false);
           setText(detectBtnId, 'Detect My Location');
-          logSuccess('User location detected', { lat: coords.latitude, lng: coords.longitude });
+          logSuccess('User location detected', { lat, lng });
         },
         (err) => {
           setError(errorMsgId, 'Unable to retrieve your location.');
@@ -217,20 +242,174 @@
       );
     }
 
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Function to validate coordinates against selected delivery area
+    async function validateCoordinatesAgainstArea(lat, lng) {
+      if (!selectedDistrict && !selectedSublocality) {
+        logInfo('No selected area to validate against - allowing any location');
+        return { valid: true };
+      }
+
+      if (isValidationInProgress) {
+        logInfo('Validation already in progress - skipping');
+        return { valid: true }; // Allow during validation to prevent blocking
+      }
+
+      isValidationInProgress = true;
+      logInfo('Validating coordinates against selected area', { lat, lng, selectedDistrict, selectedSublocality });
+
+      try {
+        const response = await fetch(`/api/geo/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+        const data = await response.json();
+
+        if (!data.success) {
+          logError('Reverse geocoding failed during validation', data);
+          isValidationInProgress = false;
+          return { valid: true }; // Allow on API failure to prevent blocking
+        }
+
+        const actualDistrict = data.district || null;
+        const actualSublocality = data.sublocality || null;
+
+        logInfo('Validation result', { actualDistrict, actualSublocality, selectedDistrict, selectedSublocality });
+
+        // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] If we can't get district/sublocality from reverse geocoding, 
+        // we can't validate, so we'll allow it (server will do final validation)
+        // But if we have selected area and got null results, it's likely outside the area
+        if ((selectedDistrict || selectedSublocality) && !actualDistrict && !actualSublocality) {
+          logWarn('Reverse geocoding returned no district/sublocality - cannot validate client-side, will rely on server validation');
+          isValidationInProgress = false;
+          return { valid: true, actualDistrict: null, actualSublocality: null }; // Allow but server will validate
+        }
+
+        // Check if district and sublocality match
+        const districtMatches = !selectedDistrict || (actualDistrict && actualDistrict.toLowerCase().trim() === selectedDistrict.toLowerCase().trim());
+        const sublocalityMatches = !selectedSublocality || (actualSublocality && actualSublocality.toLowerCase().trim() === selectedSublocality.toLowerCase().trim());
+
+        const isValid = districtMatches && sublocalityMatches;
+
+        if (!isValid) {
+          logWarn('Location validation failed - coordinates do not match selected area', {
+            expectedDistrict: selectedDistrict,
+            expectedSublocality: selectedSublocality,
+            actualDistrict,
+            actualSublocality
+          });
+        } else {
+          logSuccess('Location validation passed - coordinates match selected area');
+        }
+
+        isValidationInProgress = false;
+        return { valid: isValid, actualDistrict, actualSublocality };
+      } catch (err) {
+        logError('Error validating coordinates', err);
+        isValidationInProgress = false;
+        return { valid: true }; // Allow on error to prevent blocking
+      }
+    }
+
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Function to show boundary violation popup
+    function showBoundaryViolationPopup() {
+      const popup = document.getElementById('boundary-violation-popup');
+      if (popup) {
+        // Update selected area text
+        const areaTextEl = document.getElementById('popup-selected-area');
+        if (areaTextEl) {
+          const areaParts = [];
+          if (selectedSublocality) areaParts.push(selectedSublocality);
+          if (selectedDistrict) areaParts.push(selectedDistrict);
+          areaTextEl.textContent = areaParts.length > 0 ? areaParts.join(', ') : 'your selected area';
+        }
+        
+        popup.style.display = 'block';
+        logInfo('Boundary violation popup shown', { selectedDistrict, selectedSublocality });
+        
+        // Auto-dismiss after 10 seconds if user doesn't interact
+        setTimeout(() => {
+          if (popup.style.display === 'block') {
+            popup.style.display = 'none';
+            logInfo('Boundary violation popup auto-dismissed');
+          }
+        }, 10000);
+      } else {
+        logError('Boundary violation popup element not found');
+      }
+    }
+    
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Function to setup popup button handlers
+    function setupBoundaryPopupHandlers() {
+      const reselectBtn = document.getElementById('boundary-popup-reselect-btn');
+      const dismissBtn = document.getElementById('boundary-popup-dismiss-btn');
+      const popup = document.getElementById('boundary-violation-popup');
+      
+      if (reselectBtn) {
+        reselectBtn.addEventListener('click', () => {
+          logInfo('User clicked "Change My Area" - redirecting to delivery-location');
+          window.location.href = '/delivery-location';
+        });
+      }
+      
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', () => {
+          if (popup) {
+            popup.style.display = 'none';
+            logInfo('User dismissed boundary violation popup');
+          }
+        });
+      }
+    }
+
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Function to recenter marker to last valid position
+    function recenterToLastValidPosition() {
+      if (lastValidPosition) {
+        logInfo('Recentering marker to last valid position', lastValidPosition);
+        marker.setPosition(lastValidPosition);
+        map.setCenter(lastValidPosition);
+        reverseGeocodeAndUpdateForm(lastValidPosition.lat, lastValidPosition.lng);
+      } else {
+        logWarn('No last valid position to recenter to');
+      }
+    }
+
     // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Function to handle map click
-    function handleMapClick(e) {
+    async function handleMapClick(e) {
       const lat = e.latLng.lat();
       const lng = e.latLng.lng();
+      
+      // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Validate coordinates before updating
+      const validation = await validateCoordinatesAgainstArea(lat, lng);
+      
+      if (!validation.valid) {
+        logWarn('Map click outside selected area - recentering', { lat, lng });
+        recenterToLastValidPosition();
+        showBoundaryViolationPopup();
+        return;
+      }
+      
+      // Valid location - update marker and store as last valid position
       marker.setPosition({ lat, lng });
+      lastValidPosition = { lat, lng };
       reverseGeocodeAndUpdateForm(lat, lng);
       logInfo('Map clicked', { lat, lng });
     }
 
     // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Function to handle marker drag end
-    function handleMarkerDragEnd(e) {
+    async function handleMarkerDragEnd(e) {
       const lat = e.latLng.lat();
       const lng = e.latLng.lng();
+      
+      // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Validate coordinates before updating
+      const validation = await validateCoordinatesAgainstArea(lat, lng);
+      
+      if (!validation.valid) {
+        logWarn('Marker dragged outside selected area - recentering', { lat, lng });
+        recenterToLastValidPosition();
+        showBoundaryViolationPopup();
+        return;
+      }
+      
+      // Valid location - update marker and store as last valid position
       marker.setPosition({ lat, lng });
+      lastValidPosition = { lat, lng };
       reverseGeocodeAndUpdateForm(lat, lng);
       logInfo('Marker dragged', { lat, lng });
     }
@@ -305,6 +484,20 @@
         } else {
           logError('Location submission failed', result);
           
+          // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Check if this is a boundary validation error
+          const isBoundaryError = result.message && (
+            result.message.includes('outside your selected delivery area') ||
+            result.message.includes('Failed to validate location') ||
+            result.validationDetails
+          );
+          
+          if (isBoundaryError) {
+            // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Recenter to last valid position and show popup
+            logWarn('Server validation failed - location outside selected area');
+            recenterToLastValidPosition();
+            showBoundaryViolationPopup();
+          }
+          
           // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Reset button and show error
           confirmBtn.disabled = false;
           confirmLabel.innerHTML = originalBtnText;
@@ -331,6 +524,13 @@
       let initialCenter = { lat: 25.2048, lng: 55.2708 }; // Default to Dubai, UAE
       let initialZoom = 15;
       
+      // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Initialize selected area from session data for geofence validation
+      if (initialLocationData) {
+        selectedDistrict = initialLocationData.components?.district || null;
+        selectedSublocality = initialLocationData.components?.sublocality || null;
+        logInfo('Initialized geofence area from session', { selectedDistrict, selectedSublocality });
+      }
+      
       // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] If we have initial location data from session, geocode it to get coordinates
       if (initialLocationData && initialLocationData.fullAddress) {
         logInfo('Initializing map with session location data', {
@@ -345,6 +545,9 @@
             lng: Number(initialLocationData.longitude)
           };
           logSuccess('Using coordinates from session', initialCenter);
+          
+          // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Store initial position as last valid position
+          lastValidPosition = { lat: initialCenter.lat, lng: initialCenter.lng };
           
           // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Populate form with session data
           form = {
@@ -362,6 +565,8 @@
           geocodeAddress(initialLocationData.fullAddress)
             .then(({ place, lat, lng }) => {
               initialCenter = { lat, lng };
+              // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Store geocoded position as last valid position
+              lastValidPosition = { lat, lng };
               map.setCenter(initialCenter);
               marker.setPosition(initialCenter);
               updateLocationDetails(place, {}, false);
@@ -403,6 +608,9 @@
       var formEl = document.getElementById(formId);
       if (formEl) formEl.addEventListener('submit', handleFormSubmit);
       
+      // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Setup boundary violation popup handlers
+      setupBoundaryPopupHandlers();
+      
       // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Initial sync of display
       syncDisplay();
       
@@ -410,12 +618,20 @@
       if (initialLocationData && initialLocationData.latitude && initialLocationData.longitude) {
         const lat = Number(initialLocationData.latitude);
         const lng = Number(initialLocationData.longitude);
+        // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Ensure last valid position is set
+        if (!lastValidPosition) {
+          lastValidPosition = { lat, lng };
+        }
         // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Reverse geocode to get full address details
         reverseGeocodeAndUpdateForm(lat, lng);
       } else if (initialLocationData && initialLocationData.fullAddress && !initialLocationData.latitude) {
         // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] If we have address but no coordinates, geocode it
         geocodeAddress(initialLocationData.fullAddress)
-          .then(({ place }) => {
+          .then(({ place, lat, lng }) => {
+            // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Store geocoded position as last valid position
+            if (!lastValidPosition) {
+              lastValidPosition = { lat, lng };
+            }
             updateLocationDetails(place, {}, false);
           })
           .catch((err) => {

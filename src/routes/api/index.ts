@@ -64,11 +64,108 @@ function validateStepData(step: string, data: any) {
   }
 }
 
-// 2025-11-07T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Helper function to build complete location object from session locationData
-function buildLocationObject(sessionLocationData: any): any {
-  const now = () => new Date().toISOString();
-  const logInfo = (message: string, payload?: any) => console.log(`🟡🟡🟡 - [buildLocationObject ${now()}] ${message}`, payload ?? '');
-  const logWarn = (message: string, payload?: any) => console.warn(`⚠️⚠️⚠️ - [buildLocationObject ${now()}] ${message}`, payload ?? '');
+  // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Helper function to validate coordinates match selected delivery area
+  async function validateLocationCoordinates(
+    lat: number,
+    lng: number,
+    expectedDistrict: string | null,
+    expectedSublocality: string | null
+  ): Promise<{ valid: boolean; actualDistrict?: string | null; actualSublocality?: string | null; error?: string }> {
+    const now = () => new Date().toISOString();
+    const logInfo = (message: string, payload?: any) => console.log(`🟡🟡🟡 - [validateLocationCoordinates ${now()}] ${message}`, payload ?? '');
+    const logWarn = (message: string, payload?: any) => console.warn(`⚠️⚠️⚠️ - [validateLocationCoordinates ${now()}] ${message}`, payload ?? '');
+    const logError = (message: string, payload?: any) => console.error(`❗❗❗ - [validateLocationCoordinates ${now()}] ${message}`, payload ?? '');
+
+    if (!expectedDistrict && !expectedSublocality) {
+      logWarn('No expected district or sublocality provided for validation');
+      return { valid: true }; // If no expected area, allow any location
+    }
+
+    if (!isFinite(lat) || !isFinite(lng)) {
+      logError('Invalid coordinates provided', { lat, lng });
+      return { valid: false, error: 'Invalid coordinates' };
+    }
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      logError('GOOGLE_MAPS_API_KEY missing');
+      return { valid: false, error: 'Geocoding not configured' };
+    }
+
+    try {
+      logInfo('Validating coordinates against selected area', { lat, lng, expectedDistrict, expectedSublocality });
+      
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat + ',' + lng)}&key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url);
+      const data = await res.json() as {
+        status: string;
+        results?: Array<{
+          address_components?: Array<{
+            long_name: string;
+            short_name: string;
+            types: string[];
+          }>;
+        }>;
+      };
+
+      if (data.status !== 'OK' || !Array.isArray(data.results) || data.results.length === 0) {
+        logError('Reverse geocoding failed', { status: data.status });
+        return { valid: false, error: 'Failed to validate location' };
+      }
+
+      let actualDistrict: string | null = null;
+      let actualSublocality: string | null = null;
+
+      for (const r of data.results) {
+        if (!r.address_components) continue;
+        const comps = r.address_components as Array<{ long_name: string; short_name: string; types: string[] }>;
+        for (const c of comps) {
+          if (!actualDistrict && (c.types.includes('administrative_area_level_2') || c.types.includes('sublocality_level_1'))) {
+            actualDistrict = c.long_name;
+          }
+          if (!actualSublocality && (c.types.includes('sublocality') || c.types.includes('neighborhood') || c.types.includes('locality'))) {
+            actualSublocality = c.long_name;
+          }
+        }
+        if (actualDistrict && actualSublocality) break;
+      }
+
+      logInfo('Reverse geocoding result', { actualDistrict, actualSublocality, expectedDistrict, expectedSublocality });
+
+      // Validate: district must match if expected, sublocality must match if expected
+      const districtMatches: boolean = !expectedDistrict || Boolean(actualDistrict && actualDistrict.toLowerCase().trim() === expectedDistrict.toLowerCase().trim());
+      const sublocalityMatches: boolean = !expectedSublocality || Boolean(actualSublocality && actualSublocality.toLowerCase().trim() === expectedSublocality.toLowerCase().trim());
+
+      const isValid: boolean = districtMatches && sublocalityMatches;
+
+      if (!isValid) {
+        logWarn('Location validation failed - coordinates do not match selected area', {
+          expectedDistrict,
+          expectedSublocality,
+          actualDistrict,
+          actualSublocality
+        });
+      } else {
+        logInfo('Location validation successful - coordinates match selected area');
+      }
+
+      return {
+        valid: isValid,
+        actualDistrict,
+        actualSublocality,
+        error: isValid ? undefined : 'Location is outside your selected delivery area'
+      };
+    } catch (err) {
+      logError('Error validating location coordinates', err);
+      return { valid: false, error: 'Failed to validate location' };
+    }
+  }
+
+  // 2025-11-07T00:00:00Z 🟡🟡🟡 - [LOCATION BUILDER] Helper function to build complete location object from session locationData
+  function buildLocationObject(sessionLocationData: any): any {
+    const now = () => new Date().toISOString();
+    const logInfo = (message: string, payload?: any) => console.log(`🟡🟡🟡 - [buildLocationObject ${now()}] ${message}`, payload ?? '');
+    const logWarn = (message: string, payload?: any) => console.warn(`⚠️⚠️⚠️ - [buildLocationObject ${now()}] ${message}`, payload ?? '');
   
   if (!sessionLocationData) {
     logWarn('No location data provided to buildLocationObject');
@@ -834,6 +931,47 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             finalComponentsKeys: Object.keys(finalComponents),
             finalComponents: finalComponents
           });
+          
+          // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Validate coordinates match selected delivery area (only if coordinates are provided)
+          if (mapData.latitude && mapData.longitude && !isAutoSave) {
+            const lat = Number(mapData.latitude);
+            const lng = Number(mapData.longitude);
+            const expectedDistrict = finalComponents.district || null;
+            const expectedSublocality = finalComponents.sublocality || null;
+            
+            if (isFinite(lat) && isFinite(lng)) {
+              console.log('🟡🟡🟡 - [API ROUTE] Location step - Validating coordinates against selected area', {
+                lat,
+                lng,
+                expectedDistrict,
+                expectedSublocality
+              });
+              
+              const validationResult = await validateLocationCoordinates(lat, lng, expectedDistrict, expectedSublocality);
+              
+              if (!validationResult.valid) {
+                console.log('❗❗❗ - [API ROUTE] Location step - Validation failed', validationResult);
+                return reply.status(400).send({
+                  success: false,
+                  message: validationResult.error || 'Location is outside your selected delivery area',
+                  errors: { location: validationResult.error || 'Location validation failed' },
+                  validationDetails: {
+                    expectedDistrict,
+                    expectedSublocality,
+                    actualDistrict: validationResult.actualDistrict,
+                    actualSublocality: validationResult.actualSublocality
+                  }
+                });
+              }
+              
+              console.log('✅✅✅ - [API ROUTE] Location step - Validation passed', {
+                expectedDistrict,
+                expectedSublocality,
+                actualDistrict: validationResult.actualDistrict,
+                actualSublocality: validationResult.actualSublocality
+              });
+            }
+          }
           
           // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Merge: keep components, update coordinates and address from map
           nextValue = {
