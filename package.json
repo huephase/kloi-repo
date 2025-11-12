@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "test": "jest",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "polygon:import": "ts-node src/scripts/importGeoJsonPolygon.ts"
   },
   "engines": {
     "node": ">=18.0.0"

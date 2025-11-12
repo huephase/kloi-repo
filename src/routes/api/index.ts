@@ -230,6 +230,39 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         console.error('❗❗❗ - [GEO API] Query validation failed:', parsed.error.flatten());
         return reply.status(400).send({ success: false, message: 'Invalid lat/lng' });
       }
+
+  // 2025-11-11T00:00:00Z 🟡🟡🟡 - [GEO API] Area polygon by district/sublocality (for client-side polygon containment)
+  app.get('/geo/area', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const q = (request as any).query || {};
+      const district = typeof q.district === 'string' ? q.district.trim() : '';
+      const sublocality = typeof q.sublocality === 'string' ? q.sublocality.trim() : '';
+
+      console.log(`🟡🟡🟡 - [API ROUTE ${new Date().toISOString()}] GET /api/geo/area`, { district, sublocality });
+
+      if (!district && !sublocality) {
+        console.error(`❗❗❗ - [GEO API ${new Date().toISOString()}] Missing district and sublocality`);
+        return reply.status(400).send({ success: false, message: 'district or sublocality required' });
+      }
+
+      const { getAreaPolygonByNames } = await import('../../services/areaPolygonService');
+      const polygon = await getAreaPolygonByNames(district, sublocality);
+
+      if (!polygon || !Array.isArray(polygon?.paths) || polygon.paths.length === 0) {
+        console.warn(`⚠️⚠️⚠️ - [GEO API ${new Date().toISOString()}] Polygon not found for area`, { district, sublocality });
+        return reply.status(404).send({ success: false, message: 'Polygon not found' });
+      }
+
+      console.log(`✅✅✅ - [GEO API ${new Date().toISOString()}] Polygon found`, { numPoints: polygon.paths.length });
+      return reply.send({
+        success: true,
+        polygon
+      });
+    } catch (err) {
+      console.error(`❗❗❗ - [GEO API ${new Date().toISOString()}] Area polygon error:`, err);
+      return reply.status(500).send({ success: false, message: 'Area polygon lookup failed' });
+    }
+  });
       const { lat, lng } = parsed.data;
       console.log('🟡🟡🟡 - [API ROUTE] GET /api/geo/reverse', { lat, lng });
 

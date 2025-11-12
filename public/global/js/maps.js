@@ -5,7 +5,8 @@
     return new Promise((resolve, reject) => {
       if (window.google && window.google.maps) return resolve(window.google.maps);
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Include geometry library for distance and point-in-geometry calculations
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
       script.async = true;
       script.onerror = reject;
       script.onload = () => {
@@ -81,9 +82,13 @@
     
     // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Geofence state: store last valid position and selected area info
     let lastValidPosition = null; // { lat, lng }
+    let initialSelectedCenter = null; // { lat, lng } - the canonical center of the user's selected area
     let selectedDistrict = null;
     let selectedSublocality = null;
     let isValidationInProgress = false;
+    let selectedAreaCircle = null; // Google Maps Circle overlay for visual boundary
+    let selectedAreaBoundaryRadiusMeters = 1000; // Default boundary radius in meters
+    let selectedAreaPolygon = null; // Google Maps Polygon overlay for exact boundary (if available)
 
     // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Function to sync form state to display and hidden fields
     function syncDisplay() {
@@ -322,14 +327,17 @@
         
         popup.style.display = 'block';
         logInfo('Boundary violation popup shown', { selectedDistrict, selectedSublocality });
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Emphasize boundary visually on violation
+        setSelectedAreaBoundaryViolation(true);
         
         // Auto-dismiss after 10 seconds if user doesn't interact
         setTimeout(() => {
           if (popup.style.display === 'block') {
             popup.style.display = 'none';
+            setSelectedAreaBoundaryViolation(false);
             logInfo('Boundary violation popup auto-dismissed');
           }
-        }, 10000);
+        }, 20000);
       } else {
         logError('Boundary violation popup element not found');
       }
@@ -351,10 +359,251 @@
       if (dismissBtn) {
         dismissBtn.addEventListener('click', () => {
           if (popup) {
+            // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] On dismiss, reset pin to the user's selected area (prefer initialSelectedCenter, fallback to last valid)
+            recenterToSelectedArea();
+            // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Reset boundary style to normal upon acknowledgement
+            setSelectedAreaBoundaryViolation(false);
             popup.style.display = 'none';
             logInfo('User dismissed boundary violation popup');
           }
         });
+      }
+    }
+
+    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Function to draw/update the visual boundary for the selected area
+    function drawSelectedAreaBoundary() {
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Prefer canonical selected center; fallback to last valid position
+      const center = initialSelectedCenter || lastValidPosition;
+      if (!map || !center) {
+        logWarn('Selected area boundary not drawn - map or center missing', { hasMap: !!map, hasCenter: !!center, initialSelectedCenter, lastValidPosition });
+        return;
+      }
+      if (selectedAreaCircle) {
+        selectedAreaCircle.setMap(null);
+        selectedAreaCircle = null;
+      }
+      selectedAreaCircle = new window.google.maps.Circle({
+        strokeColor: '#2E7D32',
+        strokeOpacity: 0.9,
+        strokeWeight: 2,
+        fillColor: '#66BB6A',
+        fillOpacity: 0.15,
+        map,
+        center: center,
+        radius: Number(selectedAreaBoundaryRadiusMeters) || 1000,
+        clickable: false
+      });
+      logSuccess('Selected area boundary drawn', { center, radiusMeters: selectedAreaBoundaryRadiusMeters });
+    }
+
+    // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Coordinate order configuration
+    // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Set to 'lng-lat' if DB stores coordinates as [longitude, latitude] (e.g., [54.37, 24.46])
+    // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Set to 'lat-lng' if DB stores coordinates as [latitude, longitude] (e.g., [24.46, 54.37])
+    // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Set to 'auto' to auto-detect based on value ranges (default, most flexible)
+    const POLYGON_COORDINATE_ORDER = 'auto'; // Options: 'lng-lat', 'lat-lng', 'auto'
+    
+    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Helper to normalize polygon paths from various formats
+    function normalizePolygonPaths(raw) {
+      if (!Array.isArray(raw)) {
+        logWarn('Polygon data is not an array', { raw });
+        return null;
+      }
+      if (raw.length < 3) {
+        logWarn('Polygon has insufficient points', { count: raw.length });
+        return null;
+      }
+      
+      const points = [];
+      raw.forEach((entry, index) => {
+        if (Array.isArray(entry) && entry.length >= 2) {
+          const first = Number(entry[0]);
+          const second = Number(entry[1]);
+          if (!Number.isFinite(first) || !Number.isFinite(second)) {
+            logWarn('Skipped polygon entry with invalid numeric pair', { index, entry });
+            return;
+          }
+          
+          // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Normalize coordinate order based on configuration
+          let lat, lng;
+          
+          if (POLYGON_COORDINATE_ORDER === 'lng-lat') {
+            // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Force [lng, lat] interpretation: first is longitude, second is latitude
+            lng = first;
+            lat = second;
+          } else if (POLYGON_COORDINATE_ORDER === 'lat-lng') {
+            // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Force [lat, lng] interpretation: first is latitude, second is longitude
+            lat = first;
+            lng = second;
+          } else {
+            // 2025-11-12T00:00:00Z 🟡🟡🟡 - [maps.js] Auto-detect coordinate order: lat is -90 to 90, lng is -180 to 180
+            // For UAE: lng ~54, lat ~24, so [lng, lat] format is [54, 24]
+            if (Math.abs(first) <= 90 && Math.abs(second) > 90) {
+              // [lat, lng] format: first is lat (-90 to 90), second is lng (>90 for UAE)
+              lat = first;
+              lng = second;
+            } else if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
+              // [lng, lat] format: first is lng (>90 for UAE), second is lat (-90 to 90)
+              lng = first;
+              lat = second;
+            } else {
+              // Ambiguous - assume [lng, lat] for UAE coordinates (most common format)
+              lng = first;
+              lat = second;
+              logInfo('Ambiguous coordinate order, assuming [lng, lat]', { first, second, index });
+            }
+          }
+          
+          points.push({ lat, lng });
+          if (index < 3) {
+            logInfo('Normalized polygon point', { index, original: entry, normalized: { lat, lng }, order: POLYGON_COORDINATE_ORDER });
+          }
+        } else if (entry && typeof entry === 'object') {
+          const lat = Number(entry.lat ?? entry.latitude);
+          const lng = Number(entry.lng ?? entry.longitude);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            points.push({ lat, lng });
+            if (index < 3) {
+              logInfo('Normalized polygon point from object', { index, normalized: { lat, lng } });
+            }
+          } else {
+            logWarn('Skipped polygon entry with invalid lat/lng object', { index, entry });
+          }
+        } else {
+          logWarn('Skipped polygon entry with unsupported format', { index, entry });
+        }
+      });
+      
+      if (points.length < 3) {
+        logWarn('Polygon normalization resulted in insufficient points', { originalCount: raw.length, normalizedCount: points.length });
+        return null;
+      }
+      
+      logSuccess('Polygon paths normalized', { originalCount: raw.length, normalizedCount: points.length, firstPoint: points[0], lastPoint: points[points.length - 1], order: POLYGON_COORDINATE_ORDER });
+      return points;
+    }
+
+    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Function to draw polygon boundary (if available)
+    function drawSelectedAreaPolygon(paths) {
+      try {
+        if (!map) {
+          logError('Cannot draw polygon - map not initialized');
+          return;
+        }
+        if (!Array.isArray(paths) || paths.length < 3) {
+          logError('Cannot draw polygon - invalid paths', { numPoints: Array.isArray(paths) ? paths.length : 0, paths });
+          return;
+        }
+        
+        logInfo('Drawing polygon with paths', { numPoints: paths.length, firstPath: paths[0], lastPath: paths[paths.length - 1] });
+        
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Remove existing polygon if any
+        if (selectedAreaPolygon) {
+          selectedAreaPolygon.setMap(null);
+          selectedAreaPolygon = null;
+          logInfo('Removed existing polygon');
+        }
+        
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Convert paths to LatLng objects for Google Maps
+        const googlePaths = paths.map(function(point) {
+          return new window.google.maps.LatLng(point.lat, point.lng);
+        });
+        
+        logInfo('Converted paths to Google Maps LatLng', { numPoints: googlePaths.length });
+        
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Create polygon with visible styling
+        selectedAreaPolygon = new window.google.maps.Polygon({
+          paths: googlePaths,
+          strokeColor: '#1565C0',
+          strokeOpacity: 0.9,
+          strokeWeight: 3,
+          fillColor: '#42A5F5',
+          fillOpacity: 0.25,
+          map: map,
+          clickable: false,
+          zIndex: 1,
+        });
+        
+        logSuccess('Polygon created and added to map', { 
+          numPoints: paths.length,
+          polygonExists: !!selectedAreaPolygon,
+          polygonOnMap: selectedAreaPolygon.getMap() === map
+        });
+        
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Bounds fitting is handled by the caller (geocoding callback or idle listener)
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] This prevents conflicts when geocoding completes and recenters the map
+        
+      } catch (err) {
+        logError('Failed to draw polygon', { error: err, message: err?.message, stack: err?.stack });
+      }
+    }
+
+    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Helper: check if a lat/lng is within the polygon
+    function isWithinSelectedPolygon(lat, lng) {
+      try {
+        if (!selectedAreaPolygon || !window.google?.maps?.geometry?.poly?.containsLocation) {
+          return false;
+        }
+        const point = new window.google.maps.LatLng(lat, lng);
+        const within = window.google.maps.geometry.poly.containsLocation(point, selectedAreaPolygon);
+        logInfo('Polygon containsLocation check', { within });
+        return within;
+      } catch (err) {
+        logError('Polygon containment check failed', err);
+        return false;
+      }
+    }
+
+    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Function to toggle boundary style when in violation
+    function setSelectedAreaBoundaryViolation(isViolation) {
+      if (selectedAreaCircle) {
+        if (isViolation) {
+          selectedAreaCircle.setOptions({
+            strokeColor: '#C62828',
+            fillColor: '#EF5350',
+            fillOpacity: 0.2
+          });
+        } else {
+          selectedAreaCircle.setOptions({
+            strokeColor: '#2E7D32',
+            fillColor: '#66BB6A',
+            fillOpacity: 0.15
+          });
+        }
+      }
+      if (selectedAreaPolygon) {
+        if (isViolation) {
+          selectedAreaPolygon.setOptions({
+            strokeColor: '#C62828',
+            fillColor: '#EF5350',
+            fillOpacity: 0.15
+          });
+        } else {
+          selectedAreaPolygon.setOptions({
+            strokeColor: '#1565C0',
+            fillColor: '#42A5F5',
+            fillOpacity: 0.12
+          });
+        }
+      }
+      logInfo(isViolation ? 'Boundary style set to violation state' : 'Boundary style reset to normal');
+    }
+
+    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Helper: check if a lat/lng is within the visual boundary circle
+    function isWithinVisualBoundary(lat, lng) {
+      try {
+        if (!selectedAreaCircle || !window.google?.maps?.geometry?.spherical) {
+          logWarn('Visual boundary check unavailable - circle or geometry library missing');
+          return false;
+        }
+        const center = selectedAreaCircle.getCenter();
+        const point = new window.google.maps.LatLng(lat, lng);
+        const distance = window.google.maps.geometry.spherical.computeDistanceBetween(center, point);
+        const within = distance <= selectedAreaCircle.getRadius();
+        logInfo('Computed distance to boundary center', { distanceMeters: Math.round(distance), radiusMeters: selectedAreaCircle.getRadius(), within });
+        return within;
+      } catch (err) {
+        logError('Failed to compute visual boundary distance', err);
+        return false;
       }
     }
 
@@ -367,6 +616,19 @@
         reverseGeocodeAndUpdateForm(lastValidPosition.lat, lastValidPosition.lng);
       } else {
         logWarn('No last valid position to recenter to');
+      }
+    }
+
+    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Function to recenter marker to the selected area's canonical center (fallback to last valid)
+    function recenterToSelectedArea() {
+      if (initialSelectedCenter) {
+        logInfo('Recentering marker to initial selected area center', initialSelectedCenter);
+        marker.setPosition(initialSelectedCenter);
+        map.setCenter(initialSelectedCenter);
+        reverseGeocodeAndUpdateForm(initialSelectedCenter.lat, initialSelectedCenter.lng);
+      } else {
+        logWarn('Initial selected area center not available, falling back to last valid position');
+        recenterToLastValidPosition();
       }
     }
 
@@ -385,9 +647,25 @@
         return;
       }
       
-      // Valid location - update marker and store as last valid position
+      // Valid (or tentatively valid) location - update marker and store as last valid position
       marker.setPosition({ lat, lng });
-      lastValidPosition = { lat, lng };
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Update lastValidPosition if:
+      // - validation confirmed area match (district or sublocality present), OR
+      // - there is no selected area, OR
+      // - the point is within the visual boundary circle (tentative client acceptance; server remains final arbiter)
+      if (
+        (validation.actualDistrict || validation.actualSublocality) ||
+        (!selectedDistrict && !selectedSublocality) ||
+        isWithinSelectedPolygon(lat, lng) ||
+        isWithinVisualBoundary(lat, lng)
+      ) {
+        lastValidPosition = { lat, lng };
+        logSuccess('Updated last valid position from map click', lastValidPosition);
+      } else {
+        logWarn('Skipping update of last valid position due to uncertain validation result (null district/sublocality)');
+      }
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Reset boundary styling on valid move
+      setSelectedAreaBoundaryViolation(false);
       reverseGeocodeAndUpdateForm(lat, lng);
       logInfo('Map clicked', { lat, lng });
     }
@@ -407,9 +685,22 @@
         return;
       }
       
-      // Valid location - update marker and store as last valid position
+      // Valid (or tentatively valid) location - update marker and store as last valid position
       marker.setPosition({ lat, lng });
-      lastValidPosition = { lat, lng };
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Update lastValidPosition if confirmed or within visual boundary
+      if (
+        (validation.actualDistrict || validation.actualSublocality) ||
+        (!selectedDistrict && !selectedSublocality) ||
+        isWithinSelectedPolygon(lat, lng) ||
+        isWithinVisualBoundary(lat, lng)
+      ) {
+        lastValidPosition = { lat, lng };
+        logSuccess('Updated last valid position from marker drag', lastValidPosition);
+      } else {
+        logWarn('Skipping update of last valid position due to uncertain validation result (null district/sublocality)');
+      }
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Reset boundary styling on valid move
+      setSelectedAreaBoundaryViolation(false);
       reverseGeocodeAndUpdateForm(lat, lng);
       logInfo('Marker dragged', { lat, lng });
     }
@@ -492,9 +783,9 @@
           );
           
           if (isBoundaryError) {
-            // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Recenter to last valid position and show popup
+            // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Recenter to selected area center (fallback to last valid) and show popup
             logWarn('Server validation failed - location outside selected area');
-            recenterToLastValidPosition();
+            recenterToSelectedArea();
             showBoundaryViolationPopup();
           }
           
@@ -528,6 +819,13 @@
       if (initialLocationData) {
         selectedDistrict = initialLocationData.components?.district || null;
         selectedSublocality = initialLocationData.components?.sublocality || null;
+        // 2025-11-11T00:00:00Z ⚪⚪⚪ - [maps.js] Optional boundary radius configuration from session components
+        if (initialLocationData.components?.boundaryRadiusMeters) {
+          selectedAreaBoundaryRadiusMeters = Number(initialLocationData.components.boundaryRadiusMeters) || 1000;
+          logInfo('Initialized boundary radius from session components', { boundaryRadiusMeters: selectedAreaBoundaryRadiusMeters });
+        } else {
+          logInfo('Using default boundary radius', { boundaryRadiusMeters: selectedAreaBoundaryRadiusMeters });
+        }
         logInfo('Initialized geofence area from session', { selectedDistrict, selectedSublocality });
       }
       
@@ -548,6 +846,8 @@
           
           // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Store initial position as last valid position
           lastValidPosition = { lat: initialCenter.lat, lng: initialCenter.lng };
+            // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Also store as initial selected center
+            initialSelectedCenter = { lat: initialCenter.lat, lng: initialCenter.lng };
           
           // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Populate form with session data
           form = {
@@ -567,10 +867,42 @@
               initialCenter = { lat, lng };
               // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Store geocoded position as last valid position
               lastValidPosition = { lat, lng };
-              map.setCenter(initialCenter);
+                // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Also store as initial selected center
+                initialSelectedCenter = { lat, lng };
+              // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Update marker position first
               marker.setPosition(initialCenter);
               updateLocationDetails(place, {}, false);
               logSuccess('Map centered on geocoded address', { address: initialLocationData.fullAddress, lat, lng });
+              
+              // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Now that we have coordinates, draw the boundary (polygon or circle)
+              // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Reset flag to allow redrawing after geocoding
+              boundaryDrawn = false;
+              
+              // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Draw boundary after a short delay to ensure map is ready
+              setTimeout(function() {
+                if (typeof drawBoundaryOnce === 'function') {
+                  drawBoundaryOnce();
+                  
+                  // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] If polygon was drawn, fit bounds to it (this will also center the map)
+                  if (selectedAreaPolygon && sessionPolygonPaths) {
+                    try {
+                      const bounds = new window.google.maps.LatLngBounds();
+                      sessionPolygonPaths.forEach(function(point) {
+                        bounds.extend(new window.google.maps.LatLng(point.lat, point.lng));
+                      });
+                      map.fitBounds(bounds);
+                      logSuccess('Map bounds fitted to polygon after geocoding', { bounds: bounds.toJSON() });
+                    } catch (boundsErr) {
+                      logWarn('Failed to fit bounds to polygon after geocoding', boundsErr);
+                      // Fallback to setting center if bounds fitting fails
+                      map.setCenter(initialCenter);
+                    }
+                  } else {
+                    // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] No polygon, just center on the geocoded location
+                    map.setCenter(initialCenter);
+                  }
+                }
+              }, 300);
             })
             .catch((err) => {
               logError('Failed to geocode initial address, using default center', err);
@@ -610,6 +942,75 @@
       
       // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [maps.js] Setup boundary violation popup handlers
       setupBoundaryPopupHandlers();
+      
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Draw polygon from session components (if available) - only source of truth, no API fetch
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Store polygon paths for later drawing after geocoding completes
+      const sessionPolygonPaths = normalizePolygonPaths(initialLocationData?.components?.polygon);
+      let boundaryDrawn = false;
+      
+      const drawBoundaryOnce = () => {
+        if (boundaryDrawn) {
+          logInfo('Boundary already drawn, skipping');
+          return;
+        }
+        
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Only draw if we have a center (coordinates available)
+        if (!initialSelectedCenter && !lastValidPosition) {
+          logInfo('Waiting for coordinates before drawing boundary');
+          return;
+        }
+        
+        boundaryDrawn = true;
+        
+        if (sessionPolygonPaths) {
+          logInfo('Drawing polygon from session components', { points: sessionPolygonPaths.length });
+          drawSelectedAreaPolygon(sessionPolygonPaths);
+          
+          // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Fit bounds to polygon if coordinates are already available (no geocoding pending)
+          // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] If geocoding is pending, bounds will be fitted in the geocoding callback
+          if (initialSelectedCenter && selectedAreaPolygon) {
+            setTimeout(function() {
+              try {
+                if (!selectedAreaPolygon || !map) return;
+                const bounds = new window.google.maps.LatLngBounds();
+                sessionPolygonPaths.forEach(function(point) {
+                  bounds.extend(new window.google.maps.LatLng(point.lat, point.lng));
+                });
+                map.fitBounds(bounds);
+                logSuccess('Map bounds fitted to polygon (coordinates already available)', { bounds: bounds.toJSON() });
+              } catch (boundsErr) {
+                logWarn('Failed to fit bounds to polygon', boundsErr);
+              }
+            }, 200);
+          }
+        } else {
+          // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Fallback to circle only if polygon is not available in session
+          const center = initialSelectedCenter || lastValidPosition;
+          if (center) {
+            logInfo('Drawing circle fallback', { center });
+            drawSelectedAreaBoundary();
+          } else {
+            logWarn('Selected area boundary not drawn - no center available and no polygon in session');
+          }
+        }
+      };
+      
+      // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] Draw boundary after map is idle AND we have coordinates
+      if (map) {
+        var idleListener = null;
+        var drawAfterIdle = function() {
+          drawBoundaryOnce();
+        };
+        
+        idleListener = map.addListener('idle', drawAfterIdle);
+        
+        // 2025-11-11T00:00:00Z 🟡🟡🟡 - [maps.js] If coordinates already exist, try drawing immediately
+        if (initialSelectedCenter) {
+          setTimeout(function() {
+            drawBoundaryOnce();
+          }, 200);
+        }
+      }
       
       // 2025-11-07T00:00:00Z 🟡🟡🟡 - [maps.js] Initial sync of display
       syncDisplay();

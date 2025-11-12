@@ -14,6 +14,76 @@
 
 ---
 
+### November 12, 2025 - Polygon Boundary Drawing Fixes & Configurable Coordinate Order System
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed polygon boundary drawing timing issues and implemented a configurable coordinate order system to support different coordinate formats (lng-lat vs lat-lng) without requiring database data recreation.
+
+#### Major Changes
+- **Polygon Boundary Drawing Fixes**: `public/global/js/maps.js`
+  - Fixed polygon disappearing after brief appearance on page load
+  - Resolved timing conflict where polygon was drawn before geocoding completed, causing it to disappear when map recentered
+  - Polygon now draws after geocoding completes and coordinates are available
+  - Improved coordinate normalization logic to correctly handle [lng, lat] format for UAE coordinates
+  - Added proper Google Maps LatLng object conversion for polygon paths
+  - Implemented delayed bounds fitting to avoid conflicts with geocoding recenter operations
+  - Enhanced debugging logs throughout polygon drawing process
+  - Polygon now persists correctly and remains visible after map initialization
+
+- **Configurable Coordinate Order System**: Multiple files
+  - **Client-Side Configuration**: `public/global/js/maps.js`
+    - Added `POLYGON_COORDINATE_ORDER` constant with options: `'lng-lat'`, `'lat-lng'`, or `'auto'` (default)
+    - Updated `normalizePolygonPaths()` to respect coordinate order configuration
+    - Supports forced interpretation or auto-detection based on value ranges
+  - **Server-Side Configuration**: `src/services/areaPolygonService.ts` & `src/services/deliveryLocationsService.ts`
+    - Added `POLYGON_COORDINATE_ORDER` constant matching client-side options
+    - Updated polygon normalization functions to use configured coordinate order
+    - Maintains consistency across client and server-side processing
+  - **Import Script Configuration**: `src/scripts/importGeoJsonPolygon.ts`
+    - Added `DB_STORAGE_COORDINATE_ORDER` constant for controlling database storage format
+    - Updated `normalizePolygonPairs()` to normalize coordinates to configured storage format
+    - Ensures imported polygons match the expected database format
+
+#### Direction Changes
+- **Flexible Coordinate Handling**: Shift from hardcoded coordinate interpretation to configurable system
+  - **Business Benefit**: Eliminates need to recreate database data when switching between coordinate formats
+  - **Technical Benefit**: Single configuration change allows support for different external systems requiring different formats
+  - **Future-Proofing**: Easy adaptation to new coordinate format requirements without data migration
+
+#### Files Affected
+- `public/global/js/maps.js` (MODIFIED) - Fixed polygon drawing timing, improved coordinate normalization, added coordinate order configuration
+- `src/services/areaPolygonService.ts` (MODIFIED) - Added coordinate order configuration and updated normalization logic
+- `src/services/deliveryLocationsService.ts` (MODIFIED) - Added coordinate order configuration and updated normalization logic
+- `src/scripts/importGeoJsonPolygon.ts` (MODIFIED) - Added database storage coordinate order configuration
+
+#### Technical Notes
+⚠️⚠️⚠️ **Important Implementation Details**:
+- **Coordinate Order Configuration**:
+  - `'lng-lat'`: Forces interpretation as [longitude, latitude] (e.g., [54.37, 24.46] for UAE)
+  - `'lat-lng'`: Forces interpretation as [latitude, longitude] (e.g., [24.46, 54.37])
+  - `'auto'`: Auto-detects based on value ranges (lat: -90 to 90, lng: -180 to 180)
+- **Configuration Consistency**: 
+  - Client-side variable in `public\global\js\maps.js` named `POLYGON_COORDINATE_ORDER` should match server-side `POLYGON_COORDINATE_ORDER` in services
+  - Import script `DB_STORAGE_COORDINATE_ORDER` determines how coordinates are stored in database
+  - Current default: `'auto'` for all files (most flexible, handles both formats)
+- **Polygon Drawing Flow**:
+  1. Map initializes with session data
+  2. If coordinates exist immediately → polygon draws after map idle event
+  3. If geocoding required → polygon draws after geocoding completes (300ms delay)
+  4. Bounds fitting happens after polygon is drawn to ensure visibility
+  5. Polygon persists through map center changes
+- **Coordinate Normalization**:
+  - Handles array format: `[[lng, lat], ...]` or `[[lat, lng], ...]`
+  - Handles object format: `[{lat, lng}, ...]` or `[{latitude, longitude}, ...]`
+  - Auto-detection uses heuristic: lat is between -90 and 90, lng is between -180 and 180
+  - For UAE coordinates (lng ~54, lat ~24), [lng, lat] format is most common
+- **No Database Changes Required**: Configuration changes handle coordinate interpretation without modifying existing database data
+
+**Related Documentation**: This builds upon the polygon boundary system implemented in the November 10, 2025 entry
+
+---
+
 ### November 10, 2025 - Location Boundary Enforcement & Surcharge Protection System
 
 **Type**: 🟠 MAJOR CHANGE
@@ -30,24 +100,35 @@
   - Validation only runs for non-autosave requests to prevent blocking user progress
   - Uses Google Maps Geocoding API to extract district and sublocality from coordinates
 - **Client-Side Geofence System**: `public/global/js/maps.js`
-  - Stores last valid marker position from initial geocoding of selected area
+  - Stores last valid marker position from initial geocoding of selected area and maintains a canonical `initialSelectedCenter`
   - Initializes selected district/sublocality from session data for boundary validation
   - Validates coordinates on marker drag, map click, and "Detect My Location" button
-  - Automatically recenters marker to last valid position when user moves outside boundary
+  - Automatically recenters marker to the selected area's center (fallback to last valid position) when user moves outside boundary
   - Calls `/api/geo/reverse` endpoint to validate coordinates against selected area
   - Handles API failures gracefully - allows action but relies on server-side validation
   - Added `logWarn` function for consistent logging (was missing and causing errors)
+- **Visual Boundary Indicator**: `public/global/js/maps.js`
+  - Draws delivery area polygons when available, falling back to a semi-transparent circle centered on the selected area
+  - Polygon data loads from session (persisted during `/delivery-location` selection) with `/api/geo/area` fallback if missing
+  - Circle fallback radius is configurable via `initialLocationData.components.boundaryRadiusMeters` (default: 1000m)
+  - Boundary styling toggles to red during violations and reverts to normal after recovery
+- **Polygon Boundary Service**: `src/services/areaPolygonService.ts`, `public/global/js/delivery-location.js`
+  - Reads polygon coordinates from `deliveryLocations.sublocalities[].polygon` in the database (supports [lng, lat] and [lat, lng] storage)
+  - Persists normalized `{ lat, lng }` polygons into session components to avoid redundant API requests on map load
+  - Keeps `/api/geo/area` endpoint as a fallback, including logging for missing polygons
+- **Polygon Import Utility**: `src/scripts/importGeoJsonPolygon.ts`
+  - CLI helper (`npm run polygon:import -- --district="..." --sublocality="..." --file=path`) to normalize GeoJSON polygons and update the `deliveryLocations` table
 - **Boundary Violation Popup**: `src/views/wizard/location-finder.hbs` & `public/global/css/kloi_global.css`
   - Created popup UI component that appears when user moves marker outside selected area
   - Displays selected area name (sublocality, district) in popup message
   - "Change My Area" button redirects to `/delivery-location` for area reselection
-  - "OK, I'll Stay Here" button dismisses popup
+  - Clicking the "OK" button recenters the pin to the user’s selected area center (canonical initial center; falls back to last valid position) and then dismisses the popup
   - Auto-dismisses after 10 seconds if user doesn't interact
   - Styled with animations and consistent with application design system
   - Popup appears on both client-side validation failures (drag/click) and server-side validation failures (form submit)
 - **Form Submission Error Handling**: `public/global/js/maps.js`
   - Enhanced form submission handler to detect boundary validation errors from server
-  - Automatically recenters marker and shows popup when server validation fails
+  - Automatically recenters marker to the selected area center and shows popup when server validation fails
   - Provides clear user feedback when location is outside selected delivery area
 
 #### Direction Changes
@@ -60,15 +141,20 @@
 
 #### Files Affected
 - `src/routes/api/index.ts` (MODIFIED) - Added `validateLocationCoordinates()` function and integrated validation into location step handler
-- `public/global/js/maps.js` (MODIFIED) - Added geofence validation, last valid position tracking, popup display logic, and form submission error handling
+- `public/global/js/maps.js` (MODIFIED) - Added geofence validation, canonical selected area center, polygon/circle boundary rendering, guarded last-valid updates, popup display logic, and form submission error handling
+- `public/global/js/delivery-location.js` (MODIFIED) - Persists selected sublocality polygon metadata to session components
+- `src/services/areaPolygonService.ts` (NEW/MODIFIED) - Supplies polygons from `deliveryLocations` JSONB with DB fallback and format normalization
 - `src/views/wizard/location-finder.hbs` (MODIFIED) - Added boundary violation popup HTML structure
 - `public/global/css/kloi_global.css` (MODIFIED) - Added popup styling with animations and responsive design
+- `src/services/deliveryLocationsService.ts` (MODIFIED) - Normalizes polygon coordinates when building city/sublocality payloads
+- `src/schemas/wizard.schemas.ts` (MODIFIED) - Allows structured component metadata (e.g., polygons) in location session schema
+- `src/scripts/importGeoJsonPolygon.ts` (NEW) - Imports GeoJSON polygons into `deliveryLocations` JSONB entries
 
 #### Technical Notes
 ⚠️⚠️⚠️ **Important Implementation Details**:
 - **Validation Flow**:
   1. User selects area on `/delivery-location` → session stores district, sublocality, and surcharge
-  2. User navigates to `/location` → map initializes with selected area and stores initial position as last valid position
+  2. User navigates to `/location` → map initializes with selected area, stores canonical `initialSelectedCenter`, and sets last valid position to this center
   3. User drags/clicks marker → client validates via `/api/geo/reverse` endpoint
   4. If outside boundary → marker recenters, popup appears
   5. User submits form → server validates coordinates again before saving
@@ -79,8 +165,12 @@
 - **Error Handling**: 
   - If reverse geocoding API fails (e.g., `REQUEST_DENIED`), client allows action but server will validate
   - If reverse geocoding returns null district/sublocality, client allows but server validates
-  - Server validation failures trigger popup and marker recentering for better UX
-- **Last Valid Position**: Stored when map initializes and updated whenever marker is moved to a valid location within the selected area
+  - Server validation failures trigger popup and marker recentering to the selected area center for better UX
+- **Last Valid Position**: Stored when map initializes and only updated when a move is confirmed inside the selected area (district or sublocality match); guarded against updates when reverse geocoding cannot confirm area
+- **Recenter Utilities**: Introduced `recenterToSelectedArea()` (prefers canonical center; falls back to last valid) and retained `recenterToLastValidPosition()` for internal uses
+- **Visual Boundary**: Uses persisted polygon coordinates when available (with circle fallback); boundary styling switches to red during violations and resets after recenter/dismiss
+- **Polygon Persistence**: `/delivery-location` injects `{ lat, lng }` polygon paths into session, avoiding additional area fetches on `/location`
+- **Area Polygon Endpoint**: `/api/geo/area` reads polygons from `deliveryLocations` JSONB with tolerant matching (district+sublocality or sublocality-only) and coordinate normalization
 - **Popup Display**: Shows selected area name dynamically from session data (sublocality, district)
 - **Area Selection Requirement**: 
   - Users cannot access `/location` without first selecting an area on `/delivery-location`

@@ -326,7 +326,7 @@ footer {
 .boundary-violation-popup-content h3 {
     margin-top: 0;
     margin-bottom: 1rem;
-    color: var(--kloi-warning);
+    color: var(--kloi-accent);
     font-weight: 800;
 }
 

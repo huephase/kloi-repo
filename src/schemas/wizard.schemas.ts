@@ -8,7 +8,7 @@ export const locationDataSchema = z.object({
   fullAddress: z.string().min(1, 'Location address is required'),
   latitude: z.coerce.number().optional(),
   longitude: z.coerce.number().optional(),
-  components: z.record(z.string()).optional(),
+  components: z.record(z.unknown()).optional(),
 });
 
 // 🟡🟡🟡 - [VALIDATION SCHEMA] Comprehensive customer info schema for event-details form

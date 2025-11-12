@@ -154,6 +154,7 @@
     confirmBtn.classList.add('is-loading');
     selectionStatus.textContent = `${selectedOption.name}, ${selectedCity.city}`;
 
+    const polygon = Array.isArray(selectedOption.polygon) ? selectedOption.polygon : null;
     const payload = {
       fullAddress: `${selectedOption.name}, ${selectedOption.district}, ${selectedCity.city}`,
       components: {
@@ -163,6 +164,8 @@
         sublocality: selectedOption.name,
         surcharge: String(selectedOption.surcharge ?? 0),
         selectionSource: 'manual-dropdown',
+        polygon,
+        polygonSource: polygon ? 'delivery-locations-db' : undefined,
       },
     };
 
