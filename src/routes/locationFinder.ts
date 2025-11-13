@@ -13,8 +13,8 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
       //🟡🟡🟡 Touch the session to ensure it's saved
       request.session.touch();
       console.log('✅✅✅ Session data saved to Redis:', request.session.sessionId?.substring(0, 8));
-      console.log('⚪⚪⚪ - [LOCATION FINDER] Session data saved to Redis:', request.session.sessionId?.substring(0, 8));
-      console.log('⚪⚪⚪ - [LOCATION FINDER] Updated session state:', JSON.stringify(request.session, null, 2));
+      // console.log('⚪⚪⚪ - [LOCATION FINDER] Session data saved to Redis:', request.session.sessionId?.substring(0, 8));
+      // console.log('⚪⚪⚪ - [LOCATION FINDER] Updated session state:', JSON.stringify(request.session, null, 2));
     } catch (err) {
       console.error('⚠️⚠️⚠️ Error saving session data to Redis:', err);
     }
@@ -29,17 +29,23 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
     // 2025-11-07T00:00:00Z 🟡🟡🟡 - [locationFinder.ts] Read location data from session (set by delivery-locations page)
     const locationData = (request.session as any)?.locationData || null;
     if (locationData) {
-      console.log('✅✅✅ - [LOCATION FINDER] Location data found in session:', {
-        fullAddress: locationData.fullAddress,
-        city: locationData.components?.city || locationData.city,
-        district: locationData.components?.district || locationData.district,
-        sublocality: locationData.components?.sublocality || locationData.sublocality
-      });
+      // console.log('✅✅✅ - [LOCATION FINDER] Location data found in session:', {
+      //   fullAddress: locationData.fullAddress,
+      //   city: locationData.components?.city || locationData.city,
+      //   district: locationData.components?.district || locationData.district,
+      //   sublocality: locationData.components?.sublocality || locationData.sublocality
+      // });
     } else {
-      console.log('⚠️⚠️⚠️ - [LOCATION FINDER] No location data in session - user should start from delivery-locations page');
+      // console.log('🟡🟡🟡 - [LOCATION FINDER] No location data in session - user should start from delivery-locations page');
       // 🟡🟡🟡 - [LOCATION FINDER] Redirect to delivery-location if no location data exists
       return reply.redirect('/delivery-location');
     }
+
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [locationFinder.ts] Read MAP_POLYGON env variable for coordinate order configuration
+    const mapPolygonOrder = (process.env.MAP_POLYGON === 'lat-lng' || process.env.MAP_POLYGON === 'lng-lat') 
+      ? process.env.MAP_POLYGON 
+      : 'lng-lat'; // Default fallback
+    console.log(`🟡🟡🟡 - [locationFinder.ts] MAP_POLYGON coordinate order: ${mapPolygonOrder}`);
 
     // 2025-11-07T00:00:00Z 🟡🟡🟡 - [locationFinder.ts] Stringify location data for safe template rendering
     const locationDataJson = locationData ? JSON.stringify(locationData).replace(/</g, '\\u003c') : 'null';
@@ -51,6 +57,7 @@ export default async function locationFinder(app: FastifyInstance, _opts: Fastif
       googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || 'GOOGLE_MAPS_API_KEY MISSING!',
       googleMapsMapId: process.env.GOOGLE_MAPS_ID || 'GOOGLE_MAPS_ID MISSING!',
       locationDataJson: locationDataJson,
+      mapPolygonOrder: mapPolygonOrder, // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [locationFinder.ts] Pass coordinate order to client
     });
   });
 }

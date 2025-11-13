@@ -4,11 +4,15 @@ import path from 'path';
 import process from 'process';
 import { prisma } from '../lib/prisma';
 
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Coordinate order configuration for DB storage
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Set to 'lng-lat' to store coordinates as [longitude, latitude] in DB (e.g., [54.37, 24.46])
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Set to 'lat-lng' to store coordinates as [latitude, longitude] in DB (e.g., [24.46, 54.37])
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Note: This should match POLYGON_COORDINATE_ORDER in areaPolygonService.ts and deliveryLocationsService.ts
-const DB_STORAGE_COORDINATE_ORDER: 'lng-lat' | 'lat-lng' = 'lng-lat';
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Coordinate order configuration for DB storage from MAP_POLYGON env variable
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Set to 'lng-lat' to store coordinates as [longitude, latitude] in DB (e.g., [54.37, 24.46])
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Set to 'lat-lng' to store coordinates as [latitude, longitude] in DB (e.g., [24.46, 54.37])
+// 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [importGeoJsonPolygon] IMPORTANT: This should match your existing database format and MAP_POLYGON env variable
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Uses MAP_POLYGON env variable - ensures consistency with code interpretation
+const DB_STORAGE_COORDINATE_ORDER: 'lng-lat' | 'lat-lng' = 
+  (process.env.MAP_POLYGON === 'lat-lng' || process.env.MAP_POLYGON === 'lng-lat') 
+    ? (process.env.MAP_POLYGON as 'lng-lat' | 'lat-lng')
+    : 'lat-lng'; // Default fallback if env variable not set or invalid
 
 type CLIOptions = {
   district: string;

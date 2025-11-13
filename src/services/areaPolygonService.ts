@@ -6,11 +6,18 @@ import { prisma } from '../lib/prisma';
 export type LatLng = { lat: number; lng: number };
 export type AreaPolygon = { paths: LatLng[] };
 
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Coordinate order configuration
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Set to 'lng-lat' if DB stores coordinates as [longitude, latitude] (e.g., [54.37, 24.46])
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Set to 'lat-lng' if DB stores coordinates as [latitude, longitude] (e.g., [24.46, 54.37])
-// 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Set to 'auto' to auto-detect based on value ranges (default, most flexible)
-const POLYGON_COORDINATE_ORDER: 'lng-lat' | 'lat-lng' | 'auto' = 'auto';
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Coordinate order configuration from MAP_POLYGON env variable
+// 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [areaPolygonService] SECURITY FIX: Auto-detection removed - coordinate order must be explicitly specified
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Set to 'lng-lat' if DB stores coordinates as [longitude, latitude] (e.g., [54.37, 24.46])
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Set to 'lat-lng' if DB stores coordinates as [latitude, longitude] (e.g., [24.46, 54.37])
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Value comes from MAP_POLYGON env variable - can be changed without code modification
+const POLYGON_COORDINATE_ORDER: 'lng-lat' | 'lat-lng' = 
+  (process.env.MAP_POLYGON === 'lat-lng' || process.env.MAP_POLYGON === 'lng-lat') 
+    ? (process.env.MAP_POLYGON as 'lng-lat' | 'lat-lng')
+    : 'lng-lat'; // Default fallback if env variable not set or invalid
+
+// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Log coordinate order configuration on module load
+console.log(`🟡🟡🟡 - [areaPolygonService ${new Date().toISOString()}] MAP_POLYGON coordinate order: ${POLYGON_COORDINATE_ORDER} (from env: ${process.env.MAP_POLYGON || 'not set'})`);
 
 // 2025-11-11T00:00:00Z 🟡🟡🟡 - [areaPolygonService] In-memory registry keyed by normalized "district||sublocality"
 const registry: Record<string, AreaPolygon> = {
@@ -119,23 +126,19 @@ export async function getAreaPolygonByNames(district?: string, sublocality?: str
       
       let lat: number, lng: number;
       
+      // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [areaPolygonService] SECURITY FIX: Auto-detection removed - coordinate order must be explicitly configured
       if (POLYGON_COORDINATE_ORDER === 'lng-lat') {
-        // 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Force [lng, lat] interpretation: first is longitude, second is latitude
+        // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Force [lng, lat] interpretation: first is longitude, second is latitude
         lng = a;
         lat = b;
       } else if (POLYGON_COORDINATE_ORDER === 'lat-lng') {
-        // 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Force [lat, lng] interpretation: first is latitude, second is longitude
+        // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Force [lat, lng] interpretation: first is latitude, second is longitude
         lat = a;
         lng = b;
       } else {
-        // 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Auto-detect: lat is roughly between -90..90, lng between -180..180. UAE lat ~24, lng ~54
-        lat = b;
-        lng = a;
-        if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
-          // pair might be [lat, lng]
-          lat = a;
-          lng = b;
-        }
+        // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [areaPolygonService] Invalid configuration - coordinate order must be specified
+        console.error(`❗❗❗ - [areaPolygonService ${new Date().toISOString()}] Invalid POLYGON_COORDINATE_ORDER configuration - must be "lng-lat" or "lat-lng"`, { order: POLYGON_COORDINATE_ORDER });
+        continue; // Skip this point
       }
       
       paths.push({ lat, lng });

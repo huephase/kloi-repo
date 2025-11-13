@@ -14,11 +14,137 @@
 
 ---
 
+### November 13, 2025 - Security Hardening & Robustness Improvements for Boundary Validation System
+
+**Type**: 🔴 BREAKING CHANGE / 🟠 MAJOR CHANGE
+
+**Summary**: Implemented comprehensive security hardening and robustness improvements to the sublocality boundary validation system. Fixed critical vulnerabilities that could allow users to bypass boundary restrictions, added server-side polygon containment validation as the primary security check, implemented rate limiting, and removed insecure fallback mechanisms. These changes enforce fail-closed validation, prevent race conditions, and ensure polygon coordinates from the database are always the source of truth. Additionally, centralized coordinate order configuration via `MAP_POLYGON` environment variable allows switching between coordinate formats without code changes.
+
+#### Major Changes
+- **Client-Side Security Hardening**: `public/global/js/maps.js`
+  - **Fail-Closed Validation**: Changed `validateFCoordinatesAgainstArea()` to reject moves when validation cannot be confirmed (API errors, network failures, null results) instead of allowing them
+  - **Request Queuing**: Implemented validation request queue to prevent race conditions from rapid drags/clicks that could bypass validation
+  - **Debounced Drag Events**: Added 400ms debounce to `handleMarkerDragEnd()` to prevent excessive API calls and reduce race condition vulnerabilities
+  - **Strict Position Updates**: Marker position and `lastValidPosition` now only update when reverse geocoding confirms a match (district/sublocality present), preventing invalid positions from persisting
+  - **Removed Circle Fallback**: Completely removed imprecise circle boundary fallback (1000m default) - polygon is now required for validation
+  - **Removed Auto-Detection**: Coordinate order auto-detection removed - must be explicitly specified as `'lng-lat'` or `'lat-lng'` to prevent misclassification vulnerabilities
+  - **Enhanced Validation Logic**: Validation now requires confirmed district/sublocality match before allowing marker position updates
+
+- **Server-Side Security Enhancements**: `src/routes/api/index.ts`
+  - **Polygon Containment as Primary Check**: Implemented `isPointInPolygon()` using ray casting algorithm - polygon from database is now the source of truth and checked first
+  - **Database Validation**: Server validates that expected district/sublocality exists in database before processing validation requests
+  - **Dual-Layer Validation**: Polygon containment check runs first, reverse geocoding serves as secondary verification
+  - **Rate Limiting**: Added rate limiting to `/api/geo/reverse` endpoint (30 requests per minute per session) to prevent abuse and API quota exhaustion
+  - **Fail-Closed Approach**: If polygon check passes but reverse geocoding fails, location is still allowed (polygon is authoritative); if polygon check fails, location is rejected regardless of reverse geocoding result
+
+- **Service Layer Security Updates**: `src/services/areaPolygonService.ts` & `src/services/deliveryLocationsService.ts`
+  - **Removed Auto-Detection**: Removed coordinate order auto-detection logic - must be explicitly configured
+  - **Consistent Configuration**: Both services now require explicit `POLYGON_COORDINATE_ORDER` setting (`'lng-lat'` or `'lat-lng'`)
+  - **Error Handling**: Invalid coordinate order configuration now logs errors and skips invalid points instead of attempting auto-detection
+
+- **Centralized Coordinate Order Configuration**: Multiple files
+  - **Environment Variable Configuration**: All coordinate order settings now read from `MAP_POLYGON` environment variable
+  - **Client-Side**: `public/global/js/maps.js` receives `MAP_POLYGON` value via template from `src/routes/locationFinder.ts`
+  - **Server-Side Services**: `src/services/areaPolygonService.ts` and `src/services/deliveryLocationsService.ts` read directly from `process.env.MAP_POLYGON`
+  - **Import Script**: `src/scripts/importGeoJsonPolygon.ts` uses `MAP_POLYGON` for consistency when importing new polygons
+  - **Route Handler**: `src/routes/locationFinder.ts` validates and passes `MAP_POLYGON` to client via template
+  - **Template**: `src/views/wizard/location-finder.hbs` passes env variable value to `initLocationFinderMap()`
+  - **Benefits**: Single source of truth - change `MAP_POLYGON` env variable and restart server to switch coordinate interpretation without code changes
+  - **Validation**: All files validate env variable is `'lng-lat'` or `'lat-lng'`, defaulting to `'lng-lat'` if invalid or missing
+  - **Logging**: All files log the configured coordinate order on initialization for debugging and verification
+
+#### Direction Changes
+- **Security-First Validation**: Shift from permissive validation (allow on error) to fail-closed validation (reject on error)
+  - **Business Benefit**: Prevents surcharge manipulation by ensuring users cannot bypass boundary restrictions
+  - **Technical Benefit**: Eliminates race conditions and reduces attack surface for boundary bypass attempts
+  - **Security Benefit**: Polygon coordinates from database are authoritative source, preventing manipulation via API failures
+- **Polygon-Required Policy**: Removed imprecise circle fallback - polygon data is now mandatory for boundary validation
+  - **Business Benefit**: Ensures accurate boundary enforcement matching actual delivery area boundaries
+  - **Technical Benefit**: Eliminates false positives/negatives from imprecise circular approximations
+- **Explicit Configuration**: Removed auto-detection for coordinate order - requires explicit configuration
+  - **Security Benefit**: Prevents misclassification vulnerabilities near coordinate boundaries
+  - **Technical Benefit**: Eliminates ambiguity and ensures consistent coordinate interpretation across system
+- **Centralized Configuration Management**: Coordinate order now managed via single `MAP_POLYGON` environment variable
+  - **Business Benefit**: Switch between coordinate formats (e.g., when changing map platforms) without code deployment
+  - **Technical Benefit**: Single source of truth eliminates configuration drift and ensures consistency across all files
+  - **Operational Benefit**: No code changes required - update env variable and restart server
+
+#### Files Affected
+- `public/global/js/maps.js` (MODIFIED) - Security hardening: fail-closed validation, request queuing, debouncing, strict position updates, removed circle fallback, removed auto-detection, centralized coordinate order from MAP_POLYGON env variable
+- `src/routes/api/index.ts` (MODIFIED) - Security enhancements: polygon containment validation, database validation, rate limiting, dual-layer validation
+- `src/routes/locationFinder.ts` (MODIFIED) - Centralized configuration: reads MAP_POLYGON env variable, validates, and passes to template
+- `src/views/wizard/location-finder.hbs` (MODIFIED) - Centralized configuration: passes MAP_POLYGON value to client-side maps.js initialization
+- `src/services/areaPolygonService.ts` (MODIFIED) - Security updates: removed auto-detection, explicit coordinate order requirement, reads from MAP_POLYGON env variable
+- `src/services/deliveryLocationsService.ts` (MODIFIED) - Security updates: removed auto-detection, explicit coordinate order requirement, reads from MAP_POLYGON env variable
+- `src/scripts/importGeoJsonPolygon.ts` (MODIFIED) - Centralized configuration: uses MAP_POLYGON env variable for consistency with code interpretation
+
+#### Technical Notes
+⚠️⚠️⚠️ **Critical Security Implementation Details**:
+- **Fail-Closed Validation Strategy**:
+  - Client-side: Returns `{ valid: false }` on API errors, network failures, or null results
+  - Server-side: Rejects locations if polygon containment check fails, even if reverse geocoding passes
+  - Prevents boundary bypass attempts via API manipulation or network issues
+- **Polygon Containment Algorithm**:
+  - Uses ray casting algorithm for point-in-polygon checks
+  - Polygon coordinates from database are always the source of truth
+  - Checked before reverse geocoding to ensure authoritative validation
+- **Rate Limiting**:
+  - 30 requests per minute per session/IP for `/api/geo/reverse` endpoint
+  - Prevents abuse and API quota exhaustion
+  - Returns HTTP 429 with `retryAfter` header when limit exceeded
+- **Request Queuing**:
+  - Prevents race conditions from rapid user interactions
+  - Queues validation requests when one is already in progress
+  - Processes queue sequentially to ensure proper validation order
+- **Debouncing**:
+  - 400ms debounce on drag-end events
+  - Reduces API calls during marker dragging
+  - Prevents validation spam and improves performance
+- **Coordinate Order Configuration**:
+  - **BREAKING CHANGE**: Auto-detection removed - must explicitly set via `MAP_POLYGON` environment variable
+  - **Centralized Configuration**: All files now read from single `MAP_POLYGON` env variable (`'lng-lat'` or `'lat-lng'`)
+  - Client: `public/global/js/maps.js` - receives value from template (passed from `src/routes/locationFinder.ts`)
+  - Server: `src/services/areaPolygonService.ts` - reads from `process.env.MAP_POLYGON`, default: `'lng-lat'`
+  - Server: `src/services/deliveryLocationsService.ts` - reads from `process.env.MAP_POLYGON`, default: `'lng-lat'`
+  - Import: `src/scripts/importGeoJsonPolygon.ts` - reads from `process.env.MAP_POLYGON`, default: `'lat-lng'` (for new imports)
+  - Route: `src/routes/locationFinder.ts` - validates and passes `MAP_POLYGON` to client via template
+  - Template: `src/views/wizard/location-finder.hbs` - injects env variable value into client initialization
+  - **Validation**: All files validate env variable is `'lng-lat'` or `'lat-lng'`, defaulting to `'lng-lat'` if invalid/missing (except import script which defaults to `'lat-lng'`)
+  - **Logging**: All files log configured coordinate order on initialization for verification
+  - **No Code Changes Required**: Change `MAP_POLYGON` env variable and restart server to switch coordinate interpretation
+- **Circle Fallback Removal**:
+  - **BREAKING CHANGE**: Circle fallback completely removed
+  - Polygon data is now required in session `components.polygon`
+  - If polygon unavailable, boundary validation will fail (fail-closed)
+  - Ensures accurate boundary enforcement matching actual delivery areas
+- **Position Update Logic**:
+  - Marker position only updates after validation confirms district/sublocality match
+  - `lastValidPosition` only updates when reverse geocoding returns confirmed district/sublocality
+  - Prevents invalid positions from persisting in state
+- **Database Validation**:
+  - Server validates expected district/sublocality exists in database before processing
+  - Prevents validation against non-existent or manipulated session data
+  - Ensures polygon data integrity
+
+**Migration Notes**:
+- ⚠️⚠️⚠️ **Action Required**: Set `MAP_POLYGON` environment variable to `'lng-lat'` or `'lat-lng'` to match your database coordinate format
+  - Example: `MAP_POLYGON="lat-lng"` in your `.env` file or environment configuration
+  - All files (client and server) will automatically use this value
+  - No code changes needed - just set the env variable and restart the server
+- ⚠️⚠️⚠️ **Action Required**: Ensure all delivery areas have polygon data in database - circle fallback no longer available
+- ⚠️⚠️⚠️ **Testing Required**: Verify boundary validation works correctly with fail-closed approach - locations will be rejected more strictly than before
+- ⚠️⚠️⚠️ **Verification**: Check server logs on startup - all services log the configured `MAP_POLYGON` coordinate order for verification
+- ⚠️⚠️⚠️ **Note**: Database coordinate format remains unchanged - `MAP_POLYGON` only controls how code interprets existing database coordinates
+
+**Related Documentation**: This builds upon the boundary validation system implemented in November 10, 2025 and the coordinate order system from November 12, 2025
+
+---
+
 ### November 12, 2025 - Polygon Boundary Drawing Fixes & Configurable Coordinate Order System
 
 **Type**: 🟠 MAJOR CHANGE
 
-**Summary**: Fixed polygon boundary drawing timing issues and implemented a configurable coordinate order system to support different coordinate formats (lng-lat vs lat-lng) without requiring database data recreation.
+**Summary**: Fixed polygon boundary drawing timing issues and implemented a configurable coordinate order system to support different coordinate formats (lng-lat vs lat-lng) without requiring database data recreation. Also fixed critical Fastify route registration bug that was causing runtime errors with geo API endpoints.
 
 #### Major Changes
 - **Polygon Boundary Drawing Fixes**: `public/global/js/maps.js`
@@ -45,6 +171,13 @@
     - Updated `normalizePolygonPairs()` to normalize coordinates to configured storage format
     - Ensures imported polygons match the expected database format
 
+- **Route Registration Bug Fix**: `src/routes/api/index.ts`
+  - Fixed critical Fastify route registration error: "Fastify instance is already listening. Cannot add route!"
+  - Resolved nested route registration issue where `/geo/area` route was incorrectly defined inside `/geo/reverse` handler
+  - Restructured route handlers to properly separate `/geo/reverse` and `/geo/area` as independent routes
+  - Both routes now register correctly at module level during server startup
+  - Eliminates runtime errors when accessing `/api/geo/reverse` endpoint
+
 #### Direction Changes
 - **Flexible Coordinate Handling**: Shift from hardcoded coordinate interpretation to configurable system
   - **Business Benefit**: Eliminates need to recreate database data when switching between coordinate formats
@@ -56,6 +189,7 @@
 - `src/services/areaPolygonService.ts` (MODIFIED) - Added coordinate order configuration and updated normalization logic
 - `src/services/deliveryLocationsService.ts` (MODIFIED) - Added coordinate order configuration and updated normalization logic
 - `src/scripts/importGeoJsonPolygon.ts` (MODIFIED) - Added database storage coordinate order configuration
+- `src/routes/api/index.ts` (MODIFIED) - Fixed route registration bug, restructured `/geo/reverse` and `/geo/area` routes
 
 #### Technical Notes
 ⚠️⚠️⚠️ **Important Implementation Details**:

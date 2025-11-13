@@ -40,8 +40,8 @@ function formatValidationErrors(error: ZodError) {
 
 // 🟡🟡🟡 - [VALIDATION] Function to validate data based on step
 function validateStepData(step: string, data: any) {
-  console.log('🟡🟡🟡 - [VALIDATION] Validating data for step:', step);
-  console.log('🟡🟡🟡 - [VALIDATION] Data to validate:', JSON.stringify(data, null, 2));
+  // console.log('🟡🟡🟡 - [VALIDATION] Validating data for step:', step);
+  // console.log('🟡🟡🟡 - [VALIDATION] Data to validate:', JSON.stringify(data, null, 2));
   
   switch (step) {
     case 'location':
@@ -64,7 +64,26 @@ function validateStepData(step: string, data: any) {
   }
 }
 
+  // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Point-in-polygon check using ray casting algorithm
+  // ⚠️⚠️⚠️ - [LOCATION VALIDATION] Polygon coordinates from DB are always the source of truth
+  function isPointInPolygon(lat: number, lng: number, polygon: Array<{ lat: number; lng: number }>): boolean {
+    if (!polygon || polygon.length < 3) return false;
+    
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].lng;
+      const yi = polygon[i].lat;
+      const xj = polygon[j].lng;
+      const yj = polygon[j].lat;
+      
+      const intersect = ((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
   // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Helper function to validate coordinates match selected delivery area
+  // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: Polygon containment is primary check, reverse geocoding is fallback
   async function validateLocationCoordinates(
     lat: number,
     lng: number,
@@ -86,6 +105,41 @@ function validateStepData(step: string, data: any) {
       return { valid: false, error: 'Invalid coordinates' };
     }
 
+    // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: Validate session data against database first
+    try {
+      // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Verify expected district/sublocality exists in database
+      const { getAreaPolygonByNames } = await import('../../services/areaPolygonService');
+      const polygon = await getAreaPolygonByNames(expectedDistrict || undefined, expectedSublocality || undefined);
+      
+      // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: Polygon from DB is source of truth - check containment first
+      if (polygon && polygon.paths && polygon.paths.length >= 3) {
+        const isInside = isPointInPolygon(lat, lng, polygon.paths);
+        logInfo('Polygon containment check', { isInside, polygonPoints: polygon.paths.length });
+        
+        if (!isInside) {
+          logWarn('Location validation failed - coordinates outside polygon boundary', {
+            expectedDistrict,
+            expectedSublocality,
+            lat,
+            lng
+          });
+          return { valid: false, error: 'Location is outside your selected delivery area' };
+        }
+        
+        // Point is inside polygon - proceed with reverse geocoding for additional verification
+        logInfo('Polygon containment check passed - proceeding with reverse geocoding verification');
+      } else {
+        logWarn('Polygon not found in database - falling back to reverse geocoding only', {
+          expectedDistrict,
+          expectedSublocality
+        });
+      }
+    } catch (polygonErr) {
+      logError('Error checking polygon containment', polygonErr);
+      // Continue with reverse geocoding fallback
+    }
+
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Reverse geocoding as secondary verification
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       logError('GOOGLE_MAPS_API_KEY missing');
@@ -93,7 +147,7 @@ function validateStepData(step: string, data: any) {
     }
 
     try {
-      logInfo('Validating coordinates against selected area', { lat, lng, expectedDistrict, expectedSublocality });
+      logInfo('Validating coordinates with reverse geocoding', { lat, lng, expectedDistrict, expectedSublocality });
       
       const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat + ',' + lng)}&key=${encodeURIComponent(apiKey)}`;
       const res = await fetch(url);
@@ -110,6 +164,8 @@ function validateStepData(step: string, data: any) {
 
       if (data.status !== 'OK' || !Array.isArray(data.results) || data.results.length === 0) {
         logError('Reverse geocoding failed', { status: data.status });
+        // ⚠️⚠️⚠️ - [LOCATION VALIDATION] If polygon check passed, allow even if reverse geocoding fails
+        // If polygon check didn't run, fail closed
         return { valid: false, error: 'Failed to validate location' };
       }
 
@@ -221,9 +277,49 @@ function validateStepData(step: string, data: any) {
 }
 
 export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
+  // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [RATE LIMITING] Simple in-memory rate limiter for /api/geo/reverse
+  // ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Prevent abuse of reverse geocoding endpoint
+  const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+  const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+  const RATE_LIMIT_MAX_REQUESTS = 30; // 30 requests per minute per session
+  
+  // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [RATE LIMITING] Cleanup old entries periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of rateLimitMap.entries()) {
+      if (now > value.resetTime) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }, 30000); // Cleanup every 30 seconds
+
   // 🟡🟡🟡 - [GEO API] Reverse geocoding via Google Maps
   app.get('/geo/reverse', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Check rate limit before processing
+      const sessionId = request.session?.sessionId || request.ip || 'anonymous';
+      const now = Date.now();
+      const rateLimitKey = `geo-reverse-${sessionId}`;
+      const rateLimit = rateLimitMap.get(rateLimitKey);
+      
+      if (rateLimit) {
+        if (now > rateLimit.resetTime) {
+          // Reset window
+          rateLimitMap.set(rateLimitKey, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+        } else if (rateLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
+          console.warn(`⚠️⚠️⚠️ - [GEO API ${new Date().toISOString()}] Rate limit exceeded for session`, { sessionId: sessionId.substring(0, 8) });
+          return reply.status(429).send({ 
+            success: false, 
+            message: 'Too many requests. Please wait a moment and try again.',
+            retryAfter: Math.ceil((rateLimit.resetTime - now) / 1000)
+          });
+        } else {
+          rateLimit.count++;
+        }
+      } else {
+        rateLimitMap.set(rateLimitKey, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+      }
+
       const q = (request as any).query || {};
       const parsed = reverseGeocodeQuerySchema.safeParse(q);
       if (!parsed.success) {
@@ -231,38 +327,6 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         return reply.status(400).send({ success: false, message: 'Invalid lat/lng' });
       }
 
-  // 2025-11-11T00:00:00Z 🟡🟡🟡 - [GEO API] Area polygon by district/sublocality (for client-side polygon containment)
-  app.get('/geo/area', async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const q = (request as any).query || {};
-      const district = typeof q.district === 'string' ? q.district.trim() : '';
-      const sublocality = typeof q.sublocality === 'string' ? q.sublocality.trim() : '';
-
-      console.log(`🟡🟡🟡 - [API ROUTE ${new Date().toISOString()}] GET /api/geo/area`, { district, sublocality });
-
-      if (!district && !sublocality) {
-        console.error(`❗❗❗ - [GEO API ${new Date().toISOString()}] Missing district and sublocality`);
-        return reply.status(400).send({ success: false, message: 'district or sublocality required' });
-      }
-
-      const { getAreaPolygonByNames } = await import('../../services/areaPolygonService');
-      const polygon = await getAreaPolygonByNames(district, sublocality);
-
-      if (!polygon || !Array.isArray(polygon?.paths) || polygon.paths.length === 0) {
-        console.warn(`⚠️⚠️⚠️ - [GEO API ${new Date().toISOString()}] Polygon not found for area`, { district, sublocality });
-        return reply.status(404).send({ success: false, message: 'Polygon not found' });
-      }
-
-      console.log(`✅✅✅ - [GEO API ${new Date().toISOString()}] Polygon found`, { numPoints: polygon.paths.length });
-      return reply.send({
-        success: true,
-        polygon
-      });
-    } catch (err) {
-      console.error(`❗❗❗ - [GEO API ${new Date().toISOString()}] Area polygon error:`, err);
-      return reply.status(500).send({ success: false, message: 'Area polygon lookup failed' });
-    }
-  });
       const { lat, lng } = parsed.data;
       console.log('🟡🟡🟡 - [API ROUTE] GET /api/geo/reverse', { lat, lng });
 
@@ -319,6 +383,39 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
     } catch (err) {
       console.error('❗❗❗ - [GEO API] Reverse geocode error:', err);
       return reply.status(500).send({ success: false, message: 'Reverse geocode failed' });
+    }
+  });
+
+  // 2025-11-11T00:00:00Z 🟡🟡🟡 - [GEO API] Area polygon by district/sublocality (for client-side polygon containment)
+  app.get('/geo/area', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const q = (request as any).query || {};
+      const district = typeof q.district === 'string' ? q.district.trim() : '';
+      const sublocality = typeof q.sublocality === 'string' ? q.sublocality.trim() : '';
+
+      console.log(`🟡🟡🟡 - [API ROUTE ${new Date().toISOString()}] GET /api/geo/area`, { district, sublocality });
+
+      if (!district && !sublocality) {
+        console.error(`❗❗❗ - [GEO API ${new Date().toISOString()}] Missing district and sublocality`);
+        return reply.status(400).send({ success: false, message: 'district or sublocality required' });
+      }
+
+      const { getAreaPolygonByNames } = await import('../../services/areaPolygonService');
+      const polygon = await getAreaPolygonByNames(district, sublocality);
+
+      if (!polygon || !Array.isArray(polygon?.paths) || polygon.paths.length === 0) {
+        console.warn(`⚠️⚠️⚠️ - [GEO API ${new Date().toISOString()}] Polygon not found for area`, { district, sublocality });
+        return reply.status(404).send({ success: false, message: 'Polygon not found' });
+      }
+
+      console.log(`✅✅✅ - [GEO API ${new Date().toISOString()}] Polygon found`, { numPoints: polygon.paths.length });
+      return reply.send({
+        success: true,
+        polygon
+      });
+    } catch (err) {
+      console.error(`❗❗❗ - [GEO API ${new Date().toISOString()}] Area polygon error:`, err);
+      return reply.status(500).send({ success: false, message: 'Area polygon lookup failed' });
     }
   });
   
@@ -877,9 +974,9 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
 
       // 🟡🟡🟡 - [VALIDATION] Validate strictly for normal saves; be lenient for autosave
       // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Log raw request body for location step to debug components
-      if (step === 'location') {
-        console.log('🟡🟡🟡 - [API ROUTE] Location step - Raw request body:', JSON.stringify(request.body, null, 2));
-      }
+      // if (step === 'location') {
+      //   console.log('🟡🟡🟡 - [API ROUTE] Location step - Raw request body:', JSON.stringify(request.body, null, 2));
+      // }
       
       let validatedData;
       if (isAutoSave) {
@@ -890,16 +987,16 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         try {
           validatedData = validateStepData(step, request.body);
           console.log('✅✅✅ - [VALIDATION] Data validation successful for step:', step);
-          console.log('✅✅✅ - [VALIDATION] Validated data:', JSON.stringify(validatedData, null, 2));
+          // console.log('✅✅✅ - [VALIDATION] Validated data:', JSON.stringify(validatedData, null, 2));
           
           // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Check if components were preserved after validation
           if (step === 'location') {
-            const hasComponents = !!(validatedData as any)?.components;
-            console.log('🟡🟡🟡 - [API ROUTE] Location step - Components after validation:', {
-              hasComponents,
-              components: (validatedData as any)?.components,
-              allKeys: Object.keys(validatedData || {})
-            });
+            // const hasComponents = !!(validatedData as any)?.components;
+            // console.log('🟡🟡🟡 - [API ROUTE] Location step - Components after validation:', {
+            //   hasComponents,
+            //   components: (validatedData as any)?.components,
+            //   allKeys: Object.keys(validatedData || {})
+            // });
           }
         } catch (validationError) {
           if (validationError instanceof ZodError) {
@@ -933,11 +1030,11 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         const current = ((request.session as any)[sessionKey]) || {};
         
         // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Debug logging for location step
-        if (step === 'location') {
-          console.log('🟡🟡🟡 - [API ROUTE] Location step - Current session data:', JSON.stringify(current, null, 2));
-          console.log('🟡🟡🟡 - [API ROUTE] Location step - Incoming validated data:', JSON.stringify(validatedData, null, 2));
-          console.log('🟡🟡🟡 - [API ROUTE] Location step - Current components:', JSON.stringify((current as any)?.components, null, 2));
-        }
+        // if (step === 'location') {
+        //   console.log('🟡🟡🟡 - [API ROUTE] Location step - Current session data:', JSON.stringify(current, null, 2));
+        //   console.log('🟡🟡🟡 - [API ROUTE] Location step - Incoming validated data:', JSON.stringify(validatedData, null, 2));
+        //   console.log('🟡🟡🟡 - [API ROUTE] Location step - Current components:', JSON.stringify((current as any)?.components, null, 2));
+        // }
         
         let nextValue;
         if (isAutoSave) {
@@ -956,14 +1053,14 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           // 2025-11-08T00:00:00Z ⚠️⚠️⚠️ - [API ROUTE] Use incoming components if they exist (from delivery-location), otherwise preserve existing
           const finalComponents = Object.keys(incomingComponents).length > 0 ? incomingComponents : existingComponents;
           
-          console.log('🟡🟡🟡 - [API ROUTE] Location step - Component resolution:', {
-            hasExistingComponents: Object.keys(existingComponents).length > 0,
-            hasIncomingComponents: Object.keys(incomingComponents).length > 0,
-            existingComponentsKeys: Object.keys(existingComponents),
-            incomingComponentsKeys: Object.keys(incomingComponents),
-            finalComponentsKeys: Object.keys(finalComponents),
-            finalComponents: finalComponents
-          });
+          // console.log('🟡🟡🟡 - [API ROUTE] Location step - Component resolution:', {
+          //   hasExistingComponents: Object.keys(existingComponents).length > 0,
+          //   hasIncomingComponents: Object.keys(incomingComponents).length > 0,
+          //   existingComponentsKeys: Object.keys(existingComponents),
+          //   incomingComponentsKeys: Object.keys(incomingComponents),
+          //   finalComponentsKeys: Object.keys(finalComponents),
+          //   finalComponents: finalComponents
+          // });
           
           // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Validate coordinates match selected delivery area (only if coordinates are provided)
           if (mapData.latitude && mapData.longitude && !isAutoSave) {
@@ -1012,12 +1109,12 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             components: finalComponents, // Preserve delivery-location metadata (country, city, sublocality, district, surcharge, selectionSource)
           };
           
-          console.log('✅✅✅ - [API ROUTE] Location update: final merged data', {
-            hasComponents: !!finalComponents && Object.keys(finalComponents).length > 0,
-            componentsKeys: Object.keys(finalComponents),
-            mapUpdates: { latitude: mapData.latitude, longitude: mapData.longitude, fullAddress: mapData.fullAddress },
-            finalLocationData: JSON.stringify(nextValue, null, 2)
-          });
+          // console.log('✅✅✅ - [API ROUTE] Location update: final merged data', {
+          //   hasComponents: !!finalComponents && Object.keys(finalComponents).length > 0,
+          //   componentsKeys: Object.keys(finalComponents),
+          //   mapUpdates: { latitude: mapData.latitude, longitude: mapData.longitude, fullAddress: mapData.fullAddress },
+          //   finalLocationData: JSON.stringify(nextValue, null, 2)
+          // });
         } else {
           // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Other steps: replace entirely
           nextValue = validatedData;
@@ -1026,9 +1123,9 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         (request.session as Record<string, any>)[sessionKey] = nextValue;
         
         // 2025-11-08T00:00:00Z 🟡🟡🟡 - [API ROUTE] Debug: log final session value for location step
-        if (step === 'location') {
-          console.log('🟡🟡🟡 - [API ROUTE] Location step - Final session value:', JSON.stringify(nextValue, null, 2));
-        }
+        // if (step === 'location') {
+        // console.log('🟡🟡🟡 - [API ROUTE] Location step - Final session value:', JSON.stringify(nextValue, null, 2));
+        // }
       }
 
       // 🟡🟡🟡 - [DATABASE SAVE] Save to database for event-details step
