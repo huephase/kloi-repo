@@ -40,7 +40,13 @@
     </div>
   </div>
 </div>
-<script src="public/global/js/maps.js"></script>
+<!-- 2025-12-XXT00:00:00Z 🟡🟡🟡 - [location-finder.hbs] Event-driven architecture modules - load in dependency order -->
+<script src="/public/global/js/map-events.js"></script>
+<script src="/public/global/js/map-state.js"></script>
+<script src="/public/global/js/map-polygon.js"></script>
+<script src="/public/global/js/map-validation.js"></script>
+<script src="/public/global/js/map-ui.js"></script>
+<script src="/public/global/js/maps.js"></script>
 <script>
   // 2025-11-07T00:00:00Z 🟡🟡🟡 - [location-finder.hbs] Initialize map with session location data
   window.addEventListener('DOMContentLoaded', function() {

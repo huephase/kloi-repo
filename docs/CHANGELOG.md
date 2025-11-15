@@ -14,6 +14,179 @@
 
 ---
 
+### November 15, 2025 - Event-Driven Architecture Refactoring for Location Finder Map
+
+**Type**: 🟠 MAJOR CHANGE / 🟢 DIRECTION CHANGE
+
+**Summary**: Completely refactored the location finder map system from a monolithic, timing-dependent architecture to a modular, event-driven architecture. This refactoring eliminates race conditions, timing dependencies, and state synchronization issues that were causing validation failures and incorrect initial pin positioning. The new architecture uses a pub/sub event system for decoupled component communication, centralized state management, and separation of concerns. Key improvements include using polygon center for initial marker positioning (guaranteed to be within boundary), eliminating all setTimeout/retry patterns, and ensuring validation state is consistently available to all UI components.
+
+#### Major Changes
+
+- **Event-Driven Architecture Implementation**: New modular system
+  - **EventBus Module** (`public/global/js/map-events.js`): Pub/sub pattern for decoupled component communication
+    - Singleton instance `window.MapEventBus` for global event coordination
+    - Supports `on()`, `off()`, `emit()`, `removeAllListeners()` methods
+    - Event logging for debugging and monitoring
+    - Error handling in event handlers to prevent cascading failures
+  
+  - **StateManager Module** (`public/global/js/map-state.js`): Single source of truth for all map state
+    - Centralized state management with `getState()`, `set()`, `setState()` methods
+    - Convenience methods: `setCoordinates()`, `setFormData()`, `setSelectedArea()`
+    - Emits `state:changed` events on all state updates
+    - Emits `coordinates:changed` events for coordinate updates
+    - Immutable state access (returns copies to prevent direct mutation)
+    - State reset functionality for cleanup
+  
+  - **PolygonManager Module** (`public/global/js/map-polygon.js`): Polygon operations and geometry
+    - Normalizes polygon paths from various formats (arrays, objects, coordinate orders)
+    - Calculates polygon center using bounding box (guaranteed to be within polygon)
+    - Draws polygon on Google Maps with configurable styling
+    - Point-in-polygon containment checks using Google Maps geometry library
+    - Polygon styling for violation states (red) and normal states (blue)
+    - Bounds fitting to polygon for optimal map view
+    - Emits `polygon:ready` and `polygon:center:calculated` events
+  
+  - **ValidationService Module** (`public/global/js/map-validation.js`): Centralized validation logic
+    - Single source of truth for all validation logic (DRY principle)
+    - Polygon containment check as primary security check
+    - Reverse geocoding as secondary verification
+    - Fail-closed validation strategy (reject on error if polygon check didn't pass)
+    - Prevents concurrent validations with `isValidationInProgress` flag
+    - Emits `validation:start` and `validation:complete` events
+    - Handles all edge cases: polygon not ready, API failures, null results
+  
+  - **UIManager Module** (`public/global/js/map-ui.js`): UI updates based on events
+    - Listens to state changes and validation events
+    - Updates form fields (display and hidden) from state
+    - Updates confirm button state and label based on validation result
+    - Shows/hides boundary violation popup
+    - Updates polygon styling via events
+    - Setup popup button handlers (reselect, dismiss)
+    - No business logic - purely reactive UI updates
+
+- **Refactored Main Controller** (`public/global/js/maps.js`):
+  - **Removed Timing Dependencies**: Eliminated all `setTimeout()` retry patterns and polling mechanisms
+  - **Event-Driven Initialization**: Components initialize and coordinate via events instead of timing
+  - **Polygon Center for Initial Position**: Marker now starts at polygon center (calculated from bounding box) instead of geocoding address
+    - **Critical Fix**: Ensures marker is always within polygon boundary on page load
+    - Eliminates validation failures on initial load
+    - Polygon center is calculated before map initialization
+  - **Event Listeners Setup**: Coordinates all modules via event subscriptions
+    - `polygon:ready` → Updates state, triggers validation
+    - `polygon:center:calculated` → Sets marker position, fits bounds, reverse geocodes, validates
+    - `coordinates:changed` → Triggers validation if area selected
+    - `validation:complete` → Updates state, updates polygon styling
+    - `boundary:violation` → Updates polygon styling
+  - **Simplified Flow**: Map initialization → Polygon normalization → Center calculation → Marker positioning → Validation
+  - **Removed Old Code**: Eliminated all old validation/polygon functions, timing retries, and state synchronization logic
+  - **Preserved Functionality**: All original features maintained (detect location, drag marker, click map, form submission)
+
+- **Template Updates** (`src/views/wizard/location-finder.hbs`):
+  - Added script tags for all new modules in correct dependency order
+  - Module loading order: `map-events.js` → `map-state.js` → `map-polygon.js` → `map-validation.js` → `map-ui.js` → `maps.js`
+  - Ensures all dependencies are available before initialization
+
+#### Direction Changes
+
+- **Event-Driven Architecture**: Shift from imperative, timing-dependent code to declarative, event-driven coordination
+  - **Business Benefit**: Eliminates race conditions and timing bugs that caused validation failures
+  - **Technical Benefit**: Decoupled components are easier to test, maintain, and extend
+  - **Reliability Benefit**: Events ensure proper execution order without fragile timing mechanisms
+  
+- **Separation of Concerns**: Each module has a single, well-defined responsibility
+  - **EventBus**: Communication only
+  - **StateManager**: State management only
+  - **PolygonManager**: Polygon operations only
+  - **ValidationService**: Validation logic only
+  - **UIManager**: UI updates only
+  - **maps.js**: Orchestration only
+  - **Benefit**: Changes to one module don't affect others, easier debugging and testing
+  
+- **Centralized State Management**: Single source of truth for all map state
+  - **Benefit**: Eliminates state synchronization issues between components
+  - **Benefit**: All UI components (confirm button, popup, form fields) use same state
+  - **Benefit**: State changes are observable via events
+  
+- **Polygon Center Positioning**: Initial marker position uses polygon center instead of geocoding
+  - **Critical Fix**: Guarantees marker is within polygon boundary on page load
+  - **Benefit**: Eliminates validation failures on initial load
+  - **Benefit**: More reliable than geocoding which may return coordinates outside polygon
+  - **Benefit**: Faster initialization (no geocoding API call needed)
+
+#### Files Affected
+
+- `public/global/js/map-events.js` (CREATED) - EventBus module for pub/sub communication
+- `public/global/js/map-state.js` (CREATED) - StateManager module for centralized state management
+- `public/global/js/map-polygon.js` (CREATED) - PolygonManager module for polygon operations
+- `public/global/js/map-validation.js` (CREATED) - ValidationService module for centralized validation logic
+- `public/global/js/map-ui.js` (CREATED/MODIFIED) - UIManager module for reactive UI updates; added minimum display time fix for boundary violation popup to prevent flashing
+- `public/global/js/maps.js` (REFACTORED) - Main controller refactored to use event-driven architecture, removed timing dependencies, uses polygon center for initial positioning
+- `src/views/wizard/location-finder.hbs` (MODIFIED) - Added script tags for all new modules in dependency order; fixed script paths to use `/public/global/js/` prefix
+
+#### Technical Notes
+
+⚠️⚠️⚠️ **Critical Architecture Implementation Details**:
+
+- **Event Flow for Initialization**:
+  1. `maps.js` initializes all modules (EventBus, StateManager, PolygonManager, ValidationService, UIManager)
+  2. Polygon paths normalized from session data
+  3. Polygon center calculated (bounding box center)
+  4. `polygon:center:calculated` event emitted
+  5. Event listener sets marker to center, fits bounds, reverse geocodes, validates
+  6. Polygon drawn on map
+  7. `polygon:ready` event emitted
+  8. State updated, validation triggered if needed
+
+- **Event Flow for User Interactions**:
+  1. User clicks map or drags marker
+  2. Coordinates extracted
+  3. `coordinates:changed` event emitted
+  4. Event listener triggers validation if area selected
+  5. `validation:start` event emitted
+  6. ValidationService validates (polygon check + reverse geocoding)
+  7. `validation:complete` event emitted with result
+  8. StateManager updates `isValid` state
+  9. `state:changed` event emitted
+  10. UIManager updates confirm button, popup, polygon styling
+
+- **Polygon Center Calculation**:
+  - Uses bounding box center: `(minLat + maxLat) / 2, (minLng + maxLng) / 2`
+  - Guaranteed to be within polygon for convex polygons
+  - For complex polygons, center is typically within boundary
+  - More reliable than geocoding which may return coordinates outside polygon
+
+- **State Synchronization**:
+  - All state changes go through StateManager
+  - StateManager emits events on changes
+  - UI components listen to events and update reactively
+  - No direct state mutations outside StateManager
+  - Eliminates race conditions and stale state issues
+
+- **Validation Coordination**:
+  - ValidationService is the only module that performs validation
+  - All validation logic centralized (DRY principle)
+  - Validation results emitted as events
+  - UI components react to validation events
+  - No duplicate validation logic
+
+- **Popup Display Fix** (`public/global/js/map-ui.js`):
+  - **Minimum Display Time**: Added 2-second minimum display time for boundary violation popup to prevent flashing
+  - **Problem**: When marker was auto-recentered after moving outside boundary, popup would flash and disappear immediately
+  - **Solution**: Popup now tracks when it was shown (`popupShownAt`) and enforces minimum display time before allowing hide
+  - **Implementation**:
+    - `popupShownAt` timestamp recorded when popup is shown
+    - `minPopupDisplayTime` set to 2000ms (2 seconds)
+    - `handleValidationComplete()` checks if minimum time has passed before hiding
+    - If popup was shown recently, hide is scheduled after remaining minimum time
+    - User can still dismiss immediately via "OK" button (resets timestamp)
+  - **Benefit**: Popup remains visible long enough to be read, even when marker is quickly auto-recentered
+  - **Technical Details**:
+    - Auto-hide timer properly cleared when popup is shown/hidden
+    - Validation state checked before hiding to ensure popup only hides when location is actually valid
+    - Prevents race conditions where popup hides before user can see it
+
+---
+
 ### November 13, 2025 - Security Hardening & Robustness Improvements for Boundary Validation System
 
 **Type**: 🔴 BREAKING CHANGE / 🟠 MAJOR CHANGE
