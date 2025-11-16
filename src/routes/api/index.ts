@@ -106,6 +106,9 @@ function validateStepData(step: string, data: any) {
     }
 
     // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: Validate session data against database first
+    // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Track if polygon check passed - polygon is authoritative
+    let polygonCheckPassed = false;
+    
     try {
       // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Verify expected district/sublocality exists in database
       const { getAreaPolygonByNames } = await import('../../services/areaPolygonService');
@@ -126,6 +129,8 @@ function validateStepData(step: string, data: any) {
           return { valid: false, error: 'Location is outside your selected delivery area' };
         }
         
+        // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [LOCATION VALIDATION] Polygon check passed - mark as passed
+        polygonCheckPassed = true;
         // Point is inside polygon - proceed with reverse geocoding for additional verification
         logInfo('Polygon containment check passed - proceeding with reverse geocoding verification');
       } else {
@@ -164,8 +169,15 @@ function validateStepData(step: string, data: any) {
 
       if (data.status !== 'OK' || !Array.isArray(data.results) || data.results.length === 0) {
         logError('Reverse geocoding failed', { status: data.status });
-        // ⚠️⚠️⚠️ - [LOCATION VALIDATION] If polygon check passed, allow even if reverse geocoding fails
-        // If polygon check didn't run, fail closed
+        
+        // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: If polygon check passed, allow even if reverse geocoding fails (polygon is authoritative)
+        if (polygonCheckPassed) {
+          logInfo('Polygon check passed but reverse geocoding failed - allowing location (polygon is authoritative)', { status: data.status });
+          return { valid: true, actualDistrict: null, actualSublocality: null };
+        }
+        
+        // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: If polygon check didn't run, fail closed
+        logWarn('Reverse geocoding failed and no polygon check - failing closed for security');
         return { valid: false, error: 'Failed to validate location' };
       }
 
@@ -186,7 +198,19 @@ function validateStepData(step: string, data: any) {
         if (actualDistrict && actualSublocality) break;
       }
 
-      logInfo('Reverse geocoding result', { actualDistrict, actualSublocality, expectedDistrict, expectedSublocality });
+      logInfo('Reverse geocoding result', { actualDistrict, actualSublocality, expectedDistrict, expectedSublocality, polygonCheckPassed });
+
+      // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: If polygon check passed, allow even if reverse geocoding returns null (polygon is authoritative)
+      if (polygonCheckPassed && !actualDistrict && !actualSublocality) {
+        logInfo('Polygon check passed but reverse geocoding returned no district/sublocality - allowing location (polygon is authoritative)');
+        return { valid: true, actualDistrict: null, actualSublocality: null };
+      }
+
+      // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: If we can't get district/sublocality and polygon check didn't run, fail closed
+      if (!polygonCheckPassed && (expectedDistrict || expectedSublocality) && !actualDistrict && !actualSublocality) {
+        logWarn('Reverse geocoding returned no district/sublocality and no polygon check - failing closed for security');
+        return { valid: false, actualDistrict: null, actualSublocality: null, error: 'Unable to verify location matches selected area' };
+      }
 
       // Validate: district must match if expected, sublocality must match if expected
       const districtMatches: boolean = !expectedDistrict || Boolean(actualDistrict && actualDistrict.toLowerCase().trim() === expectedDistrict.toLowerCase().trim());
@@ -213,6 +237,14 @@ function validateStepData(step: string, data: any) {
       };
     } catch (err) {
       logError('Error validating location coordinates', err);
+      
+      // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: If polygon check passed, allow even on error (polygon is authoritative)
+      if (polygonCheckPassed) {
+        logInfo('Polygon check passed but validation error occurred - allowing location (polygon is authoritative)');
+        return { valid: true, actualDistrict: null, actualSublocality: null };
+      }
+      
+      // ⚠️⚠️⚠️ - [LOCATION VALIDATION] SECURITY FIX: Fail closed - reject on error if polygon check didn't pass
       return { valid: false, error: 'Failed to validate location' };
     }
   }

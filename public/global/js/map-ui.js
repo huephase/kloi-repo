@@ -10,7 +10,7 @@
       this.stateManager = stateManager;
       this.options = options;
       this.popupShownAt = null; // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [map-ui.js] Track when popup was shown for minimum display time
-      this.minPopupDisplayTime = 2000; // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [map-ui.js] Minimum time to show popup (2 seconds) to prevent flashing
+      this.minPopupDisplayTime = 5000; // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [map-ui.js] Minimum time to show popup (2 seconds) to prevent flashing
       this.popupAutoHideTimer = null; // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [map-ui.js] Timer for auto-hiding popup
       
       const now = () => new Date().toISOString();

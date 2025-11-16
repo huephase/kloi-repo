@@ -122,6 +122,7 @@
 - `public/global/js/map-ui.js` (CREATED/MODIFIED) - UIManager module for reactive UI updates; added minimum display time fix for boundary violation popup to prevent flashing
 - `public/global/js/maps.js` (REFACTORED) - Main controller refactored to use event-driven architecture, removed timing dependencies, uses polygon center for initial positioning
 - `src/views/wizard/location-finder.hbs` (MODIFIED) - Added script tags for all new modules in dependency order; fixed script paths to use `/public/global/js/` prefix
+- `src/routes/api/index.ts` (MODIFIED) - Server-side validation aligned with client-side logic; polygon check is now authoritative, allows location if polygon check passed even when reverse geocoding fails
 
 #### Technical Notes
 
@@ -184,6 +185,31 @@
     - Auto-hide timer properly cleared when popup is shown/hidden
     - Validation state checked before hiding to ensure popup only hides when location is actually valid
     - Prevents race conditions where popup hides before user can see it
+
+- **Server-Side Validation Alignment** (`src/routes/api/index.ts`):
+  - **Critical Fix**: Server-side validation now matches client-side logic - polygon check is authoritative
+  - **Problem**: Server was rejecting valid locations within polygon boundaries when reverse geocoding failed (e.g., `REQUEST_DENIED` from Google API)
+  - **Solution**: Server now tracks `polygonCheckPassed` flag and allows location if polygon check passed, even if reverse geocoding fails
+  - **Implementation**:
+    - Added `polygonCheckPassed` flag to track polygon containment check result
+    - Flag set to `true` when polygon check passes (coordinates inside polygon)
+    - When reverse geocoding fails (`REQUEST_DENIED`, `ZERO_RESULTS`, etc.):
+      - If `polygonCheckPassed === true` → Allow location (polygon is authoritative)
+      - If `polygonCheckPassed === false` → Fail closed (security)
+    - When reverse geocoding returns null district/sublocality:
+      - If `polygonCheckPassed === true` → Allow location (polygon is authoritative)
+      - If `polygonCheckPassed === false` → Fail closed (security)
+    - When validation error occurs:
+      - If `polygonCheckPassed === true` → Allow location (polygon is authoritative)
+      - If `polygonCheckPassed === false` → Fail closed (security)
+  - **Benefit**: Consistent validation behavior between client and server
+  - **Benefit**: Valid locations within polygon boundaries are no longer rejected due to reverse geocoding API failures
+  - **Benefit**: Maintains security by failing closed only when polygon check didn't run
+  - **Technical Details**:
+    - Polygon check runs first (from database, authoritative source)
+    - Reverse geocoding is secondary verification only
+    - Fail-closed strategy only applies when polygon check didn't run
+    - Aligns with client-side `ValidationService` logic for consistency
 
 ---
 
