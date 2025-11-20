@@ -42,7 +42,11 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
           
           // 🟡🟡🟡 - Handle different data structures based on section
           if (sectionName === 'location' && data.fullAddress) {
-            items.push(`<dt>Full Address</dt><dd>${escapeHtml(data.fullAddress)}</dd>`);
+            items.push(`<dt>Delivery Address</dt><dd>${escapeHtml(data.fullAddress)}</dd>`);
+            // 🟡🟡🟡 - [2025-11-07T00:00:00Z] Display area (sublocality) from session cookie if available
+            if (data.components && data.components.sublocality) {
+              items.push(`<dt>Area</dt><dd>${escapeHtml(data.components.sublocality)}</dd>`);
+            }
             if (data.city) items.push(`<dt>City</dt><dd>${escapeHtml(data.city)}</dd>`);
             if (data.country) items.push(`<dt>Country</dt><dd>${escapeHtml(data.country)}</dd>`);
             if (data.latitude && data.longitude) {
