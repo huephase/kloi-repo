@@ -47,7 +47,7 @@
   </section>
 
   <div class="actions">
-    <button class="pill-bt primary" type="button" id="confirmBtn">CONFIRM</button>
+    <a href="/checkout" class="pill-bt primary" id="checkoutBtn">PROCEED TO CHECKOUT</a>
   </div>
 </div>
 
@@ -67,11 +67,11 @@
       });
     });
 
-    const confirmBtn = document.getElementById('confirmBtn');
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', function() {
-        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Confirm clicked (placeholder)');
-        alert('⚠️⚠️⚠️ - Confirm functionality will be implemented later.');
+    const checkoutBtn = document.getElementById('checkoutBtn');
+    if (checkoutBtn) {
+      checkoutBtn.addEventListener('click', function(e) {
+        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Proceed to checkout clicked');
+        // Navigation handled by href, but we can add analytics or validation here if needed
       });
     }
   });

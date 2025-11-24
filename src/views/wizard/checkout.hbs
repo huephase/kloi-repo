@@ -1,0 +1,341 @@
+{{!-- 🟡🟡🟡 - [2025-01-XX] Checkout page with Stripe Elements integration --}}
+
+<div class="{{page_class}} wizard-step checkout">
+  <header class="page-header">
+    <h1>Checkout</h1>
+    <p>Review your order and complete payment to confirm your booking.</p>
+  </header>
+
+  <div class="checkout-container">
+    {{!-- Order Summary Section --}}
+    <section class="checkout-section order-summary">
+      <h2>Order Summary</h2>
+      
+      {{!-- Location --}}
+      <div class="summary-item">
+        <h3>Location</h3>
+        <div class="summary-content">
+          <p><strong>Address:</strong> {{locationData.fullAddress}}</p>
+          {{#if locationData.components.sublocality}}
+            <p><strong>Area:</strong> {{locationData.components.sublocality}}</p>
+          {{/if}}
+          {{#if locationData.city}}
+            <p><strong>City:</strong> {{locationData.city}}</p>
+          {{/if}}
+        </div>
+      </div>
+
+      {{!-- Customer Information --}}
+      <div class="summary-item">
+        <h3>Customer Information</h3>
+        <div class="summary-content">
+          <p><strong>Name:</strong> {{eventDetails.firstName}} {{eventDetails.lastName}}</p>
+          <p><strong>Phone:</strong> {{eventDetails.phone}}</p>
+          {{#if eventDetails.email}}
+            <p><strong>Email:</strong> {{eventDetails.email}}</p>
+          {{/if}}
+        </div>
+      </div>
+
+      {{!-- Event Details --}}
+      {{#if dateInfo}}
+        <div class="summary-item">
+          <h3>Event Dates</h3>
+          <div class="summary-content">
+            {{#if dateInfo.dates}}
+              <p><strong>Dates:</strong> {{#each dateInfo.dates}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
+            {{/if}}
+            {{#if dateInfo.startTime}}
+              <p><strong>Start Time:</strong> {{dateInfo.startTime}}</p>
+            {{/if}}
+            {{#if dateInfo.endTime}}
+              <p><strong>End Time:</strong> {{dateInfo.endTime}}</p>
+            {{/if}}
+          </div>
+        </div>
+      {{/if}}
+
+      {{!-- Price Breakdown --}}
+      <div class="summary-item price-breakdown">
+        <h3>Price Breakdown</h3>
+        <div class="summary-content">
+          <div class="price-row">
+            <span>Subtotal:</span>
+            <span>{{currency}} {{order.subtotal.toFixed(2)}}</span>
+          </div>
+          <div class="price-row">
+            <span>Delivery Surcharge:</span>
+            <span>{{currency}} {{order.surcharge.toFixed(2)}}</span>
+          </div>
+          <div class="price-row total">
+            <span><strong>Total:</strong></span>
+            <span><strong>{{currency}} {{order.totalAmount.toFixed(2)}}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="order-info">
+        <p><strong>Order Number:</strong> #{{order.orderNumber}}</p>
+      </div>
+    </section>
+
+    {{!-- Payment Form Section --}}
+    <section class="checkout-section payment-form">
+      <h2>Payment Information</h2>
+      
+      <form id="payment-form">
+        {{!-- Stripe Elements Container --}}
+        <div class="form-group">
+          <label for="card-element">Card Details</label>
+          <div id="card-element" class="stripe-element">
+            {{!-- Stripe Elements will mount here --}}
+          </div>
+          <div id="card-errors" class="form-error" role="alert"></div>
+        </div>
+
+        {{!-- Cardholder Name (Optional) --}}
+        <div class="form-group">
+          <label for="cardholder-name">Cardholder Name (Optional)</label>
+          <input type="text" id="cardholder-name" placeholder="Name on card" />
+        </div>
+
+        {{!-- Payment Button --}}
+        <button type="submit" id="submit-button" class="pill-bt primary">
+          <span id="button-text">Pay {{currency}} {{order.totalAmount.toFixed(2)}}</span>
+          <span id="button-spinner" class="spinner" style="display: none;">Processing...</span>
+        </button>
+
+        {{!-- Error Message Display --}}
+        <div id="payment-error" class="form-error" style="display: none;"></div>
+      </form>
+    </section>
+  </div>
+</div>
+
+{{!-- Stripe.js Library --}}
+<script src="https://js.stripe.com/v3/"></script>
+
+<script>
+  // 🟡🟡🟡 - [2025-01-XX] Stripe Elements integration
+  (function() {
+    console.log('🟡🟡🟡 - [CHECKOUT] Initializing Stripe Elements');
+
+    // 🟡🟡🟡 - [STRIPE INIT] Initialize Stripe with publishable key
+    const stripePublishableKey = '{{stripePublishableKey}}';
+    const clientSecret = '{{clientSecret}}';
+    const paymentIntentId = '{{paymentIntentId}}';
+    const orderId = '{{order.id}}';
+
+    if (!stripePublishableKey || !clientSecret) {
+      console.error('❗❗❗ - [CHECKOUT] Stripe configuration missing');
+      document.getElementById('payment-error').textContent = 'Payment system not configured. Please contact support.';
+      document.getElementById('payment-error').style.display = 'block';
+      return;
+    }
+
+    const stripe = Stripe(stripePublishableKey);
+    const elements = stripe.elements();
+
+    // 🟡🟡🟡 - [STRIPE ELEMENTS] Create and mount card element
+    const cardElement = elements.create('card', {
+      style: {
+        base: {
+          fontSize: '16px',
+          color: '#424770',
+          '::placeholder': {
+            color: '#aab7c4',
+          },
+        },
+        invalid: {
+          color: '#fa755a',
+          iconColor: '#fa755a',
+        },
+      },
+    });
+
+    cardElement.mount('#card-element');
+
+    // 🟡🟡🟡 - [STRIPE ELEMENTS] Handle real-time validation errors
+    cardElement.on('change', function(event) {
+      const displayError = document.getElementById('card-errors');
+      if (event.error) {
+        displayError.textContent = event.error.message;
+        displayError.style.display = 'block';
+      } else {
+        displayError.textContent = '';
+        displayError.style.display = 'none';
+      }
+    });
+
+    // 🟡🟡🟡 - [PAYMENT FORM] Handle form submission
+    const form = document.getElementById('payment-form');
+    form.addEventListener('submit', async function(event) {
+      event.preventDefault();
+
+      console.log('🟡🟡🟡 - [CHECKOUT] Payment form submitted');
+
+      // 🟡🟡🟡 - [UI STATE] Disable submit button and show loading state
+      const submitButton = document.getElementById('submit-button');
+      const buttonText = document.getElementById('button-text');
+      const buttonSpinner = document.getElementById('button-spinner');
+      const paymentError = document.getElementById('payment-error');
+
+      submitButton.disabled = true;
+      buttonText.style.display = 'none';
+      buttonSpinner.style.display = 'inline-block';
+      paymentError.style.display = 'none';
+      paymentError.textContent = '';
+
+      try {
+        // 🟡🟡🟡 - [STRIPE CONFIRM] Get cardholder name if provided
+        const cardholderName = document.getElementById('cardholder-name').value;
+
+        // 🟡🟡🟡 - [STRIPE CONFIRM] Confirm payment with Stripe
+        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              name: cardholderName || undefined,
+            },
+          },
+        });
+
+        if (stripeError) {
+          // 🟡🟡🟡 - [ERROR HANDLING] Payment failed
+          console.error('❗❗❗ - [CHECKOUT] Stripe error:', stripeError);
+          paymentError.textContent = stripeError.message || 'Payment failed. Please try again.';
+          paymentError.style.display = 'block';
+          
+          // 🟡🟡🟡 - [UI STATE] Re-enable submit button
+          submitButton.disabled = false;
+          buttonText.style.display = 'inline-block';
+          buttonSpinner.style.display = 'none';
+        } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+          // 🟡🟡🟡 - [SUCCESS] Payment succeeded
+          console.log('✅✅✅ - [CHECKOUT] Payment succeeded:', paymentIntent.id);
+          
+          // 🟡🟡🟡 - [SUCCESS] Show success message
+          buttonText.textContent = 'Payment Successful!';
+          buttonSpinner.style.display = 'none';
+          
+          // 🟡🟡🟡 - [SUCCESS] Redirect to confirmation page after short delay
+          setTimeout(function() {
+            window.location.href = '/final-confirmation?order=' + orderId;
+          }, 1500);
+        } else {
+          // 🟡🟡🟡 - [ERROR HANDLING] Unexpected payment status
+          console.warn('⚠️⚠️⚠️ - [CHECKOUT] Unexpected payment status:', paymentIntent?.status);
+          paymentError.textContent = 'Payment status is ' + (paymentIntent?.status || 'unknown') + '. Please contact support.';
+          paymentError.style.display = 'block';
+          
+          submitButton.disabled = false;
+          buttonText.style.display = 'inline-block';
+          buttonSpinner.style.display = 'none';
+        }
+      } catch (error) {
+        // 🟡🟡🟡 - [ERROR HANDLING] Network or other error
+        console.error('❗❗❗ - [CHECKOUT] Payment error:', error);
+        paymentError.textContent = 'An error occurred. Please try again.';
+        paymentError.style.display = 'block';
+        
+        submitButton.disabled = false;
+        buttonText.style.display = 'inline-block';
+        buttonSpinner.style.display = 'none';
+      }
+    });
+
+    console.log('✅✅✅ - [CHECKOUT] Stripe Elements initialized');
+  })();
+</script>
+
+<style>
+  .checkout-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .checkout-section {
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .summary-item {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #eee;
+  }
+
+  .summary-item:last-child {
+    border-bottom: none;
+  }
+
+  .summary-item h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    color: #333;
+  }
+
+  .summary-content p {
+    margin: 0.5rem 0;
+    color: #666;
+  }
+
+  .price-breakdown {
+    background: #f9f9f9;
+    padding: 1rem;
+    border-radius: 4px;
+  }
+
+  .price-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.5rem 0;
+  }
+
+  .price-row.total {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 2px solid #333;
+    font-size: 1.2rem;
+  }
+
+  .stripe-element {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+  }
+
+  .form-error {
+    color: #fa755a;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    display: block;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #fff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 768px) {
+    .checkout-container {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+

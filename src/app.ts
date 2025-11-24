@@ -167,6 +167,10 @@ app.get('/', async (request, reply) => {
 import healthCheckRoutes from './routes/healthCheck';
 app.register(healthCheckRoutes);
 
+// 🟡🟡🟡 - [WEBHOOK] Register webhook routes before session validation (webhooks bypass session)
+import stripeWebhookRoutes from './routes/webhooks/stripe';
+app.register(stripeWebhookRoutes);
+
 // console.log('🟡🟡🟡 - [app.ts] Registering routes');
 // FE: Register all app routes
 app.register(routes);

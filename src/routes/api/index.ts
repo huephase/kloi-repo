@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 import { reverseGeocodeQuerySchema } from '../../schemas/common.schemas';
 import { sanitizeEmail } from '../../lib/utils';
 import { createCustomerSafely, resolveCustomerConflict } from '../../services/conflictResolutionService';
+import paymentRoutes from './payment';
 
 // Maps wizard steps to session keys and redirect targets
 // The step parameter will be the wizard step, for eg. "location"
@@ -309,6 +310,8 @@ function validateStepData(step: string, data: any) {
 }
 
 export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
+  // 🟡🟡🟡 - [PAYMENT API] Register payment routes
+  await app.register(paymentRoutes);
   // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [RATE LIMITING] Simple in-memory rate limiter for /api/geo/reverse
   // ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Prevent abuse of reverse geocoding endpoint
   const rateLimitMap = new Map<string, { count: number; resetTime: number }>();

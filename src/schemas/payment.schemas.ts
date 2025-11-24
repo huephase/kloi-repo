@@ -1,22 +1,37 @@
-// Zod schemas for payments
+// src/schemas/payment.schemas.ts
+// 🟡🟡🟡 - [2025-01-XX] Payment validation schemas using Zod
+
 import { z } from 'zod';
 
-console.log('🟡🟡🟡 - [payment.schemas] Defining payment schemas');
-
-export const paymentIntentCreateSchema = z.object({
-  amount: z.number().int().min(1),
-  currency: z.string().length(3),
-  orderId: z.string().min(1),
+// 🟡🟡🟡 - [PAYMENT SCHEMAS] Schema for creating payment intent
+export const createPaymentIntentSchema = z.object({
+  orderId: z.string().uuid('Order ID must be a valid UUID'),
+  // Amount and currency are optional as they should be calculated server-side
+  // But we allow them for validation if provided
+  amount: z.number().min(0).optional(),
+  currency: z.enum(['AED', 'USD', 'EUR', 'GBP']).optional(),
 });
-console.log('🟡🟡🟡 - [payment.schemas] paymentIntentCreateSchema created');
 
-export const paymentIntentConfirmSchema = z.object({
-  paymentIntentId: z.string().min(1),
+// 🟡🟡🟡 - [PAYMENT SCHEMAS] Schema for confirming payment
+export const confirmPaymentSchema = z.object({
+  orderId: z.string().uuid('Order ID must be a valid UUID'),
+  paymentMethodId: z.string().min(1, 'Payment method ID is required'),
+  returnUrl: z.string().url().optional(), // Optional return URL for redirect-based flows
 });
-console.log('🟡🟡🟡 - [payment.schemas] paymentIntentConfirmSchema created');
 
-export const paymentWebhookSchema = z.object({
-  type: z.string().min(1),
-  data: z.any(),
+// 🟡🟡🟡 - [PAYMENT SCHEMAS] Schema for payment status query
+export const paymentStatusSchema = z.object({
+  orderId: z.string().uuid('Order ID must be a valid UUID'),
 });
-console.log('🟡🟡🟡 - [payment.schemas] paymentWebhookSchema created');
+
+// 🟡🟡🟡 - [PAYMENT SCHEMAS] Schema for payment intent ID parameter
+export const paymentIntentIdSchema = z.object({
+  paymentIntentId: z.string().min(1, 'Payment intent ID is required'),
+});
+
+// 🟡🟡🟡 - [PAYMENT SCHEMAS] Schema for order ID parameter (URL param)
+export const orderIdParamSchema = z.object({
+  orderId: z.string().uuid('Order ID must be a valid UUID'),
+});
+
+console.log('✅✅✅ - [PAYMENT SCHEMAS] Payment validation schemas created');

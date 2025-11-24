@@ -1,102 +1,89 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+model Customers {
+  id        String            @id @default(uuid())
+  email     String?           @db.VarChar(100)
+  phone     String?           @db.VarChar(20)
+  createdAt DateTime          @default(now())
+  firstName String?           @db.VarChar(50)
+  lastName  String?           @db.VarChar(50)
+  sessions  Session[]
+  orders    kloiOrdersTable[]
+
+  @@unique([phone, email], name: "unique_phone_email", map: "unique_phone_email")
+  @@map("Customers")
 }
 
-// 🟡🟡🟡 - [ORDER STATUS ENUM] Centralized order status enum for database constraint
+model Session {
+  id        String     @id @default(uuid())
+  userId    String?
+  data      Json
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      Customers? @relation(fields: [userId], references: [id])
+}
+
+model Menus {
+  id        String @id @default(uuid())
+  name      String
+  theme     String
+  menuItems Json
+}
+
+model kloiOrdersTable {
+  id            String      @id @default(uuid())
+  orderNumber   Int         @unique @default(autoincrement())
+  firstName     String      @db.VarChar(20)
+  lastName      String      @db.VarChar(20)
+  phone         String      @db.VarChar(20)
+  email         String?     @db.VarChar(100)
+  location      Json
+  eventDetails  Json
+  eventSetup    Json?
+  status        OrderStatus @default(PENDING)
+  totalAmount   Decimal?    @db.Decimal(10, 2)
+  
+  // 🟡🟡🟡 - [2025-01-XX] Payment tracking fields for payment integration
+  paymentProvider String?   @db.VarChar(50)  // Provider identifier: 'stripe', 'paypal', etc.
+  paymentIntentId String?   @db.VarChar(255) // Provider's payment intent/charge ID
+  paymentStatus   String?   @db.VarChar(50)  // Status: 'pending', 'succeeded', 'failed', 'refunded'
+  paymentMethodId String?   @db.VarChar(255) // Saved payment method ID (optional, for future use)
+  paidAt          DateTime? @db.Timestamptz(6) // Timestamp when payment was completed
+  
+  createdAt     DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @db.Timestamptz(6)
+  userId        String?
+  sessionId     String?
+  eventDateTime Json?
+  user          Customers?  @relation(fields: [userId], references: [id])
+
+  @@map("kloiOrdersTable")
+}
+
+model deliveryLocations {
+  id            BigInt   @id @default(autoincrement())
+  district      String   @unique
+  sublocalities Json     @default("[]")
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  country       String?
+  city          String?
+
+  @@index([sublocalities], map: "delivery_locations_sublocalities_gin", type: Gin)
+  @@map("deliveryLocations")
+}
+
 enum OrderStatus {
   PENDING
   IN_PROGRESS
   CANCELLED
   COMPLETED
-}
-
-model Customers {
-  id        String   @id @default(uuid())
-  email     String?  @db.VarChar(100)
-  firstName String?  @db.VarChar(50)
-  lastName  String?  @db.VarChar(50)
-  phone     String   @unique @db.VarChar(20)
-  createdAt DateTime @default(now()) @db.Timestamp(3)
-  orders    kloiOrdersTable[]
-  sessions  Session[]
-  
-  // 🟡🟡🟡 - [COMPOSITE UNIQUENESS] Composite unique constraint for phone and email combination
-  @@unique([phone, email], name: "unique_phone_email")
-  @@map("Customers")
-}
-
-model Session {
-  id        String   @id @default(uuid())
-  user      Customers? @relation(fields: [userId], references: [id])
-  userId    String?
-  data      Json
-  createdAt DateTime @default(now()) @db.Timestamp(3)
-  updatedAt DateTime @updatedAt @db.Timestamp(3)
-  // 🟡🟡🟡 - [SESSION REF] Removed orders relation since kloiOrdersTable uses Redis session IDs
-}
-
-model Menus {
-  id         String   @id @default(uuid())
-  name       String
-  theme      String
-  menuItems  Json
-}
-
-// 🟡🟡🟡 - [NEW DATABASE SCHEMA] Updated to match kloiOrdersTable structure
-model kloiOrdersTable {
-  id             String        @id @default(uuid())
-  orderNumber    Int           @unique @default(autoincrement()) @db.Integer
-  
-  // Customer info (indexed for searching)
-  firstName      String        @db.VarChar(20)
-  lastName       String        @db.VarChar(20)
-  phone          String        @db.VarChar(20)
-  email          String?       @db.VarChar(100)
-  
-  // Location data (JSONB for flexibility)
-  location       Json
-  
-  // Property/delivery details (JSONB for address components)
-  eventDetails   Json
-  
-  // 🟡🟡🟡 - [2025-01-05] Updated event date/time to single JSONB column for multi-day/multi-time support
-  eventDateTime  Json?
-  
-  // Event setup (JSONB for wizard data)
-  eventSetup     Json?
-  
-  // Order management
-  status         OrderStatus   @default(PENDING)
-  totalAmount    Decimal?      @db.Decimal(10,2)
-  
-  // Timestamps
-  createdAt      DateTime      @default(now()) @db.Timestamptz
-  updatedAt      DateTime      @updatedAt @db.Timestamptz
-  
-  // Relations
-  user           Customers?    @relation(fields: [userId], references: [id])
-  userId         String?
-  sessionId      String?       // 🟡🟡🟡 - [SESSION REF] Store session ID as string without FK constraint (Redis-based sessions)
-  
-  // Constraints
-  @@map("kloiOrdersTable")
-}
-
-// 🟡🟡🟡 - [DELIVERY LOCATIONS] Country, city, district with JSONB array of sublocalities
-model deliveryLocations {
-  id            BigInt   @id @default(autoincrement())
-  country       String
-  city           String
-  district      String   @unique
-  sublocalities Json
-  created_at    DateTime @default(now()) @db.Timestamptz
-  updated_at    DateTime @updatedAt @db.Timestamptz
-
-  @@map("deliveryLocations")
 }

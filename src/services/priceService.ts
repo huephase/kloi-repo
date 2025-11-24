@@ -1,1 +1,0 @@
-// Calculates live price quotes

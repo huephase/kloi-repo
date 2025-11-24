@@ -14,6 +14,232 @@
 
 ---
 
+### November 20, 2025 - Payment Integration Implementation
+
+**Type**: 🟠 MAJOR CHANGE / 🟢 DIRECTION CHANGE
+
+**Summary**: Implemented comprehensive payment integration with Stripe using a swappable payment processor architecture. The implementation follows a strategy pattern that allows easy switching between payment providers (Stripe, PayPal, Square, etc.) without changing core business logic. The system includes payment intent creation, payment confirmation, webhook handling, checkout page, and complete order status management. All payment operations are PCI-compliant using Stripe Elements, and the architecture supports future payment provider additions with minimal code changes.
+
+#### Major Changes
+
+- **Payment Processor Abstraction Layer**: Created swappable payment provider architecture
+  - **Payment Types** (`src/services/payment/types.ts`): TypeScript interfaces and types for all payment operations
+    - `PaymentProcessor` interface defining contract for all providers
+    - `CreatePaymentIntentParams`, `PaymentIntentResult`, `PaymentResult` types
+    - `PaymentStatus` enum: 'pending', 'succeeded', 'failed', 'canceled', 'refunded'
+    - `PaymentProvider` type: 'stripe', 'paypal', 'square'
+    - `WebhookEvent` and `WebhookVerificationResult` types for webhook handling
+    - Currency types and payment details interfaces
+  
+  - **PaymentProcessor Interface** (`src/services/payment/PaymentProcessor.ts`): Abstract contract for all payment providers
+    - Defines methods: `createPaymentIntent()`, `confirmPayment()`, `retrievePayment()`, `handleWebhook()`
+    - Documents expected behavior and parameters with JSDoc comments
+    - Ensures consistent API across all payment providers
+  
+  - **PaymentProcessorFactory** (`src/services/payment/PaymentProcessorFactory.ts`): Factory pattern implementation
+    - Creates payment processor instances based on `PAYMENT_PROVIDER` environment variable
+    - Supports provider switching via configuration (default: 'stripe')
+    - Validates provider configuration before initialization
+    - Provides helper methods: `getCurrentProvider()`, `isProviderAvailable()`
+    - Throws descriptive errors for missing or unsupported providers
+
+- **Stripe Payment Processor Implementation**: Complete Stripe integration
+  - **StripeProcessor** (`src/services/payment/StripeProcessor.ts`): Stripe-specific implementation
+    - Initializes Stripe client with `STRIPE_SECRET_KEY` using API version `2024-12-18.acacia`
+    - Implements `createPaymentIntent()`: Creates Stripe payment intent, converts amounts to smallest currency unit (fils for AED)
+    - Implements `confirmPayment()`: Confirms payment with payment method, handles 3D Secure flows
+    - Implements `retrievePayment()`: Gets payment details from Stripe API, extracts paid timestamps
+    - Implements `handleWebhook()`: Verifies webhook signatures using `STRIPE_WEBHOOK_SECRET`, parses events
+    - Error handling: Maps Stripe errors to user-friendly messages (card_declined, insufficient_funds, etc.)
+    - Status mapping: Converts Stripe payment intent statuses to standardized `PaymentStatus` enum
+    - Comprehensive logging with emoji prefixes following project conventions
+
+- **Payment Service**: Main business logic orchestrator
+  - **paymentService** (`src/services/paymentService.ts`): High-level payment operations
+    - `calculateTotalAmount()`: Calculates total from session data (subtotal + surcharge), server-side validation
+    - `createPaymentIntent()`: Creates payment intent, updates order with payment tracking fields
+    - `confirmPayment()`: Confirms payment after card entry, updates order status
+    - `retrievePaymentStatus()`: Gets current payment status from provider, syncs with database
+    - `processWebhook()`: Processes webhook events, updates order status (COMPLETED, failed, canceled)
+    - Currency conversion: Handles AED to fils conversion (multiply by 100)
+    - Database integration: Updates `kloiOrdersTable` with payment provider, payment intent ID, payment status, paid timestamp
+    - Error handling: Comprehensive error handling with detailed logging
+
+- **Payment Validation Schemas**: Zod schemas for API validation
+  - **payment.schemas.ts** (`src/schemas/payment.schemas.ts`): Payment API validation
+    - `createPaymentIntentSchema`: Validates orderId (UUID), optional amount/currency
+    - `confirmPaymentSchema`: Validates orderId, paymentMethodId, optional returnUrl
+    - `paymentStatusSchema`: Validates orderId for status queries
+    - `orderIdParamSchema`: Validates orderId URL parameters
+    - All schemas include descriptive error messages
+
+- **Checkout Page Route**: Complete checkout flow implementation
+  - **checkout.ts** (`src/routes/checkout.ts`): Checkout page route handler
+    - `GET /checkout`: Renders checkout page with order summary and payment form
+    - Validates session has required data (locationData, eventDetails, eventSetup)
+    - Calculates final total server-side (subtotal + surcharge)
+    - Retrieves or finds existing order by sessionId
+    - Creates payment intent via payment service
+    - Renders checkout template with Stripe publishable key and client secret
+    - Handles payment intent reuse and error scenarios
+    - Registered in `src/routes/index.ts` as protected wizard route
+
+- **Checkout Page Template**: Frontend payment integration
+  - **checkout.hbs** (`src/views/wizard/checkout.hbs`): Checkout page template
+    - Order summary display: Location, customer info, event details, dates, price breakdown
+    - Stripe Elements integration: PCI-compliant card input using Stripe.js
+    - Payment form: Card element, optional cardholder name field, payment button
+    - Client-side JavaScript:
+      - Initializes Stripe with publishable key from server
+      - Creates and mounts Stripe Elements card component
+      - Handles real-time validation errors
+      - Confirms payment with `stripe.confirmCardPayment()`
+      - Shows loading states, success/error messages
+      - Redirects to confirmation page on success
+    - Responsive design: Grid layout for order summary and payment form
+    - Error handling: User-friendly error messages for payment failures
+
+- **Payment API Endpoints**: REST API for payment operations
+  - **payment.ts** (`src/routes/api/payment.ts`): Payment API endpoints
+    - `POST /api/payment/create-intent`: Creates payment intent (if not created on page load)
+      - Validates orderId and session ownership
+      - Creates payment intent via payment service
+      - Returns client secret and payment intent ID
+    - `POST /api/payment/confirm`: Confirms payment after card entry
+      - Validates orderId, paymentMethodId
+      - Confirms payment via payment service
+      - Returns payment status and any required actions (3D Secure)
+    - `GET /api/payment/status/:orderId`: Gets payment status for an order
+      - Validates orderId parameter
+      - Retrieves latest payment status from provider
+      - Returns payment status, order status, paid timestamp
+    - All endpoints include session validation and error handling
+    - Registered in `src/routes/api/index.ts`
+
+- **Stripe Webhook Handler**: Async payment status updates
+  - **stripe.ts** (`src/routes/webhooks/stripe.ts`): Stripe webhook handler
+    - `POST /webhooks/stripe`: Receives and processes Stripe webhook events
+    - Signature verification: Verifies webhook signatures using `STRIPE_WEBHOOK_SECRET`
+    - Idempotency: In-memory event ID tracking to prevent duplicate processing
+    - Event handling:
+      - `payment_intent.succeeded`: Updates order status to `COMPLETED`, sets `paidAt`, updates `paymentStatus` to 'succeeded'
+      - `payment_intent.payment_failed`: Updates `paymentStatus` to 'failed', logs error
+      - `payment_intent.canceled`: Updates `paymentStatus` to 'canceled'
+    - Raw body handling: Configures content type parser to preserve raw body for signature verification
+    - Error handling: Returns 200 to Stripe even on processing errors (prevents retries), logs errors for investigation
+    - Registered in `src/app.ts` before session validation (webhooks bypass session)
+
+- **Event Summary Page Update**: Navigation to checkout
+  - **event-summary.hbs** (`src/views/wizard/event-summary.hbs`): Updated navigation
+    - Changed "CONFIRM" button to "PROCEED TO CHECKOUT"
+    - Links to `/checkout` route
+    - Updated button handler to navigate to checkout page
+
+#### Direction Changes
+
+- **Swappable Payment Provider Architecture**: Strategy pattern implementation
+  - **Business Benefit**: Easy switching between payment providers via environment variable
+  - **Technical Benefit**: Isolated provider-specific code, no changes to business logic when switching
+  - **Future-Proof**: Adding new providers (PayPal, Square) requires only implementing `PaymentProcessor` interface
+  - **Maintainability**: Provider-specific code is isolated, easier to test and maintain
+
+- **PCI Compliance**: Stripe Elements integration
+  - **Security Benefit**: Card data never touches server (PCI compliant)
+  - **User Experience**: Seamless payment form with real-time validation
+  - **Compliance**: Meets PCI DSS requirements without additional certification
+
+- **Server-Side Amount Validation**: Security best practice
+  - **Security Benefit**: Amounts always calculated server-side, never trust client-provided amounts
+  - **Reliability**: Prevents payment manipulation attacks
+  - **Consistency**: Single source of truth for amount calculation
+
+- **Webhook-Based Status Updates**: Async payment confirmation
+  - **Reliability Benefit**: Webhooks ensure payment status is always up-to-date
+  - **User Experience**: Payments confirmed even if user closes browser before confirmation
+  - **Idempotency**: Prevents duplicate processing of webhook events
+
+#### Files Affected
+
+- `src/services/payment/types.ts` (CREATED) - TypeScript interfaces and types for payment operations
+- `src/services/payment/PaymentProcessor.ts` (CREATED) - Abstract interface/contract for payment processors
+- `src/services/payment/PaymentProcessorFactory.ts` (CREATED) - Factory pattern for creating payment processors
+- `src/services/payment/StripeProcessor.ts` (CREATED) - Stripe implementation of PaymentProcessor interface
+- `src/services/paymentService.ts` (CREATED) - Main payment service with business logic and database updates
+- `src/schemas/payment.schemas.ts` (CREATED) - Zod validation schemas for payment API endpoints
+- `src/routes/checkout.ts` (CREATED) - Checkout page route handler
+- `src/routes/index.ts` (MODIFIED) - Registered checkout routes as protected wizard route
+- `src/routes/api/payment.ts` (CREATED) - Payment API endpoints (create-intent, confirm, status)
+- `src/routes/api/index.ts` (MODIFIED) - Registered payment API routes
+- `src/routes/webhooks/stripe.ts` (CREATED) - Stripe webhook handler with signature verification
+- `src/app.ts` (MODIFIED) - Registered webhook routes before session validation
+- `src/views/wizard/checkout.hbs` (CREATED) - Checkout page template with Stripe Elements integration
+- `src/views/wizard/event-summary.hbs` (MODIFIED) - Updated "CONFIRM" button to "PROCEED TO CHECKOUT" linking to checkout page
+
+#### Technical Notes
+
+⚠️⚠️⚠️ **Critical Implementation Details**:
+
+- **Environment Variables Required**:
+  - `PAYMENT_PROVIDER`: Payment provider identifier (default: 'stripe')
+  - `STRIPE_SECRET_KEY`: Stripe secret key (starts with `sk_test_` for test, `sk_live_` for production)
+  - `STRIPE_PUBLISHABLE_KEY`: Stripe publishable key (starts with `pk_test_` for test, `pk_live_` for production)
+  - `STRIPE_WEBHOOK_SECRET`: Webhook signing secret from Stripe Dashboard (starts with `whsec_`)
+  - `DEFAULT_CURRENCY`: Default currency code (default: 'AED')
+
+- **Currency Handling**:
+  - **AED (UAE Dirham)**: Smallest unit is "fils" (1 AED = 100 fils)
+  - **USD**: Smallest unit is "cents" (1 USD = 100 cents)
+  - All amounts converted to smallest unit when creating payment intents
+  - Display amounts in major units (AED, USD) to users
+
+- **Order Status Flow**:
+  1. **PENDING**: Order created, payment not initiated
+  2. **PENDING**: Payment intent created, awaiting payment
+  3. **COMPLETED**: Payment succeeded (via webhook), order confirmed
+
+- **Payment Intent Lifecycle**:
+  - Payment intent created on checkout page load
+  - Client secret passed to frontend for Stripe Elements
+  - Payment confirmed via `stripe.confirmCardPayment()`
+  - Webhook updates order status asynchronously
+  - Idempotency prevents duplicate webhook processing
+
+- **Security Measures**:
+  - **Never Store Card Details**: Card data never touches server (PCI compliant via Stripe Elements)
+  - **Webhook Signature Verification**: All webhooks verified using `STRIPE_WEBHOOK_SECRET`
+  - **Server-Side Validation**: All payment amounts calculated server-side, never trust client
+  - **Session Validation**: Payment API endpoints validate session ownership
+  - **HTTPS Required**: All payment operations must use HTTPS in production
+
+- **Error Handling**:
+  - **User-Facing**: Friendly, actionable error messages
+  - **Server Logs**: Detailed error information with emoji prefixes
+  - **Stripe Errors**: Mapped to user-friendly messages (card_declined → "Your card was declined")
+  - **Webhook Errors**: Logged but return 200 to prevent Stripe retries
+
+- **Database Schema**:
+  - Payment tracking fields already added to `kloiOrdersTable`:
+    - `paymentProvider`: Provider identifier ('stripe', 'paypal', etc.)
+    - `paymentIntentId`: Provider's payment intent/charge ID
+    - `paymentStatus`: Status ('pending', 'succeeded', 'failed', 'refunded')
+    - `paymentMethodId`: Saved payment method ID (optional, for future use)
+    - `paidAt`: Timestamp when payment was completed
+
+- **Webhook Raw Body Handling**:
+  - Fastify content type parser configured to preserve raw body for signature verification
+  - Raw body stored in `request.rawBody` for Stripe signature verification
+  - Required for webhook security (Stripe requires raw body, not parsed JSON)
+
+- **Future Enhancements**:
+  - Save payment methods for returning customers
+  - Support multiple payment methods (cards, bank transfer, etc.)
+  - Implement refund functionality
+  - Add payment analytics and reporting
+  - Support subscription/recurring payments (if needed)
+  - Add PayPal and Square processor implementations
+
+---
+
 ### November 15, 2025 - Event-Driven Architecture Refactoring for Location Finder Map
 
 **Type**: 🟠 MAJOR CHANGE / 🟢 DIRECTION CHANGE
