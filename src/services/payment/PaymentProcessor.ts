@@ -1,16 +1,7 @@
 // src/services/payment/PaymentProcessor.ts
 // 🟡🟡🟡 - [2025-01-XX] Abstract interface/contract for payment processors
 
-import type {
-  PaymentProcessor,
-  CreatePaymentIntentParams,
-  PaymentIntentResult,
-  ConfirmPaymentParams,
-  PaymentResult,
-  RetrievePaymentParams,
-  PaymentDetails,
-  WebhookVerificationResult
-} from './types';
+import type { PaymentProcessor } from './types';
 
 /**
  * PaymentProcessor Interface

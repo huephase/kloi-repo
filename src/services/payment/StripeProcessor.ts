@@ -36,7 +36,7 @@ export class StripeProcessor implements PaymentProcessor {
 
     // 🟡🟡🟡 - [STRIPE INIT] Initialize Stripe with API version
     this.stripe = new Stripe(secretKey, {
-      apiVersion: '2024-12-18.acacia', // Use latest stable API version
+      apiVersion: '2025-06-30.basil', // ⚠️⚠️⚠️ NOTE: Using latest API version as required by Stripe SDK
     });
 
     // 🟡🟡🟡 - [STRIPE INIT] Get webhook secret for signature verification

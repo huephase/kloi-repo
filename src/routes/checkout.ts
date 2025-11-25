@@ -140,6 +140,11 @@ export default async function checkoutRoutes(app: FastifyInstance, _opts: Fastif
         return reply.status(500).send('Payment system not configured. Please contact support.');
       }
 
+      // 🟡🟡🟡 - [FORMAT] Format amounts for display (2 decimal places)
+      const formatAmount = (amount: number): string => {
+        return amount.toFixed(2);
+      };
+
       // 🟡🟡🟡 - [RENDER] Render checkout page template
       return reply.view(templatePath, {
         theme,
@@ -152,8 +157,11 @@ export default async function checkoutRoutes(app: FastifyInstance, _opts: Fastif
           id: order.id,
           orderNumber: order.orderNumber,
           totalAmount: total,
+          totalAmountFormatted: formatAmount(total),
           subtotal: subtotal,
+          subtotalFormatted: formatAmount(subtotal),
           surcharge: surcharge,
+          surchargeFormatted: formatAmount(surcharge),
         },
         stripePublishableKey,
         clientSecret,

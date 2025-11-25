@@ -120,7 +120,7 @@ button#lf-detect-btn {
     line-height: 0;
 }
 
-button.pill-bt {
+.pill-bt {
     width: auto;
     border-radius: 100px;
     background-color: var(--kloi-accent);
@@ -128,11 +128,11 @@ button.pill-bt {
     padding: 2vh;
     font-weight: 800;
 }
-button.pill-bt-mini {
+.pill-bt-mini {
     display: contents;
     text-align: left;
 }
-button.pill-bt-mini span{
+.pill-bt-mini span{
     width: fit-content;
     border-bottom: 2px solid var(--kloi-text);
     padding: 1vh 0 0;

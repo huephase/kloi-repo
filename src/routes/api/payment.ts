@@ -6,10 +6,8 @@ import { paymentService } from '../../services/paymentService';
 import { 
   createPaymentIntentSchema, 
   confirmPaymentSchema, 
-  paymentStatusSchema,
   orderIdParamSchema 
 } from '../../schemas/payment.schemas';
-import { ZodError } from 'zod';
 import { prisma } from '../../lib/prisma';
 
 export default async function paymentRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
