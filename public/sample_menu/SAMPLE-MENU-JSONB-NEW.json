@@ -108,11 +108,8 @@
   "section6": {
     "order": 6,
     "content": "Add Ons",
-    "html-type": "h2"
-  },
-  "section7": {
-    "order": 7,
-    "content": {
+    "html-type": "h2",
+	"addon-items": {
       "zero-sugar": {
         "label": "Zero Sugar Ice Cream",
         "price": 9,
@@ -123,16 +120,15 @@
         "price": 17,
         "price-basis": "Per guest"
       }
-    },
-    "html-type": "product-group"
+    }
   },
-  "section8": {
-    "order": 8,
+  "section7": {
+    "order": 7,
     "content": "Select Your Upgrades Below",
     "html-type": "h2"
   },
-  "section9": {
-    "order": 9,
+  "section8": {
+    "order": 8,
     "content": {
       "checbox1": {
         "label": "Matcha Upgrade (Ceremonial Grade)",
@@ -157,8 +153,8 @@
     },
     "html-type": "checkbox-group"
   },
-  "section10": {
-    "order": 10,
+  "section9": {
+    "order": 9,
     "content": {
       "minimum-value-per-day": {
         "label": "Minimum Order Per Day",

@@ -90,6 +90,11 @@ export class MenuService {
           };
         }
         
+        // 🟡🟡🟡 - [ADDON ITEMS] Handle addon-items nested in sections (e.g., "Add Ons" section)
+        if ((sectionData as any)['addon-items']) {
+          (section as any)['addon-items'] = (sectionData as any)['addon-items'];
+        }
+        
         sections.push(section);
       });
 

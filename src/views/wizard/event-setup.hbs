@@ -31,6 +31,34 @@
                         <h1 class="section-title">{{content}}</h1>
                     {{else if (eq htmlType "h2")}}
                         <h2 class="section-title">{{content}}</h2>
+                        {{! 🟡🟡🟡 - [ADDON ITEMS] Check if this is "Add Ons" section with nested addon-items }}
+                        {{#if (eq content "Add Ons")}}
+                            {{#if (get this "addon-items")}}
+                                <div class="product-group addon-group" data-group-name="{{id}}" data-is-addon="true">
+                                    {{#each (get this "addon-items")}}
+                                        <div class="product-item addon-item" data-product-id="{{@key}}" data-product-label="{{label}}">
+                                            <div class="product-info">
+                                                <label class="product-label">
+                                                    <strong>{{label}}</strong>
+                                                    {{#if price}}
+                                                        <span class="price">AED {{price}}
+                                                        {{#if price-basis}}
+                                                            <span class="price-basis">({{price-basis}})</span>
+                                                        {{/if}}
+                                                        </span>
+                                                    {{/if}}
+                                                </label>
+                                            </div>
+                                            <div class="quantity-controls">
+                                                <button type="button" class="quantity-btn minus" data-action="decrease">-</button>
+                                                <input type="number" class="quantity-input addon-input" name="{{@key}}" data-label="{{label}}" value="0" min="0" max="0" data-max-based-on-guest="true">
+                                                <button type="button" class="quantity-btn plus" data-action="increase">+</button>
+                                            </div>
+                                        </div>
+                                    {{/each}}
+                                </div>
+                            {{/if}}
+                        {{/if}}
                     {{else if (eq htmlType "p")}}
                         <p class="section-content">{{content}}</p>
                     {{/if}}
@@ -362,6 +390,40 @@ document.addEventListener('DOMContentLoaded', function() {
         popupModal.style.display = 'none';
     }
     
+    // 🟡🟡🟡 - [UPDATE ADDON MAX VALUES] Update max values for addon inputs based on guest count
+    function updateAddonMaxValues() {
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Updating addon max values based on guest count');
+        
+        // 🟡🟡🟡 - [GUEST COUNT] Get current guest count value
+        const guestCountInput = document.querySelector('input[name="guest-count"]');
+        if (!guestCountInput) {
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Guest count input not found');
+            return;
+        }
+        
+        const guestCount = parseInt(guestCountInput.value) || 0;
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Current guest count:', guestCount);
+        
+        // 🟡🟡🟡 - [ADDON INPUTS] Find all addon inputs and update their max values
+        const addonInputs = document.querySelectorAll('.addon-input[data-max-based-on-guest="true"]');
+        addonInputs.forEach(input => {
+            const inputElement = input;
+            const oldMax = inputElement.max;
+            inputElement.max = guestCount.toString();
+            
+            // 🟡🟡🟡 - [VALUE VALIDATION] If current value exceeds new max, adjust it
+            const currentValue = parseInt(inputElement.value) || 0;
+            if (currentValue > guestCount) {
+                inputElement.value = guestCount.toString();
+                console.log('🟡🟡🟡 - [EVENT SETUP JS] Adjusted addon input value to match max:', inputElement.name, 'from', currentValue, 'to', guestCount);
+            }
+            
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Updated addon input max:', inputElement.name, 'from', oldMax, 'to', guestCount);
+        });
+        
+        console.log('✅✅✅ - [EVENT SETUP JS] Addon max values updated for', addonInputs.length, 'inputs');
+    }
+    
     // 🟡🟡🟡 - [QUANTITY CONTROLS] Handle quantity buttons
     function initializeQuantityControls() {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing quantity controls');
@@ -379,6 +441,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     value--;
                 }
                 
+                // 🟡🟡🟡 - [MAX VALUE CHECK] Ensure value doesn't exceed max for addon inputs
+                const maxValue = parseInt(input.getAttribute('max')) || 999;
+                if (value > maxValue) {
+                    value = maxValue;
+                }
+                
                 input.value = value;
                 updateOrderSummary();
 
@@ -387,6 +455,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const productEl = this.closest('.product-item');
                     if (productEl && productEl.dataset.productId === 'guest-count') {
                         calc.setGuestCount(value);
+                        // 🟡🟡🟡 - [ADDON MAX UPDATE] Update addon max values when guest count changes
+                        updateAddonMaxValues();
                     } else {
                         const productKey = input.name;
                         calc.setProductQty(productKey, value);
@@ -401,12 +471,22 @@ document.addEventListener('DOMContentLoaded', function() {
         const quantityInputs = document.querySelectorAll('.quantity-input');
         quantityInputs.forEach(input => {
             input.addEventListener('change', function() {
+                // 🟡🟡🟡 - [MAX VALUE CHECK] Ensure value doesn't exceed max
+                const maxValue = parseInt(this.getAttribute('max')) || 999;
+                const currentValue = parseInt(this.value) || 0;
+                if (currentValue > maxValue) {
+                    this.value = maxValue.toString();
+                    console.log('🟡🟡🟡 - [EVENT SETUP JS] Adjusted input value to match max:', this.name, 'from', currentValue, 'to', maxValue);
+                }
+                
                 updateOrderSummary();
                 if (calc) {
                     const productEl = this.closest('.product-item');
                     const value = parseInt(this.value) || 0;
                     if (productEl && productEl.dataset.productId === 'guest-count') {
                         calc.setGuestCount(value);
+                        // 🟡🟡🟡 - [ADDON MAX UPDATE] Update addon max values when guest count changes
+                        updateAddonMaxValues();
                     } else {
                         calc.setProductQty(this.name, value);
                     }
@@ -415,6 +495,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
+        
+        // 🟡🟡🟡 - [GUEST COUNT LISTENER] Listen for guest count changes to update addon max values
+        const guestCountInput = document.querySelector('input[name="guest-count"]');
+        if (guestCountInput) {
+            guestCountInput.addEventListener('input', function() {
+                updateAddonMaxValues();
+            });
+        }
         
         console.log('✅✅✅ - [EVENT SETUP JS] Quantity controls initialized');
     }
@@ -728,6 +816,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order visibility after initial calculator setup
             updateMinimumOrderVisibility();
         }
+        
+        // 🟡🟡🟡 - [ADDON MAX VALUES] Initialize addon max values based on initial guest count
+        updateAddonMaxValues();
         
         console.log('✅✅✅ - [EVENT SETUP JS] Event setup page initialized');
     }

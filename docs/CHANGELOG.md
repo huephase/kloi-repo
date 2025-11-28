@@ -12,6 +12,152 @@
 - **🔵 MIGRATION REQUIRED**: Database or schema changes that need migration scripts
 - **🟡 DEPRECATED**: Features or APIs that are being phased out
 
+---
+
+### November 28, 2025 - Addon Items Nested Structure and Dynamic Max Value Constraints
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Updated the event setup menu rendering system to support nested addon items within the "Add Ons" section. Addon items are now nested directly within the section object instead of being in a separate product-group section. Additionally, implemented dynamic max value constraints for addon inputs that are automatically updated based on the guest count, ensuring users cannot select more addons than the number of guests.
+
+#### Major Changes
+
+- **Menu JSON Structure Update**:
+  - **New Structure**: Addon items are now nested within the "Add Ons" section (h2 type) as an `addon-items` property
+  - **Previous Structure**: Addon items were in a separate section with `html-type: "product-group"`
+  - **Example Structure**:
+    ```json
+    "section6": {
+      "order": 6,
+      "content": "Add Ons",
+      "html-type": "h2",
+      "addon-items": {
+        "zero-sugar": {
+          "label": "Zero Sugar Ice Cream",
+          "price": 9,
+          "price-basis": "Per guest"
+        }
+      }
+    }
+    ```
+
+- **Template Rendering Updates** (`src/views/wizard/event-setup.hbs`):
+  - **Addon Items Rendering** (Lines 34-61):
+    - Added conditional rendering for `addon-items` when section content is "Add Ons"
+    - Renders addon items with the same structure as product-group items
+    - Added `addon-group` and `addon-item` classes for identification
+    - Added `addon-input` class and `data-max-based-on-guest="true"` attribute to addon quantity inputs
+    - Initial max value set to 0 (updated dynamically by JavaScript)
+    - **Code Added**:
+      ```handlebars
+      {{#if (eq content "Add Ons")}}
+        {{#if (get this "addon-items")}}
+          <div class="product-group addon-group" data-group-name="{{id}}" data-is-addon="true">
+            {{#each (get this "addon-items")}}
+              <div class="product-item addon-item" data-product-id="{{@key}}">
+                <!-- Addon item rendering -->
+                <input type="number" class="quantity-input addon-input" 
+                       name="{{@key}}" data-max-based-on-guest="true" max="0">
+              </div>
+            {{/each}}
+          </div>
+        {{/if}}
+      {{/if}}
+      ```
+
+  - **JavaScript Functionality** (Lines 393-425):
+    - **New Function**: `updateAddonMaxValues()`
+      - Retrieves current guest count value
+      - Updates max attribute of all addon inputs to match guest count
+      - Automatically adjusts addon input values if they exceed the new max
+      - Includes comprehensive logging for debugging
+      - **Location**: Lines 393-425
+
+  - **Quantity Controls Enhancement** (Lines 427-508):
+    - Updated `initializeQuantityControls()` function to handle addon max value updates
+    - Added max value validation when quantity buttons are clicked
+    - Added max value validation when quantity inputs are changed directly
+    - Added event listener for guest count input changes to trigger addon max updates
+    - **Key Updates**:
+      - Lines 444-448: Max value check before incrementing/decrementing
+      - Lines 457-459: Call to `updateAddonMaxValues()` when guest count changes via button
+      - Lines 474-480: Max value validation for direct input changes
+      - Lines 486-489: Call to `updateAddonMaxValues()` when guest count changes via input
+      - Lines 499-505: Event listener for guest count input changes
+
+  - **Initialization Updates** (Line 821):
+    - Added call to `updateAddonMaxValues()` during page initialization
+    - Ensures addon max values are set correctly on page load
+    - **Location**: Line 821
+
+- **Menu Service Updates** (`src/services/menuService.ts`):
+  - **Addon Items Processing** (Lines 93-96):
+    - Added handling for `addon-items` property when processing menu sections
+    - Preserves `addon-items` in the processed section object for template access
+    - **Code Added**:
+      ```typescript
+      // 🟡🟡🟡 - [ADDON ITEMS] Handle addon-items nested in sections (e.g., "Add Ons" section)
+      if ((sectionData as any)['addon-items']) {
+        (section as any)['addon-items'] = (sectionData as any)['addon-items'];
+      }
+      ```
+
+- **Handlebars Helper Addition** (`src/app.ts`):
+  - **New Helper**: `get` helper (Lines 55-58):
+    - Enables access to object properties with hyphens or special characters in Handlebars templates
+    - Required for accessing `addon-items` property in templates
+    - **Code Added**:
+      ```typescript
+      // 🟡🟡🟡 - [HANDLEBARS GET HELPER] Helper to access object properties with hyphens or special characters
+      handlebars.registerHelper('get', function(obj: any, key: string) {
+        return obj && obj[key];
+      });
+      ```
+
+#### Technical Details
+
+- **Dynamic Max Value Updates**:
+  - Addon inputs start with `max="0"` and are updated when:
+    - Guest count is changed via quantity buttons (+/-)
+    - Guest count is changed via direct input
+    - Guest count input value changes (input event)
+    - Page loads (initialization)
+
+- **Value Validation**:
+  - If an addon input value exceeds the new max (when guest count decreases), the value is automatically adjusted to match the max
+  - Validation occurs both on button clicks and direct input changes
+
+- **Backward Compatibility**:
+  - Existing product-group sections continue to work as before
+  - The new addon-items structure is optional and only applies to sections with content "Add Ons"
+
+#### Files Modified
+
+1. `src/views/wizard/event-setup.hbs`:
+   - Lines 34-61: Addon items rendering logic
+   - Lines 393-425: `updateAddonMaxValues()` function
+   - Lines 427-508: Enhanced quantity controls with max value handling
+   - Line 821: Initialization call for addon max values
+
+2. `src/services/menuService.ts`:
+   - Lines 93-96: Addon items property preservation
+
+3. `src/app.ts`:
+   - Lines 55-58: Handlebars `get` helper registration
+
+#### Impact
+
+- **Database**: No database changes required. This is a JSON structure change that should be applied to existing menu JSONB data in the `menus` table
+- **API**: No API changes required
+- **Frontend**: Template and JavaScript updates require page refresh to take effect
+- **User Experience**: Users can no longer select more addons than the number of guests, preventing invalid selections
+
+#### Migration Notes
+
+- **Menu JSON Updates**: Existing menus in the database should be updated to move addon items from separate product-group sections into the `addon-items` property of the "Add Ons" section
+- **Example Migration**:
+  - **Before**: Separate `section7` with `html-type: "product-group"` containing addon items
+  - **After**: `addon-items` property added to the "Add Ons" section (typically `section6`)
 
 ---
 

@@ -52,6 +52,11 @@ handlebars.registerHelper('lt', function(a: any, b: any) {
   return a < b;
 });
 
+// 🟡🟡🟡 - [HANDLEBARS GET HELPER] Helper to access object properties with hyphens or special characters
+handlebars.registerHelper('get', function(obj: any, key: string) {
+  return obj && obj[key];
+});
+
 // console.log('✅✅✅ - [app.ts] Custom Handlebars helpers registered successfully');
 
 app.register(fastifyView, {
