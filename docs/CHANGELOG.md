@@ -14,6 +14,64 @@
 
 ---
 
+### November 28, 2025 - Minimum Order Calculation Fix
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed calculator logic to prevent minimum order amounts from being added to the total when the minimum order requirement is already met. Previously, the minimum order amount was always added to the total regardless of whether the user's selections met the minimum requirement, resulting in incorrect totals.
+
+#### Major Changes
+
+- **Calculator Minimum Order Logic** (`public/global/js/kloi_calculator.js`):
+  - **Fixed Total Calculation**: Updated minimum order addition logic to only add minimum order amount when subtotal is less than minimum order total
+    - **Location**: Lines 230-237
+    - **Previous Behavior**: Minimum order amount was always added to total if `minimumOrderTotal > 0`
+    - **New Behavior**: Minimum order amount is only added when `subtotal < minimumOrderTotal`
+    - **Code Updated**:
+      ```javascript
+      // 🟡🟡🟡 - [MINIMUM ORDER ADDITION] Only add minimum order to total if subtotal is less than minimum
+      // ⚠️⚠️⚠️ - [MINIMUM ORDER LOGIC] When minimum is met (subtotal >= minimumOrderTotal), do NOT add minimum to total
+      if (minimumOrderTotal > 0 && subtotal < minimumOrderTotal) {
+        total += minimumOrderTotal
+        console.log('🟡🟡🟡 - [KLOI CALC] Minimum order not met, adding minimum order amount to total:', minimumOrderTotal)
+      } else if (minimumOrderTotal > 0 && subtotal >= minimumOrderTotal) {
+        console.log('✅✅✅ - [KLOI CALC] Minimum order met, NOT adding minimum order amount to total')
+      }
+      ```
+    - **Impact**: Calculator now correctly calculates totals - when minimum is met, only the subtotal (plus modifiers) is used as the total, without adding the minimum order amount
+
+#### Technical Details
+
+- **Calculation Logic**:
+  - When `subtotal < minimumOrderTotal`: Minimum order amount is added to total (user needs to meet minimum)
+  - When `subtotal >= minimumOrderTotal`: Minimum order amount is NOT added to total (minimum already met)
+  - This ensures the total reflects only what the user actually needs to pay
+
+- **Consistency with UI**:
+  - Calculator display logic already hides minimum order section when minimum is met (lines 282-292)
+  - Event setup template already hides minimum order divs when minimum is met (`updateMinimumOrderVisibility()` function)
+  - This fix ensures the calculation matches the UI behavior
+
+#### Files Modified
+
+1. `public/global/js/kloi_calculator.js`:
+   - Lines 230-237: Updated minimum order addition logic with conditional check
+
+#### Impact
+
+- **User Experience**: Users now see correct totals when minimum order requirements are met
+- **Calculation Accuracy**: Total calculations now accurately reflect whether minimum order charges apply
+- **Consistency**: Calculator logic now matches UI visibility behavior (minimum order hidden when met = minimum order not added when met)
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend calculation fix only
+- **No API Changes Required**: Calculator API remains unchanged
+- **Backward Compatible**: Existing menu data structure and calculator state management unchanged
+- **Immediate Effect**: Fix takes effect immediately on page refresh - no migration needed
+
+---
+
 ### November 28, 2025 - Addon Items Nested Structure and Dynamic Max Value Constraints
 
 **Type**: 🟠 MAJOR CHANGE

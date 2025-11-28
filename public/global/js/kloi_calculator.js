@@ -227,9 +227,13 @@
         }
       })
 
-      // 🟡🟡🟡 - [MINIMUM ORDER ADDITION] Add minimum order to total (if any)
-      if (minimumOrderTotal > 0) {
+      // 🟡🟡🟡 - [MINIMUM ORDER ADDITION] Only add minimum order to total if subtotal is less than minimum
+      // ⚠️⚠️⚠️ - [MINIMUM ORDER LOGIC] When minimum is met (subtotal >= minimumOrderTotal), do NOT add minimum to total
+      if (minimumOrderTotal > 0 && subtotal < minimumOrderTotal) {
         total += minimumOrderTotal
+        console.log('🟡🟡🟡 - [KLOI CALC] Minimum order not met, adding minimum order amount to total:', minimumOrderTotal)
+      } else if (minimumOrderTotal > 0 && subtotal >= minimumOrderTotal) {
+        console.log('✅✅✅ - [KLOI CALC] Minimum order met, NOT adding minimum order amount to total')
       }
 
       console.log('✅✅✅ - [KLOI CALC] Calculated', { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown })
@@ -294,10 +298,10 @@
       const html = `
         <div class="calc-wrapper">
           <div class="calc-breakdown">${lines || '<div class="calc-line">No selections yet</div>'}</div>
-          <div class="calc-subtotal">Subtotal: ${formatCurrency(subtotal)}</div>
+          <div class="calc-subtotal"><h4>Subtotal:</h4><p>${formatCurrency(subtotal)}</p></div>
           ${mods}
           ${minimumOrderHtml}
-          <div class="calc-total"><strong>Total: ${formatCurrency(total)}</strong></div>
+          <div class="calc-total"><h4><strong>Total:</strong></h4><p>${formatCurrency(total)}</p></div>
         </div>
       `
       this.container.innerHTML = html
