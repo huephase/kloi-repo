@@ -226,25 +226,17 @@
 }
 
 .submit-btn {
-    background: #28a745;
-    color: white;
-    border: none;
-    padding: 15px 30px;
-    border-radius: 8px;
-    font-size: 1.1em;
+    padding: 4vh 0;
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.3s ease;
-    display: flex;
+    display: inline-flex;
     flex-direction: column;
-    align-items: center;
     gap: 5px;
+    min-width: 250px;
+    margin: 0 auto 5vh;
 }
 
-.submit-btn:hover {
-    background: #218838;
-}
-
-/* 🟡🟡🟡 - [EDIT DATE BUTTON] Styling for edit event date link/button */
 .edit-date-section {
     margin: 20px 0;
     text-align: center;
@@ -273,16 +265,17 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.edit-date-btn:active {
-    transform: translateY(0);
-}
-
 .edit-date-btn .edit-icon {
     font-size: 1.2em;
 }
 
 .edit-date-btn .edit-text {
     font-weight: 600;
+}
+
+.minimum_order {
+    border: 2px solid var(--kloi-text);
+    padding-bottom: 1rem;
 }
 
 .summary {

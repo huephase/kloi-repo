@@ -91,7 +91,7 @@ input::placeholder, textarea::placeholder {
     font-weight: 400;
 }
 
-button {
+button, .button {
     padding: 1vh;
     width: 100%;
     text-transform: uppercase;

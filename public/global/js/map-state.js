@@ -44,10 +44,10 @@
       const oldValue = this.state[property];
       this.state[property] = value;
       
-      console.log(`🟡🟡🟡 - [StateManager ${new Date().toISOString()}] State changed: ${property}`, {
-        oldValue,
-        newValue: value
-      });
+      // console.log(`🟡🟡🟡 - [StateManager ${new Date().toISOString()}] State changed: ${property}`, {
+      //   oldValue,
+      //   newValue: value
+      // });
 
       // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [map-state.js] Emit state change event
       this.eventBus.emit('state:changed', {
@@ -73,7 +73,7 @@
       });
 
       if (Object.keys(changed).length > 0) {
-        console.log(`🟡🟡🟡 - [StateManager ${new Date().toISOString()}] Multiple state changes:`, changed);
+        // console.log(`🟡🟡🟡 - [StateManager ${new Date().toISOString()}] Multiple state changes:`, changed);
         
         // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [map-state.js] Emit state change event
         this.eventBus.emit('state:changed', {
@@ -130,7 +130,7 @@
       };
       
       this.setState(initialState);
-      console.log(`🟡🟡🟡 - [StateManager ${new Date().toISOString()}] State reset to initial values`);
+      // console.log(`🟡🟡🟡 - [StateManager ${new Date().toISOString()}] State reset to initial values`);
     }
   }
 
@@ -139,6 +139,6 @@
     return new StateManager(eventBus);
   };
   
-  console.log(`✅✅✅ - [map-state.js ${new Date().toISOString()}] StateManager module loaded`);
+  // console.log(`✅✅✅ - [map-state.js ${new Date().toISOString()}] StateManager module loaded`);
 })(window);
 

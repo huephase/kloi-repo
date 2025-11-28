@@ -12,8 +12,8 @@
       this.selectedArea = null; // {district, sublocality}
       
       const now = () => new Date().toISOString();
-      this.logInfo = (message, payload) => console.log(`🟡🟡🟡 - [ValidationService ${now()}] ${message}`, payload ?? '');
-      this.logSuccess = (message, payload) => console.log(`✅✅✅ - [ValidationService ${now()}] ${message}`, payload ?? '');
+      this.logInfo = (message, payload) => { /* console.log(`🟡🟡🟡 - [ValidationService ${now()}] ${message}`, payload ?? ''); */ };
+      this.logSuccess = (message, payload) => { /* console.log(`✅✅✅ - [ValidationService ${now()}] ${message}`, payload ?? ''); */ };
       this.logWarn = (message, payload) => console.warn(`⚠️⚠️⚠️ - [ValidationService ${now()}] ${message}`, payload ?? '');
       this.logError = (message, payload) => console.error(`❗❗❗ - [ValidationService ${now()}] ${message}`, payload ?? '');
 
@@ -226,6 +226,6 @@
     return new ValidationService(eventBus, polygonManager);
   };
   
-  console.log(`✅✅✅ - [map-validation.js ${new Date().toISOString()}] ValidationService module loaded`);
+  // console.log(`✅✅✅ - [map-validation.js ${new Date().toISOString()}] ValidationService module loaded`);
 })(window);
 

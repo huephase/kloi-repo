@@ -193,7 +193,7 @@
 
             {{! 🟡🟡🟡 - [FORM SUBMISSION] Submit section }}
             <div class="submit-section">
-                <button type="submit" id="submitButton" class="submit-btn">
+                <button type="submit" id="submitButton" class="submit-btn btn-active">
                     <span class="summary" id="orderSummary">Please select your menu items</span>
                     <span class="confirm-text">Continue to Summary</span>
                 </button>
@@ -391,6 +391,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const productKey = input.name;
                         calc.setProductQty(productKey, value);
                     }
+                    // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order visibility after calculator update
+                    updateMinimumOrderVisibility();
                 }
             });
         });
@@ -408,11 +410,51 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         calc.setProductQty(this.name, value);
                     }
+                    // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order visibility after calculator update
+                    updateMinimumOrderVisibility();
                 }
             });
         });
         
         console.log('✅✅✅ - [EVENT SETUP JS] Quantity controls initialized');
+    }
+    
+    // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order divs visibility based on calculator state
+    function updateMinimumOrderVisibility() {
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Updating minimum order visibility');
+        
+        if (!calc || typeof calc.getQuote !== 'function') {
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator not available for minimum order check');
+            return;
+        }
+        
+        try {
+            const quote = calc.getQuote();
+            if (!quote) {
+                console.log('🟡🟡🟡 - [EVENT SETUP JS] No quote available');
+                return;
+            }
+            
+            const subtotal = quote.subtotal || 0;
+            const minimumOrderTotal = quote.minimumOrderTotal || 0;
+            const isMinimumMet = subtotal >= minimumOrderTotal;
+            
+            // 🟡🟡🟡 - [MINIMUM ORDER LOGIC] Hide minimum order divs if minimum is met
+            const minimumOrderDivs = document.querySelectorAll('.minimum_order');
+            minimumOrderDivs.forEach(div => {
+                if (isMinimumMet && minimumOrderTotal > 0) {
+                    div.style.display = 'none';
+                    console.log('🟡🟡🟡 - [EVENT SETUP JS] Hiding minimum order div (minimum met):', div.dataset.minOrderKey);
+                } else {
+                    div.style.display = '';
+                    console.log('🟡🟡🟡 - [EVENT SETUP JS] Showing minimum order div (minimum not met):', div.dataset.minOrderKey);
+                }
+            });
+            
+            console.log('✅✅✅ - [EVENT SETUP JS] Minimum order visibility updated', { subtotal, minimumOrderTotal, isMinimumMet });
+        } catch (err) {
+            console.error('❗❗❗ - [EVENT SETUP JS] Error updating minimum order visibility:', err);
+        }
     }
     
     // 🟡🟡🟡 - [ORDER SUMMARY] Update order summary display
@@ -569,6 +611,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             const groupId = this.name; // matches section id
                             const optionKey = this.value;
                             calc.setRadio(groupId, optionKey);
+                            // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order visibility after calculator update
+                            updateMinimumOrderVisibility();
                         }
                     }
                 });
@@ -605,6 +649,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const optionKey = this.value;
                     calc.setRadio(groupId, optionKey);
                 }
+                // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order visibility after calculator update
+                updateMinimumOrderVisibility();
             });
         });
         
@@ -679,6 +725,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const productInputs = document.querySelectorAll('.product-group .quantity-input');
             productInputs.forEach(pi => calc.setProductQty(pi.name, parseInt(pi.value) || 0));
             calc.recalc();
+            // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order visibility after initial calculator setup
+            updateMinimumOrderVisibility();
         }
         
         console.log('✅✅✅ - [EVENT SETUP JS] Event setup page initialized');

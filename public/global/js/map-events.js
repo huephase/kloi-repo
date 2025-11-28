@@ -18,7 +18,7 @@
       this.listeners[event].push(handler);
       
       if (this.logEvents) {
-        console.log(`🟡🟡🟡 - [EventBus ${new Date().toISOString()}] Subscribed to event: ${event}`);
+        // console.log(`🟡🟡🟡 - [EventBus ${new Date().toISOString()}] Subscribed to event: ${event}`);
       }
     }
 
@@ -32,14 +32,14 @@
       }
       
       if (this.logEvents) {
-        console.log(`🟡🟡🟡 - [EventBus ${new Date().toISOString()}] Unsubscribed from event: ${event}`);
+        // console.log(`🟡🟡🟡 - [EventBus ${new Date().toISOString()}] Unsubscribed from event: ${event}`);
       }
     }
 
     // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [map-events.js] Emit an event to all subscribers
     emit(event, data) {
       if (this.logEvents) {
-        console.log(`🟡🟡🟡 - [EventBus ${new Date().toISOString()}] Emitting event: ${event}`, data || '');
+        // console.log(`🟡🟡🟡 - [EventBus ${new Date().toISOString()}] Emitting event: ${event}`, data || '');
       }
 
       if (!this.listeners[event]) {
@@ -74,6 +74,6 @@
   // 2025-12-XXT00:00:00:00Z 🟡🟡🟡 - [map-events.js] Create singleton instance
   global.MapEventBus = new EventBus();
   
-  console.log(`✅✅✅ - [map-events.js ${new Date().toISOString()}] EventBus initialized`);
+  // console.log(`✅✅✅ - [map-events.js ${new Date().toISOString()}] EventBus initialized`);
 })(window);
 

@@ -47,8 +47,8 @@
   // ⚠️⚠️⚠️ - [maps.js] REFACTORED: Now uses event-driven architecture with modular components
   function initLocationFinderMap(options) {
     const now = () => new Date().toISOString();
-    const logInfo = (message, payload) => console.log(`🟡🟡🟡 - [maps.js ${now()}] ${message}`, payload ?? '');
-    const logSuccess = (message, payload) => console.log(`✅✅✅ - [maps.js ${now()}] ${message}`, payload ?? '');
+    const logInfo = (message, payload) => { /* console.log(`🟡🟡🟡 - [maps.js ${now()}] ${message}`, payload ?? ''); */ };
+    const logSuccess = (message, payload) => { /* console.log(`✅✅✅ - [maps.js ${now()}] ${message}`, payload ?? ''); */ };
     const logWarn = (message, payload) => console.warn(`⚠️⚠️⚠️ - [maps.js ${now()}] ${message}`, payload ?? '');
     const logError = (message, payload) => console.error(`❗❗❗ - [maps.js ${now()}] ${message}`, payload ?? '');
 

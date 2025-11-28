@@ -15,6 +15,145 @@
 
 ---
 
+### November 26, 2025 - Minimum Order Display Logic Improvements
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Enhanced minimum order display logic to hide minimum order requirements when user selections meet or exceed the minimum order amount. This improves user experience by only showing minimum order information when it's relevant (i.e., when the minimum hasn't been met yet). Changes affect both the calculator display and the event setup template.
+
+#### Major Changes
+
+- **Calculator Minimum Order Display Logic** (`public/global/js/kloi_calculator.js`):
+  - **Removed Individual Minimum Order Lines**: Removed the `<div class="calc-min-order-line">` elements that displayed individual minimum order items with labels and amounts
+    - **Location**: Line 287 (previously in `minimumOrderBreakdown.map()` callback)
+    - **Impact**: Calculator now only shows the minimum order total, not individual breakdown items
+    - **Code Removed**:
+      ```javascript
+      ${minimumOrderBreakdown.map((mo) => {
+        const daysInfo = mo.days ? ` (${mo.days} day${mo.days > 1 ? 's' : ''})` : ''
+        return `<div class="calc-min-order-line">${mo.label}${daysInfo}: ${formatCurrency(mo.amount)}</div>`
+      }).join('')}
+      ```
+  
+  - **Conditional Minimum Order Section Display**: Updated logic to only show the entire minimum order section when the minimum is NOT met
+    - **Location**: Lines 279-288
+    - **Logic Change**: Added condition `subtotal < minimumOrderTotal` to the minimum order HTML generation
+    - **Previous Behavior**: Minimum order section always displayed when `minimumOrderBreakdown.length > 0`
+    - **New Behavior**: Minimum order section only displays when `minimumOrderBreakdown.length > 0` AND `subtotal < minimumOrderTotal`
+    - **Code Updated**:
+      ```javascript
+      // 🟡🟡🟡 - [MINIMUM ORDER DISPLAY] Render minimum order information only if minimum is NOT met
+      // 🟡🟡🟡 - [MINIMUM ORDER LOGIC] Only show minimum order section if subtotal < minimumOrderTotal
+      let minimumOrderHtml = ''
+      if (minimumOrderBreakdown && minimumOrderBreakdown.length > 0 && subtotal < minimumOrderTotal) {
+        minimumOrderHtml = `
+          <div class="calc-minimum-orders">
+            <div class="calc-min-order-title" style="display: none;">Minimum Orders:</div>
+            <div class="calc-min-order-total">Minimum Order Total: ${formatCurrency(minimumOrderTotal)}</div>
+          </div>
+        `
+      }
+      ```
+    - **User Experience**: Users no longer see minimum order requirements once their selections meet the minimum, reducing visual clutter
+
+- **Event Setup Template Minimum Order Visibility** (`src/views/wizard/event-setup.hbs`):
+  - **New Function: `updateMinimumOrderVisibility()`**: Added function to dynamically show/hide minimum order divs based on calculator state
+    - **Location**: Lines 422-456
+    - **Functionality**:
+      - Retrieves current quote from calculator using `calc.getQuote()`
+      - Compares `subtotal` with `minimumOrderTotal`
+      - Hides all `<div class="minimum_order">` elements when `subtotal >= minimumOrderTotal`
+      - Shows minimum order divs when minimum is not met
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order divs visibility based on calculator state
+      function updateMinimumOrderVisibility() {
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Updating minimum order visibility');
+        
+        if (!calc || typeof calc.getQuote !== 'function') {
+          console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator not available for minimum order check');
+          return;
+        }
+        
+        try {
+          const quote = calc.getQuote();
+          if (!quote) {
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] No quote available');
+            return;
+          }
+          
+          const subtotal = quote.subtotal || 0;
+          const minimumOrderTotal = quote.minimumOrderTotal || 0;
+          const isMinimumMet = subtotal >= minimumOrderTotal;
+          
+          // 🟡🟡🟡 - [MINIMUM ORDER LOGIC] Hide minimum order divs if minimum is met
+          const minimumOrderDivs = document.querySelectorAll('.minimum_order');
+          minimumOrderDivs.forEach(div => {
+            if (isMinimumMet && minimumOrderTotal > 0) {
+              div.style.display = 'none';
+              console.log('🟡🟡🟡 - [EVENT SETUP JS] Hiding minimum order div (minimum met):', div.dataset.minOrderKey);
+            } else {
+              div.style.display = '';
+              console.log('🟡🟡🟡 - [EVENT SETUP JS] Showing minimum order div (minimum not met):', div.dataset.minOrderKey);
+            }
+          });
+          
+          console.log('✅✅✅ - [EVENT SETUP JS] Minimum order visibility updated', { subtotal, minimumOrderTotal, isMinimumMet });
+        } catch (err) {
+          console.error('❗❗❗ - [EVENT SETUP JS] Error updating minimum order visibility:', err);
+        }
+      }
+      ```
+  
+  - **Integration Points**: Added `updateMinimumOrderVisibility()` calls after all calculator state changes
+    - **After Guest Count Changes**: Lines 389-394 (quantity controls), 407-411 (direct input changes)
+    - **After Radio Selection Changes**: Line 609 (radio contraction handler)
+    - **After Checkbox Selection Changes**: Line 645 (form input change handler)
+    - **After Product Quantity Changes**: Lines 389-394, 407-411 (quantity controls)
+    - **After Initial Calculator Setup**: Line 720 (initialization function)
+    - **Code Pattern**: All calculator update calls now followed by `updateMinimumOrderVisibility()` to keep UI in sync
+
+#### Technical Notes
+
+⚠️⚠️⚠️ **Behavior Changes**:
+
+- **Minimum Order Display**: Minimum order sections (both in calculator and template) now only appear when relevant
+  - **Before**: Always visible when minimum orders exist in menu data
+  - **After**: Only visible when `subtotal < minimumOrderTotal`
+  - **Rationale**: Reduces visual clutter and only shows information when user needs to take action
+
+- **Real-time Updates**: Minimum order visibility updates automatically whenever user selections change
+  - Updates triggered by: guest count changes, radio selections, checkbox selections, product quantity changes
+  - Ensures UI always reflects current calculator state
+
+- **Data Source**: Minimum order amounts come from database table `public."Menus"` column `menuItems`
+  - Minimum orders are extracted from `div-group` type sections in menu data
+  - Supports both "Per day" and "Per event" pricing basis
+  - Number of days is dynamically calculated from session/database data
+
+#### Files Affected
+
+- `public/global/js/kloi_calculator.js`:
+  - Lines 279-288: Updated minimum order display logic with conditional rendering
+  - Removed individual minimum order line rendering (previously line 287)
+
+- `src/views/wizard/event-setup.hbs`:
+  - Lines 422-456: Added `updateMinimumOrderVisibility()` function
+  - Lines 389-394: Added visibility update after quantity control changes
+  - Lines 407-411: Added visibility update after direct input changes
+  - Line 609: Added visibility update after radio selection changes
+  - Line 645: Added visibility update after checkbox/radio form input changes
+  - Line 720: Added visibility update after initial calculator setup
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend-only change
+- **No API Changes Required**: Calculator API remains unchanged
+- **Backward Compatible**: Existing menu data structure and calculator state management unchanged
+- **User Experience Improvement**: Users will see cleaner UI when minimum orders are met
+
+---
+
 ### November 25, 2025 - Payment Integration Bug Fixes and CSS Refactoring
 
 **Type**: 🟠 MAJOR CHANGE

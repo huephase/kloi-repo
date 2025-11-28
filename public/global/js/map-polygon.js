@@ -15,8 +15,8 @@
       this.center = null; // Calculated center point
       
       const now = () => new Date().toISOString();
-      this.logInfo = (message, payload) => console.log(`🟡🟡🟡 - [PolygonManager ${now()}] ${message}`, payload ?? '');
-      this.logSuccess = (message, payload) => console.log(`✅✅✅ - [PolygonManager ${now()}] ${message}`, payload ?? '');
+      this.logInfo = (message, payload) => { /* console.log(`🟡🟡🟡 - [PolygonManager ${now()}] ${message}`, payload ?? ''); */ };
+      this.logSuccess = (message, payload) => { /* console.log(`✅✅✅ - [PolygonManager ${now()}] ${message}`, payload ?? ''); */ };
       this.logWarn = (message, payload) => console.warn(`⚠️⚠️⚠️ - [PolygonManager ${now()}] ${message}`, payload ?? '');
       this.logError = (message, payload) => console.error(`❗❗❗ - [PolygonManager ${now()}] ${message}`, payload ?? '');
 
@@ -296,6 +296,6 @@
     return new PolygonManager(eventBus, coordinateOrder);
   };
   
-  console.log(`✅✅✅ - [map-polygon.js ${new Date().toISOString()}] PolygonManager module loaded`);
+  // console.log(`✅✅✅ - [map-polygon.js ${new Date().toISOString()}] PolygonManager module loaded`);
 })(window);
 

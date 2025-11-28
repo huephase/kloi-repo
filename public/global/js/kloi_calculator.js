@@ -268,24 +268,24 @@
           } catch (e) {
             console.error('❗❗❗ - [KLOI CALC] Label resolution error:', e)
           }
+          // 2025-01-XX 🟡🟡🟡 - [STRUCTURE] Split item name and amount into separate h4 and p elements
           const qtyText = l.qty ? ` × ${l.qty}` : ''
-          return `<div class="calc-line">${display}${qtyText}: ${formatCurrency(l.amount)}</div>`
+          const itemName = `${display}${qtyText}`
+          const itemAmount = formatCurrency(l.amount)
+          return `<div class="calc-line"><h4>${itemName}</h4><p>${itemAmount}</p></div>`
         }) 
         .join('')
       const mods = modifiersMeta
         .map((m) => `<div class="calc-mod">${m.name}: ${formatCurrency(m.delta)}</div>`) 
         .join('')
       
-      // 🟡🟡🟡 - [MINIMUM ORDER DISPLAY] Render minimum order information
+      // 🟡🟡🟡 - [MINIMUM ORDER DISPLAY] Render minimum order information only if minimum is NOT met
+      // 🟡🟡🟡 - [MINIMUM ORDER LOGIC] Only show minimum order section if subtotal < minimumOrderTotal
       let minimumOrderHtml = ''
-      if (minimumOrderBreakdown && minimumOrderBreakdown.length > 0) {
+      if (minimumOrderBreakdown && minimumOrderBreakdown.length > 0 && subtotal < minimumOrderTotal) {
         minimumOrderHtml = `
           <div class="calc-minimum-orders">
-            <div class="calc-min-order-title">Minimum Orders:</div>
-            ${minimumOrderBreakdown.map((mo) => {
-              const daysInfo = mo.days ? ` (${mo.days} day${mo.days > 1 ? 's' : ''})` : ''
-              return `<div class="calc-min-order-line">${mo.label}${daysInfo}: ${formatCurrency(mo.amount)}</div>`
-            }).join('')}
+            <div class="calc-min-order-title" style="display: none;">Minimum Orders:</div>
             <div class="calc-min-order-total">Minimum Order Total: ${formatCurrency(minimumOrderTotal)}</div>
           </div>
         `
