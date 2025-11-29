@@ -809,9 +809,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Checkboxes
             const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
             selectedCheckboxes.forEach(cb => calc.setCheckbox(cb.value, true));
-            // Products
-            const productInputs = document.querySelectorAll('.product-group .quantity-input');
+            // Products (including addon items)
+            // 2025-11-28T00:00:00Z 🟡🟡🟡 - [ADDON ITEMS] Include both regular product-group inputs and addon-group inputs
+            const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
             productInputs.forEach(pi => calc.setProductQty(pi.name, parseInt(pi.value) || 0));
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Initialized product quantities:', productInputs.length, 'inputs');
             calc.recalc();
             // 🟡🟡🟡 - [MINIMUM ORDER VISIBILITY] Update minimum order visibility after initial calculator setup
             updateMinimumOrderVisibility();

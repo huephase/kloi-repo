@@ -81,6 +81,19 @@
           })
         }
 
+        // 🟡🟡🟡 - [ADDON ITEMS] Extract addon items from sections with addon-items property (e.g., "Add Ons" section)
+        // 2025-11-28T00:00:00Z 🟡🟡🟡 - [ADDON ITEMS] Process addon-items nested in sections (not in content property)
+        const addonItems = section['addon-items']
+        if (addonItems && typeof addonItems === 'object') {
+          Object.entries(addonItems).forEach(([productKey, productData]) => {
+            index.products[productKey] = {
+              price: toNumber(productData.price),
+              basis: productData['price-basis'] || 'Per guest',
+            }
+          })
+          console.log('🟡🟡🟡 - [KLOI CALC] Processed addon items from section:', id, Object.keys(addonItems))
+        }
+
         // 🟡🟡🟡 - [MINIMUM ORDERS] Extract minimum order data from div-group sections
         if (type === 'div-group') {
           Object.entries(content).forEach(([orderKey, orderData]) => {

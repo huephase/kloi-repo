@@ -72,6 +72,113 @@
 
 ---
 
+### November 29, 2025 - Addon Items Calculator Integration Fix
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed calculator integration to properly include addon items in total calculations. After the nested addon items structure change (November 28, 2025), addon inputs were not being included in the calculator's price index or initialization, causing addon selections to be excluded from the total. This fix ensures addon items are properly indexed, initialized, and calculated as part of the quote total.
+
+#### Major Changes
+
+- **Calculator Price Index Update** (`public/global/js/kloi_calculator.js`):
+  - **Addon Items Processing** (Lines 84-95):
+    - Added processing logic for `addon-items` property in sections during price index building
+    - Addon items are now extracted from sections with `addon-items` property (e.g., "Add Ons" section)
+    - Addon items are added to the `products` price index, same as regular product-group items
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [ADDON ITEMS] Extract addon items from sections with addon-items property (e.g., "Add Ons" section)
+      // 2025-11-28T00:00:00Z 🟡🟡🟡 - [ADDON ITEMS] Process addon-items nested in sections (not in content property)
+      const addonItems = section['addon-items']
+      if (addonItems && typeof addonItems === 'object') {
+        Object.entries(addonItems).forEach(([productKey, productData]) => {
+          index.products[productKey] = {
+            price: toNumber(productData.price),
+            basis: productData['price-basis'] || 'Per guest',
+          }
+        })
+        console.log('🟡🟡🟡 - [KLOI CALC] Processed addon items from section:', id, Object.keys(addonItems))
+      }
+      ```
+    - **Location**: Lines 84-95 in `buildPriceIndex()` method
+    - **Impact**: Addon items are now included in the calculator's price lookup, enabling proper calculation
+
+- **Event Setup Initialization Update** (`src/views/wizard/event-setup.hbs`):
+  - **Product Input Selection Enhancement** (Lines 812-816):
+    - Updated initialization selector to include both regular product-group inputs and addon-group inputs
+    - **Previous Selector**: `.product-group .quantity-input` (only regular products)
+    - **New Selector**: `.product-group .quantity-input, .addon-group .quantity-input` (includes addons)
+    - **Code Updated**:
+      ```javascript
+      // Products (including addon items)
+      // 2025-11-28T00:00:00Z 🟡🟡🟡 - [ADDON ITEMS] Include both regular product-group inputs and addon-group inputs
+      const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
+      productInputs.forEach(pi => calc.setProductQty(pi.name, parseInt(pi.value) || 0));
+      console.log('🟡🟡🟡 - [EVENT SETUP JS] Initialized product quantities:', productInputs.length, 'inputs');
+      ```
+    - **Location**: Lines 812-816 in initialization function
+    - **Impact**: Addon inputs are now wired to the calculator during page load, ensuring initial state is correct
+
+#### Technical Details
+
+- **Price Index Building**:
+  - The `buildPriceIndex()` method now checks for `addon-items` property on each section
+  - Addon items are processed independently of the section's `html-type` or `content` property
+  - Addon items are stored in the same `index.products` object as regular product-group items
+  - This allows addon items to be calculated using the same product calculation logic
+
+- **Initialization Flow**:
+  - During page load, the calculator initialization now selects both:
+    - Regular product inputs: `.product-group .quantity-input`
+    - Addon inputs: `.addon-group .quantity-input`
+  - All selected inputs are passed to `calc.setProductQty()` to set initial quantities
+  - This ensures addon selections are included in the initial calculation
+
+- **Event Listeners**:
+  - Existing change event listeners already use `.quantity-input` selector, which includes addon inputs
+  - Addon inputs correctly trigger `calc.setProductQty()` when changed via:
+    - Quantity buttons (+/-)
+    - Direct input changes
+  - No changes needed to event listeners - they already handle addon inputs correctly
+
+- **Calculation Logic**:
+  - Addon items use the same calculation logic as regular products:
+    - `lineTotal = basePrice * qty` (multiplies price by quantity input)
+    - No multiplication by guest count (quantity input represents units/guests for the addon)
+  - Addon items appear in the breakdown with kind `'product'` and are included in subtotal
+
+#### Files Modified
+
+1. `public/global/js/kloi_calculator.js`:
+   - Lines 84-95: Added addon items processing in `buildPriceIndex()` method
+   - Added logging to track when addon items are processed
+
+2. `src/views/wizard/event-setup.hbs`:
+   - Lines 812-816: Updated product input selector to include addon-group inputs
+   - Added logging to show number of product inputs initialized
+
+#### Impact
+
+- **Calculator Accuracy**: Addon items are now correctly included in total calculations
+- **User Experience**: Users can see addon selections reflected in the live quote calculator
+- **Initialization**: Addon quantities are properly initialized on page load
+- **Real-time Updates**: Addon quantity changes update the calculator in real-time
+- **Backward Compatibility**: Regular product-group items continue to work as before
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend calculation fix only
+- **No API Changes Required**: Calculator API remains unchanged
+- **No Menu JSON Changes Required**: Works with existing nested addon-items structure
+- **Immediate Effect**: Fix takes effect immediately on page refresh - no migration needed
+- **Related Change**: This fix addresses an issue introduced by the November 28, 2025 change "Addon Items Nested Structure and Dynamic Max Value Constraints"
+
+#### Related Changes
+
+- **November 28, 2025**: "Addon Items Nested Structure and Dynamic Max Value Constraints" - This change introduced the nested addon-items structure but did not update the calculator to process them, which is now fixed
+
+---
+
 ### November 28, 2025 - Addon Items Nested Structure and Dynamic Max Value Constraints
 
 **Type**: 🟠 MAJOR CHANGE
