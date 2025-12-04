@@ -50,6 +50,32 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
 
       console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Session data available:', Object.keys(sessionData).filter(key => (sessionData as any)[key]));
 
+      // 🟡🟡🟡 - [GUEST COUNT] Extract guest count from eventSetup session for calculator visibility
+      let guestCount: number | null = null;
+      const eventSetup = sessionData.eventSetup as any;
+      if (eventSetup) {
+        // 🟡🟡🟡 - [GUEST COUNT EXTRACTION] Try productQuantities first
+        if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+          const guestCountValue = eventSetup.productQuantities['guest-count'];
+          if (typeof guestCountValue === 'number' && guestCountValue > 0) {
+            guestCount = guestCountValue;
+            console.log('✅✅✅ - [EVENT SETUP ROUTE] Guest count extracted from productQuantities:', guestCount);
+          }
+        }
+        
+        // 🟡🟡🟡 - [GUEST COUNT EXTRACTION] Fallback to calculator.guestCount if not found
+        if (guestCount === null && eventSetup.calculator && typeof eventSetup.calculator === 'object') {
+          const calculatorGuestCount = eventSetup.calculator.guestCount;
+          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
+            guestCount = calculatorGuestCount;
+            console.log('✅✅✅ - [EVENT SETUP ROUTE] Guest count extracted from calculator:', guestCount);
+          }
+        }
+      }
+      
+      const hasGuestCount = guestCount !== null && guestCount > 0;
+      console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Guest count available:', hasGuestCount, guestCount);
+
       // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate number of days from dateInfo.dates array
       let numberOfDays = 1; // 🔵🔵🔵 - [DEFAULT] Default to 1 day if dateInfo not available
       const dateInfo = sessionData.dateInfo as any;
@@ -90,7 +116,9 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
         sessionData: sessionData,
         numberOfDays: numberOfDays,
         hasMenuData: !!menuSections,
-        menuError: !menuSections && theme ? 'Unable to load menu data' : null
+        menuError: !menuSections && theme ? 'Unable to load menu data' : null,
+        guestCount: guestCount, // 🟡🟡🟡 - [GUEST COUNT] Pass guest count for calculator visibility
+        hasGuestCount: hasGuestCount // 🟡🟡🟡 - [GUEST COUNT] Pass boolean flag for calculator visibility
       };
 
       console.log('✅✅✅ - [EVENT SETUP ROUTE] Rendering event setup page');

@@ -207,7 +207,8 @@
                 </div>
             </div>
 
-            <div id="koi-live-quote">
+            {{! 🟡🟡🟡 - [CALCULATOR CONTAINER] Calculator will be shown when guest count is available }}
+            <div id="koi-live-quote" style="{{#unless hasGuestCount}}display: none;{{/unless}}">
                 <div class="kloi-calculator"></div>
             </div>
 
@@ -231,7 +232,8 @@
 </div>
 
 {{! 🟡🟡🟡 - [HIDDEN DATA] Server-side data for JavaScript }}
-<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" style="display: none;"></div>
+{{! 🟡🟡🟡 - [GUEST COUNT] Pass guest count for calculator visibility control }}
+<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" style="display: none;"></div>
 
 {{! 🟡🟡🟡 - [POPUP MODAL] Modal for displaying popup content }}
 <div id="popupModal" class="popup-modal">
@@ -272,6 +274,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const menuSectionsData = serverDataDiv?.dataset.menuSections;
     const numberOfDaysData = serverDataDiv?.dataset.numberOfDays;
     const numberOfDays = numberOfDaysData ? parseInt(numberOfDaysData, 10) : 1; // 🔵🔵🔵 - [DEFAULT] Default to 1 if not available
+    
+    // 🟡🟡🟡 - [GUEST COUNT] Read guest count from server data for calculator visibility
+    const guestCountData = serverDataDiv?.dataset.guestCount;
+    const hasGuestCountData = serverDataDiv?.dataset.hasGuestCount === 'true';
+    const guestCountFromServer = guestCountData ? parseInt(guestCountData, 10) : null;
+    console.log('🟡🟡🟡 - [EVENT SETUP JS] Guest count from server:', guestCountFromServer, 'hasGuestCount:', hasGuestCountData);
+    
     let calc = null;
     // 2025-11-05T00:00:00Z 🟡🟡🟡 - [MENU LABELS] Initialize label maps for UI-friendly display across pages
     if (menuSectionsData && window.KloiMenuLabels) {
@@ -287,14 +296,53 @@ document.addEventListener('DOMContentLoaded', function() {
     if (menuSectionsData && window.KloiCalculator) {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing KLOI calculator with server menu data');
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Number of days from server:', numberOfDays);
+        // 🟡🟡🟡 - [CALCULATOR INIT] Initialize calculator even if guest count not available (will be hidden)
         calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0, numberOfDays: numberOfDays });
         if (!calc) {
             console.error('❗❗❗ - [EVENT SETUP JS] Calculator failed to initialize');
+        } else {
+            // 🟡🟡🟡 - [GUEST COUNT] Set guest count if available from server
+            if (guestCountFromServer && guestCountFromServer > 0) {
+                calc.setGuestCount(guestCountFromServer);
+                console.log('✅✅✅ - [EVENT SETUP JS] Guest count set in calculator from server:', guestCountFromServer);
+            }
         }
       try { window.__kloiCalc = calc; console.log('⚪⚪⚪ - [EVENT SETUP JS] Global calculator reference set'); } catch(_e) {}
     } else {
         console.error('❗❗❗ - [EVENT SETUP JS] Missing menu data or calculator module');
     }
+    
+    // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Function to show/hide calculator based on guest count
+    function updateCalculatorVisibility() {
+        const calculatorContainer = document.getElementById('koi-live-quote');
+        const guestCountInput = document.querySelector('input[name="guest-count"]');
+        
+        if (!calculatorContainer) {
+            console.warn('⚠️⚠️⚠️ - [EVENT SETUP JS] Calculator container not found');
+            return;
+        }
+        
+        // 🟡🟡🟡 - [GUEST COUNT CHECK] Check if guest count is available from input or server
+        let hasGuestCount = false;
+        if (guestCountInput) {
+            const guestCountValue = parseInt(guestCountInput.value) || 0;
+            hasGuestCount = guestCountValue > 0;
+        } else if (hasGuestCountData && guestCountFromServer && guestCountFromServer > 0) {
+            hasGuestCount = true;
+        }
+        
+        // 🟡🟡🟡 - [VISIBILITY CONTROL] Show calculator if guest count is available
+        if (hasGuestCount) {
+            calculatorContainer.style.display = '';
+            console.log('✅✅✅ - [EVENT SETUP JS] Calculator shown - guest count available');
+        } else {
+            calculatorContainer.style.display = 'none';
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator hidden - guest count not available');
+        }
+    }
+    
+    // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Initial visibility check
+    updateCalculatorVisibility();
     
     // 🟡🟡🟡 - [POPUP INITIALIZATION] Initialize popup data from server data
     function initializePopupData() {
@@ -457,6 +505,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         calc.setGuestCount(value);
                         // 🟡🟡🟡 - [ADDON MAX UPDATE] Update addon max values when guest count changes
                         updateAddonMaxValues();
+                        // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Show calculator when guest count is set
+                        updateCalculatorVisibility();
                     } else {
                         const productKey = input.name;
                         calc.setProductQty(productKey, value);
@@ -487,6 +537,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         calc.setGuestCount(value);
                         // 🟡🟡🟡 - [ADDON MAX UPDATE] Update addon max values when guest count changes
                         updateAddonMaxValues();
+                        // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Show calculator when guest count is set
+                        updateCalculatorVisibility();
                     } else {
                         calc.setProductQty(this.name, value);
                     }
@@ -496,11 +548,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
-        // 🟡🟡🟡 - [GUEST COUNT LISTENER] Listen for guest count changes to update addon max values
+        // 🟡🟡🟡 - [GUEST COUNT LISTENER] Listen for guest count changes to update addon max values and calculator visibility
         const guestCountInput = document.querySelector('input[name="guest-count"]');
         if (guestCountInput) {
             guestCountInput.addEventListener('input', function() {
                 updateAddonMaxValues();
+                // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Update calculator visibility on input change
+                updateCalculatorVisibility();
             });
         }
         

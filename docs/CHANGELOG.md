@@ -14,6 +14,464 @@
 
 ---
 
+### December 4, 2025 @ 21:07 - Calculator Visibility Fix and Event-Summary Rendering Improvements
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed calculator visibility on event-setup page to initialize but remain hidden until guest count is available. Calculator now shows when guest count is entered or when returning from edit with guest count in session. Improved event-setup section rendering in event-summary page to properly display guest count, calculator totals, and all event setup data after route order changes.
+
+#### Major Changes
+
+- **Guest Count Extraction in Event-Setup Route** (`src/routes/eventSetup.ts`):
+  - **Guest Count Detection** (Lines 53-77):
+    - Extracts guest count from `eventSetup` session data
+    - Checks multiple locations: `eventSetup.productQuantities['guest-count']` and `eventSetup.calculator.guestCount`
+    - **Code Added**:
+      ```typescript
+      // 🟡🟡🟡 - [GUEST COUNT] Extract guest count from eventSetup session for calculator visibility
+      let guestCount: number | null = null;
+      const eventSetup = sessionData.eventSetup as any;
+      if (eventSetup) {
+        // Try productQuantities first
+        if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+          const guestCountValue = eventSetup.productQuantities['guest-count'];
+          if (typeof guestCountValue === 'number' && guestCountValue > 0) {
+            guestCount = guestCountValue;
+          }
+        }
+        
+        // Fallback to calculator.guestCount if not found
+        if (guestCount === null && eventSetup.calculator && typeof eventSetup.calculator === 'object') {
+          const calculatorGuestCount = eventSetup.calculator.guestCount;
+          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
+            guestCount = calculatorGuestCount;
+          }
+        }
+      }
+      
+      const hasGuestCount = guestCount !== null && guestCount > 0;
+      ```
+    - **Impact**: Enables template to conditionally show/hide calculator based on guest count availability
+  - **Template Data Enhancement** (Lines 85-100):
+    - Added `guestCount` and `hasGuestCount` to template data
+    - **Code Updated**:
+      ```typescript
+      const templateData = {
+        // ... existing fields
+        guestCount: guestCount, // Pass guest count for calculator visibility
+        hasGuestCount: hasGuestCount // Pass boolean flag for calculator visibility
+      };
+      ```
+
+- **Calculator Visibility Control** (`src/views/wizard/event-setup.hbs`):
+  - **Template Conditional Rendering** (Lines 210-212):
+    - Calculator container hidden initially if guest count not available
+    - **Code Updated**:
+      ```handlebars
+      <div id="koi-live-quote" style="{{#unless hasGuestCount}}display: none;{{/unless}}">
+        <div class="kloi-calculator"></div>
+      </div>
+      ```
+    - **Impact**: Calculator container is hidden on first load when guest count is not in session
+  - **Server Data Attributes** (Line 234):
+    - Added guest count data attributes to `serverData` div
+    - **Code Updated**:
+      ```handlebars
+      <div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" style="display: none;"></div>
+      ```
+  - **JavaScript Guest Count Reading** (Lines 272-277):
+    - Reads guest count from server data attributes
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [GUEST COUNT] Read guest count from server data for calculator visibility
+      const guestCountData = serverDataDiv?.dataset.guestCount;
+      const hasGuestCountData = serverDataDiv?.dataset.hasGuestCount === 'true';
+      const guestCountFromServer = guestCountData ? parseInt(guestCountData, 10) : null;
+      ```
+  - **Calculator Initialization with Guest Count** (Lines 289-310):
+    - Calculator initializes even when hidden
+    - Guest count set in calculator if available from server
+    - **Code Updated**:
+      ```javascript
+      if (menuSectionsData && window.KloiCalculator) {
+        calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0, numberOfDays: numberOfDays });
+        if (calc) {
+          // Set guest count if available from server
+          if (guestCountFromServer && guestCountFromServer > 0) {
+            calc.setGuestCount(guestCountFromServer);
+          }
+        }
+      }
+      ```
+  - **Calculator Visibility Function** (Lines 312-340):
+    - Added `updateCalculatorVisibility()` function to show/hide calculator
+    - Checks guest count from input or server data
+    - **Code Added**:
+      ```javascript
+      function updateCalculatorVisibility() {
+        const calculatorContainer = document.getElementById('koi-live-quote');
+        const guestCountInput = document.querySelector('input[name="guest-count"]');
+        
+        let hasGuestCount = false;
+        if (guestCountInput) {
+          const guestCountValue = parseInt(guestCountInput.value) || 0;
+          hasGuestCount = guestCountValue > 0;
+        } else if (hasGuestCountData && guestCountFromServer && guestCountFromServer > 0) {
+          hasGuestCount = true;
+        }
+        
+        if (hasGuestCount) {
+          calculatorContainer.style.display = '';
+        } else {
+          calculatorContainer.style.display = 'none';
+        }
+      }
+      ```
+    - **Impact**: Calculator shows/hides dynamically based on guest count availability
+  - **Guest Count Change Listeners** (Lines 465-469, 495-499, 508-513):
+    - Added `updateCalculatorVisibility()` calls when guest count changes
+    - Triggers on quantity button clicks, input changes, and input events
+    - **Code Updated**:
+      ```javascript
+      // In quantity button click handler
+      if (productEl && productEl.dataset.productId === 'guest-count') {
+        calc.setGuestCount(value);
+        updateAddonMaxValues();
+        updateCalculatorVisibility(); // Show calculator when guest count is set
+      }
+      
+      // In quantity input change handler
+      if (productEl && productEl.dataset.productId === 'guest-count') {
+        calc.setGuestCount(value);
+        updateAddonMaxValues();
+        updateCalculatorVisibility(); // Show calculator when guest count is set
+      }
+      
+      // In guest count input listener
+      guestCountInput.addEventListener('input', function() {
+        updateAddonMaxValues();
+        updateCalculatorVisibility(); // Update calculator visibility on input change
+      });
+      ```
+
+- **Event-Summary Rendering Improvements** (`src/routes/eventSummary.ts`):
+  - **Enhanced Event-Setup Section Rendering** (Lines 72-120):
+    - Guest count displayed prominently (from `productQuantities` or `calculator`)
+    - Product quantities exclude guest-count (shown separately)
+    - Calculator totals displayed (subtotal, total, minimum order)
+    - Better handling of nested objects
+    - **Code Updated**:
+      ```typescript
+      } else if (sectionName === 'event-setup') {
+        // Display guest count prominently if available
+        let guestCountDisplayed = false;
+        if (data.productQuantities && typeof data.productQuantities === 'object') {
+          const guestCount = data.productQuantities['guest-count'];
+          if (typeof guestCount === 'number' && guestCount > 0) {
+            items.push(`<dt>Guest Count</dt><dd>${escapeHtml(String(guestCount))}</dd>`);
+            guestCountDisplayed = true;
+          }
+        }
+        // Try calculator.guestCount if not in productQuantities
+        if (!guestCountDisplayed && data.calculator && typeof data.calculator === 'object') {
+          const calculatorGuestCount = data.calculator.guestCount;
+          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
+            items.push(`<dt>Guest Count</dt><dd>${escapeHtml(String(calculatorGuestCount))}</dd>`);
+          }
+        }
+        
+        // Display radio selections, checkbox selections, product quantities (excluding guest-count)
+        // Display calculator totals if available
+        if (data.calculator && typeof data.calculator === 'object' && data.calculator.totals) {
+          const totals = data.calculator.totals;
+          if (totals.subtotal !== undefined) items.push(`<dt>Subtotal</dt><dd>AED ${escapeHtml(String(totals.subtotal.toFixed(2)))}</dd>`);
+          if (totals.total !== undefined) items.push(`<dt>Total</dt><dd>AED ${escapeHtml(String(totals.total.toFixed(2)))}</dd>`);
+          if (totals.minimumOrderTotal !== undefined && totals.minimumOrderTotal > 0) {
+            items.push(`<dt>Minimum Order</dt><dd>AED ${escapeHtml(String(totals.minimumOrderTotal.toFixed(2)))}</dd>`);
+          }
+        }
+      }
+      ```
+    - **Impact**: Event-summary now properly displays all event-setup data including guest count and calculator totals
+
+#### Technical Details
+
+- **Calculator Initialization Strategy**:
+  - Calculator initializes even when hidden to ensure it's ready when guest count becomes available
+  - Guest count is set in calculator from server data if available (when returning from edit)
+  - Calculator becomes visible when guest count input has value > 0
+
+- **Visibility Control Flow**:
+  1. On page load: Check server data for guest count → hide/show calculator container
+  2. On guest count input: Update calculator visibility dynamically
+  3. On returning from edit: Guest count in session → calculator shows immediately
+
+- **Event-Summary Data Display**:
+  - Guest count is extracted from multiple sources (productQuantities, calculator)
+  - Calculator totals are formatted as currency (AED)
+  - Product quantities exclude guest-count to avoid duplication
+  - All fields are properly escaped for HTML safety
+
+#### Files Modified
+
+1. `src/routes/eventSetup.ts`:
+   - Lines 53-77: Added guest count extraction logic from eventSetup session
+   - Lines 85-100: Added `guestCount` and `hasGuestCount` to template data
+
+2. `src/views/wizard/event-setup.hbs`:
+   - Lines 210-212: Added conditional style to hide calculator container if guest count not available
+   - Line 234: Added `data-guest-count` and `data-has-guest-count` attributes to serverData div
+   - Lines 272-277: Added guest count reading from server data attributes
+   - Lines 289-310: Updated calculator initialization to set guest count from server if available
+   - Lines 312-340: Added `updateCalculatorVisibility()` function
+   - Lines 465-469: Added calculator visibility update in quantity button click handler for guest-count
+   - Lines 495-499: Added calculator visibility update in quantity input change handler for guest-count
+   - Lines 508-513: Added calculator visibility update in guest count input event listener
+
+3. `src/routes/eventSummary.ts`:
+   - Lines 72-120: Enhanced event-setup section rendering with guest count display, calculator totals, and improved data handling
+
+#### Impact
+
+- **User Experience**:
+  - Calculator no longer appears empty on first load (hidden until guest count available)
+  - Calculator appears immediately when user enters guest count
+  - Calculator appears immediately when returning from edit with guest count in session
+  - Event-summary page now displays all event-setup data clearly, including guest count and totals
+
+- **Data Integrity**:
+  - Guest count is properly extracted from multiple session locations
+  - Calculator state is maintained when returning from edit
+  - Event-summary displays complete and accurate event setup information
+
+- **Code Quality**:
+  - Calculator visibility logic is centralized in `updateCalculatorVisibility()` function
+  - Guest count detection follows same pattern as date-picker route
+  - Event-summary rendering handles all data structures properly
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend and rendering change only
+- **No API Changes Required**: Existing API endpoints remain unchanged
+- **Session Data**: Works with existing session structure - no migration needed
+- **Backward Compatible**: Calculator still initializes even if guest count not available (just hidden)
+- **Immediate Effect**: Changes take effect immediately - calculator visibility improves user experience
+
+---
+
+### December 4, 2025 @ 20:11 - Route Order Change and Dynamic Booked Days Based on Guest Count
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Changed wizard route order so event-setup comes before date-picker, and implemented dynamic `defaultBookedDays` calculation based on guest count. The number of days marked as BOOKED in the date picker now dynamically adjusts based on the number of guests entered in event-setup, with more guests requiring more preparation time. Guest count is now required before accessing date-picker - missing guest count triggers redirect to splash route.
+
+#### Major Changes
+
+- **Wizard Route Order Reconfiguration** (`src/routes/api/index.ts`):
+  - **Route Flow Changed**: Updated `stepConfig` redirects to enforce new wizard flow
+    - **Location**: Lines 17-24
+    - **Previous Flow**: `/event-details` → `/date-picker` → `/event-setup` → `/event-summary`
+    - **New Flow**: `/event-details` → `/event-setup` → `/date-picker` → `/event-summary`
+    - **Code Updated**:
+      ```typescript
+      const stepConfig: Record<string, WizardStepConfig> = {
+        location: { sessionKey: 'locationData', redirectTo: '/event-details' },
+        customer: { sessionKey: 'eventDetails', redirectTo: '/event-setup' },
+        'event-details': { sessionKey: 'eventDetails', redirectTo: '/event-setup' }, // Changed from '/date-picker'
+        date: { sessionKey: 'dateInfo', redirectTo: '/event-summary' }, // Changed from '/event-setup'
+        event: { sessionKey: 'eventSetup', redirectTo: '/date-picker' }, // Changed from '/event-summary'
+        summary: { sessionKey: 'finalReview', redirectTo: '/checkout' },
+      };
+      ```
+    - **Impact**: Users must complete event-setup (including guest count) before accessing date-picker, ensuring guest count is always available for booked days calculation
+
+- **Guest Count Extraction and Validation** (`src/routes/datePicker.ts`):
+  - **Guest Count Extraction** (Lines 39-75):
+    - Extracts guest count from `eventSetup` session data
+    - Checks multiple locations: `eventSetup.productQuantities['guest-count']` and `eventSetup.calculator.guestCount`
+    - **Code Added**:
+      ```typescript
+      // 🟡🟡🟡 - [GUEST COUNT VALIDATION] Extract guest count from eventSetup session data
+      const eventSetup = (request.session as any)?.eventSetup;
+      let guestCount: number | null = null;
+      
+      if (eventSetup) {
+        // Try productQuantities first
+        if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+          const guestCountValue = eventSetup.productQuantities['guest-count'];
+          if (typeof guestCountValue === 'number' && guestCountValue > 0) {
+            guestCount = guestCountValue;
+          }
+        }
+        
+        // Fallback to calculator.guestCount
+        if (guestCount === null && eventSetup.calculator && typeof eventSetup.calculator === 'object') {
+          const calculatorGuestCount = eventSetup.calculator.guestCount;
+          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
+            guestCount = calculatorGuestCount;
+          }
+        }
+      }
+      ```
+  - **Guest Count Validation** (Lines 76-82):
+    - **CRITICAL**: Guest count is REQUIRED - missing guest count means invalid session
+    - If guest count is missing or invalid (null/undefined/<=0), redirects to `/` (splash route)
+    - **Code Added**:
+      ```typescript
+      // ⚠️⚠️⚠️ - [GUEST COUNT VALIDATION] If guest count is missing, redirect to splash (invalid session)
+      if (guestCount === null || guestCount <= 0) {
+        console.log('❗❗❗ - [DATE PICKER] Guest count missing or invalid, redirecting to splash');
+        return reply.redirect('/');
+      }
+      ```
+    - **Impact**: Ensures guest count is always available before date-picker loads, preventing errors in booked days calculation
+  - **Guest Count Passed to Template** (Line 61):
+    - Guest count is passed to template as `guestCount` variable for JavaScript access
+
+- **Template Data Attribute Addition** (`src/views/wizard/date-picker.hbs`):
+  - **Guest Count Data Attribute** (Line 72):
+    - Added `data-guest-count` attribute to `serverDateData` div
+    - **Code Updated**:
+      ```handlebars
+      <div id="serverDateData" data-date-info="{{dateInfoJson}}" data-guest-count="{{guestCount}}" style="display: none;"></div>
+      ```
+    - **Impact**: JavaScript can now read guest count from template to calculate dynamic booked days
+
+- **Dynamic Booked Days Calculation** (`public/global/js/date__picker.js`):
+  - **Calculation Method** (Lines 80-115):
+    - Added `calculateDefaultBookedDays(guestCount)` method with switch/case rules
+    - **Rules Implemented**:
+      - 1-10 guests: 3 days
+      - 11-50 guests: 5 days
+      - 51-200 guests: 14 days
+      - 201-1000 guests: 30 days
+      - Default: 3 days (fallback)
+    - **Code Added**:
+      ```javascript
+      calculateDefaultBookedDays(guestCount) {
+        let bookedDays;
+        switch (true) {
+          case guestCount >= 1 && guestCount <= 10:
+            bookedDays = 3;
+            break;
+          case guestCount >= 11 && guestCount <= 50:
+            bookedDays = 5;
+            break;
+          case guestCount >= 51 && guestCount <= 200:
+            bookedDays = 14;
+            break;
+          case guestCount >= 201 && guestCount <= 1000:
+            bookedDays = 30;
+            break;
+          default:
+            bookedDays = 3;
+            break;
+        }
+        return bookedDays;
+      }
+      ```
+    - **Impact**: Rules are easily adjustable - can be modified in switch/case statement or moved to database in future
+  - **Guest Count Reading Method** (Lines 117-145):
+    - Added `calculateDefaultBookedDaysFromGuestCount()` method
+    - Reads guest count from `serverDateData` div's `data-guest-count` attribute
+    - Calls `calculateDefaultBookedDays()` and sets `this.defaultBookedDays`
+    - **Code Added**:
+      ```javascript
+      calculateDefaultBookedDaysFromGuestCount() {
+        const serverDataDiv = document.getElementById('serverDateData');
+        const guestCountAttr = serverDataDiv?.dataset.guestCount;
+        const guestCount = parseInt(guestCountAttr, 10);
+        if (!isNaN(guestCount) && guestCount > 0) {
+          this.defaultBookedDays = this.calculateDefaultBookedDays(guestCount);
+        }
+      }
+      ```
+  - **Integration into Init Flow** (Line 34):
+    - `calculateDefaultBookedDaysFromGuestCount()` is called in `init()` method
+    - Called after `fetchServerTime()` and before `fetchBookedDates()`
+    - **Code Updated**:
+      ```javascript
+      async init() {
+        await this.fetchServerTime();
+        this.calculateDefaultBookedDaysFromGuestCount(); // Calculate before fetching booked dates
+        await this.fetchBookedDates();
+        // ... rest of init
+      }
+      ```
+    - **Impact**: Ensures `defaultBookedDays` is set correctly before booked dates are fetched and processed
+
+#### Technical Details
+
+- **Route Order Rationale**:
+  - Event-setup must come before date-picker to ensure guest count is collected first
+  - Guest count is required for dynamic booked days calculation
+  - This prevents users from accessing date-picker without completing event-setup
+
+- **Guest Count Storage**:
+  - Guest count is stored in session under `eventSetup.productQuantities['guest-count']` or `eventSetup.calculator.guestCount`
+  - Both locations are checked for maximum compatibility
+  - Guest count is collected from the guest counter input in event-setup form
+
+- **Booked Days Logic**:
+  - More guests = more preparation time needed = more days marked as BOOKED
+  - Rules are configurable via switch/case statement for easy adjustment
+  - Future enhancement: Rules can be moved to database configuration table
+
+- **Validation Flow**:
+  - Server-side validation in route handler ensures guest count exists before template render
+  - Missing guest count triggers redirect to splash (same pattern as session hooks)
+  - Client-side fallback uses default 3 days if guest count somehow unavailable (should not happen with proper validation)
+
+#### Files Modified
+
+1. `src/routes/api/index.ts`:
+   - Lines 17-24: Updated `stepConfig` redirects for route order change
+   - Changed `'event-details'` redirect from `/date-picker` to `/event-setup`
+   - Changed `'event'` redirect from `/event-summary` to `/date-picker`
+   - Changed `'date'` redirect from `/event-setup` to `/event-summary`
+
+2. `src/routes/datePicker.ts`:
+   - Lines 39-75: Added guest count extraction logic from `eventSetup` session
+   - Lines 76-82: Added guest count validation with redirect to splash if missing
+   - Line 61: Added `guestCount` to template data
+
+3. `src/views/wizard/date-picker.hbs`:
+   - Line 72: Added `data-guest-count="{{guestCount}}"` attribute to `serverDateData` div
+
+4. `public/global/js/date__picker.js`:
+   - Line 14: Updated comment for `defaultBookedDays` initialization
+   - Lines 80-115: Added `calculateDefaultBookedDays(guestCount)` method with switch/case rules
+   - Lines 117-145: Added `calculateDefaultBookedDaysFromGuestCount()` method
+   - Line 34: Integrated guest count calculation into `init()` flow
+
+#### Impact
+
+- **User Experience**:
+  - Users must complete event-setup (including guest count) before selecting dates
+  - Date picker now shows appropriate number of booked days based on event size
+  - Larger events (more guests) have more days marked as unavailable for booking
+
+- **Business Logic**:
+  - Preparation time scales with event size
+  - Prevents booking conflicts for large events requiring more setup time
+  - Rules can be easily adjusted as business needs change
+
+- **Session Management**:
+  - Guest count validation ensures data integrity
+  - Missing guest count properly handled with redirect (prevents errors)
+  - Session validation pattern consistent with existing session hooks
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend and routing change only
+- **No API Changes Required**: Existing API endpoints remain unchanged
+- **Session Data**: Existing sessions without guest count will redirect to splash (expected behavior)
+- **Backward Compatibility**: Users must complete event-setup before accessing date-picker (new requirement)
+- **Immediate Effect**: Changes take effect immediately - users following wizard flow will see new route order
+- **Rule Adjustment**: Booked days rules can be modified in `calculateDefaultBookedDays()` method without other code changes
+
+---
+
 ### November 28, 2025 - Minimum Order Calculation Fix
 
 **Type**: 🟠 MAJOR CHANGE

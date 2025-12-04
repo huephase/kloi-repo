@@ -11,7 +11,8 @@ class DatePicker {
         this.activeMonth = 0; // 0-6 for the 7 months (current month + 6 months ahead)
         
         // 👍👍👍 Configurable number of days to mark as BOOKED from current date
-        this.defaultBookedDays = 3; // Default: mark first 3 days as BOOKED
+        // 🟡🟡🟡 - [DYNAMIC BOOKED DAYS] Will be calculated based on guest count in init()
+        this.defaultBookedDays = 3; // Default: mark first 3 days as BOOKED (fallback if guest count unavailable)
         
         this.monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -31,6 +32,10 @@ class DatePicker {
     async init() {
       
         await this.fetchServerTime();
+        
+        // 🟡🟡🟡 - [GUEST COUNT] Read guest count from server data and calculate defaultBookedDays
+        this.calculateDefaultBookedDaysFromGuestCount();
+        
         await this.fetchBookedDates(); // 🟡🟡🟡 - [BOOKED DATES] Fetch booked dates from database
         
         // 🟡🟡🟡 - [BUTTON STATE RESET] Reset submit button to initial state (fixes back button bug)
@@ -46,6 +51,70 @@ class DatePicker {
         this.bindEvents();
         this.updateSelectedDatesDisplay();
         this.updateBookingSummary();
+    }
+    
+    // 🟡🟡🟡 - [DYNAMIC BOOKED DAYS] Calculate defaultBookedDays based on guest count
+    // ⚠️⚠️⚠️ - [DYNAMIC BOOKED DAYS] Rules can be adjusted here - future enhancement: read from database
+    calculateDefaultBookedDays(guestCount) {
+        console.log('🟡🟡🟡 - [DYNAMIC BOOKED DAYS] Calculating booked days for guest count:', guestCount);
+        
+        // 🟡🟡🟡 - [GUEST COUNT RULES] Use switch/case for easy rule adjustment
+        // Rules: More guests = more preparation time needed
+        let bookedDays;
+        
+        switch (true) {
+            case guestCount >= 1 && guestCount <= 10:
+                bookedDays = 3;
+                break;
+            case guestCount >= 11 && guestCount <= 50:
+                bookedDays = 5;
+                break;
+            case guestCount >= 51 && guestCount <= 200:
+                bookedDays = 14;
+                break;
+            case guestCount >= 201 && guestCount <= 1000:
+                bookedDays = 30;
+                break;
+            default:
+                // 🟡🟡🟡 - [FALLBACK] Default to 3 days if guest count is outside expected range
+                bookedDays = 3;
+                console.warn('⚠️⚠️⚠️ - [DYNAMIC BOOKED DAYS] Guest count outside expected range, using default:', guestCount);
+                break;
+        }
+        
+        console.log('✅✅✅ - [DYNAMIC BOOKED DAYS] Calculated booked days:', bookedDays, 'for', guestCount, 'guests');
+        return bookedDays;
+    }
+    
+    // 🟡🟡🟡 - [GUEST COUNT] Read guest count from server data and update defaultBookedDays
+    calculateDefaultBookedDaysFromGuestCount() {
+        try {
+            const serverDataDiv = document.getElementById('serverDateData');
+            if (!serverDataDiv) {
+                console.warn('⚠️⚠️⚠️ - [DYNAMIC BOOKED DAYS] serverDateData div not found, using default');
+                return;
+            }
+            
+            const guestCountAttr = serverDataDiv.dataset.guestCount;
+            if (!guestCountAttr) {
+                console.warn('⚠️⚠️⚠️ - [DYNAMIC BOOKED DAYS] Guest count not found in server data, using default');
+                return;
+            }
+            
+            const guestCount = parseInt(guestCountAttr, 10);
+            if (isNaN(guestCount) || guestCount <= 0) {
+                console.warn('⚠️⚠️⚠️ - [DYNAMIC BOOKED DAYS] Invalid guest count:', guestCountAttr, 'using default');
+                return;
+            }
+            
+            // 🟡🟡🟡 - [DYNAMIC BOOKED DAYS] Calculate and set defaultBookedDays
+            this.defaultBookedDays = this.calculateDefaultBookedDays(guestCount);
+            console.log('✅✅✅ - [DYNAMIC BOOKED DAYS] defaultBookedDays set to:', this.defaultBookedDays);
+            
+        } catch (error) {
+            console.error('❗❗❗ - [DYNAMIC BOOKED DAYS] Error calculating booked days from guest count:', error);
+            // 🟡🟡🟡 - [FALLBACK] Continue with default value if calculation fails
+        }
     }
     
     async fetchServerTime() {

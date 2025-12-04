@@ -17,10 +17,10 @@ import paymentRoutes from './payment';
 const stepConfig: Record<string, WizardStepConfig> = {
   location: { sessionKey: 'locationData', redirectTo: '/event-details' },
   // ⚠️⚠️⚠️ IMPORTANT NOTE: customerInfo IS eventDetails NOW
-  customer: { sessionKey: 'eventDetails', redirectTo: '/date-picker' },
-  'event-details': { sessionKey: 'eventDetails', redirectTo: '/date-picker' }, // 🟡🟡🟡 - [NEW ROUTE] Support direct event-details endpoint
-  date: { sessionKey: 'dateInfo', redirectTo: '/event-setup' },
-  event: { sessionKey: 'eventSetup', redirectTo: '/event-summary' },
+  customer: { sessionKey: 'eventDetails', redirectTo: '/event-setup' },
+  'event-details': { sessionKey: 'eventDetails', redirectTo: '/event-setup' }, // 🟡🟡🟡 - [ROUTE ORDER] Changed redirect to event-setup (before date-picker)
+  date: { sessionKey: 'dateInfo', redirectTo: '/event-summary' },
+  event: { sessionKey: 'eventSetup', redirectTo: '/date-picker' }, // 🟡🟡🟡 - [ROUTE ORDER] Changed redirect to date-picker (after event-setup)
   summary: { sessionKey: 'finalReview', redirectTo: '/checkout' }, // optional, for review screen
 };
 

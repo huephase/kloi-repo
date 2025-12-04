@@ -70,6 +70,24 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
             if (data.endTime) items.push(`<dt>End Time</dt><dd>${escapeHtml(data.endTime)}</dd>`);
             if (data.isMultiDay !== undefined) items.push(`<dt>Multi-Day Event</dt><dd>${data.isMultiDay ? 'Yes' : 'No'}</dd>`);
           } else if (sectionName === 'event-setup') {
+            // 🟡🟡🟡 - [GUEST COUNT] Display guest count prominently if available
+            let guestCountDisplayed = false;
+            if (data.productQuantities && typeof data.productQuantities === 'object') {
+              const guestCount = data.productQuantities['guest-count'];
+              if (typeof guestCount === 'number' && guestCount > 0) {
+                items.push(`<dt>Guest Count</dt><dd>${escapeHtml(String(guestCount))}</dd>`);
+                guestCountDisplayed = true;
+              }
+            }
+            // 🟡🟡🟡 - [GUEST COUNT FALLBACK] Try calculator.guestCount if not in productQuantities
+            if (!guestCountDisplayed && data.calculator && typeof data.calculator === 'object') {
+              const calculatorGuestCount = data.calculator.guestCount;
+              if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
+                items.push(`<dt>Guest Count</dt><dd>${escapeHtml(String(calculatorGuestCount))}</dd>`);
+                guestCountDisplayed = true;
+              }
+            }
+            
             if (data.radioSelections && typeof data.radioSelections === 'object') {
               const radioItems = Object.entries(data.radioSelections).map(([key, val]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</li>`).join('');
               if (radioItems) items.push(`<dt>Menu Selections</dt><dd><ul class="selection-list">${radioItems}</ul></dd>`);
@@ -79,13 +97,31 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
               if (checkboxItems) items.push(`<dt>Upgrades</dt><dd><ul class="selection-list">${checkboxItems}</ul></dd>`);
             }
             if (data.productQuantities && typeof data.productQuantities === 'object') {
-              const quantityItems = Object.entries(data.productQuantities).map(([key, val]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</li>`).join('');
+              // 🟡🟡🟡 - [PRODUCT QUANTITIES] Display product quantities, excluding guest-count (already displayed above)
+              const quantityItems = Object.entries(data.productQuantities)
+                .filter(([key]) => key !== 'guest-count') // Exclude guest-count as it's displayed separately
+                .map(([key, val]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</li>`)
+                .join('');
               if (quantityItems) items.push(`<dt>Product Quantities</dt><dd><ul class="selection-list">${quantityItems}</ul></dd>`);
             }
-            // 🟡🟡🟡 - Fallback: display all other fields generically
+            // 🟡🟡🟡 - [CALCULATOR TOTALS] Display calculator totals if available
+            if (data.calculator && typeof data.calculator === 'object' && data.calculator.totals) {
+              const totals = data.calculator.totals;
+              if (totals.subtotal !== undefined) items.push(`<dt>Subtotal</dt><dd>AED ${escapeHtml(String(totals.subtotal.toFixed(2)))}</dd>`);
+              if (totals.total !== undefined) items.push(`<dt>Total</dt><dd>AED ${escapeHtml(String(totals.total.toFixed(2)))}</dd>`);
+              if (totals.minimumOrderTotal !== undefined && totals.minimumOrderTotal > 0) {
+                items.push(`<dt>Minimum Order</dt><dd>AED ${escapeHtml(String(totals.minimumOrderTotal.toFixed(2)))}</dd>`);
+              }
+            }
+            // 🟡🟡🟡 - [FALLBACK] Display other fields generically, excluding already handled fields
+            const excludedKeys = ['radioSelections', 'checkboxSelections', 'productQuantities', 'calculator'];
             Object.entries(data).forEach(([key, val]) => {
-              if (!['radioSelections', 'checkboxSelections', 'productQuantities'].includes(key) && val !== null && val !== undefined) {
-                items.push(`<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(val))}</dd>`);
+              if (!excludedKeys.includes(key) && val !== null && val !== undefined) {
+                if (typeof val === 'object' && !Array.isArray(val)) {
+                  items.push(`<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(JSON.stringify(val, null, 2))}</dd>`);
+                } else {
+                  items.push(`<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(val))}</dd>`);
+                }
               }
             });
           } else {
