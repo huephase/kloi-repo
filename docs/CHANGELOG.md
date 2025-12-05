@@ -14,6 +14,277 @@
 
 ---
 
+### December 5, 2025 @ 12:16 - Calculator Initialization Fix - Prevent Rendering Without Guest Count
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical issue where calculator was initializing and rendering immediately on page load even without guest count in session cookie. Calculator now uses deferred initialization pattern - only initializes when guest count is available (either from session or user input). This prevents calculator from rendering empty/invalid state and ensures proper visibility control.
+
+#### Major Changes
+
+- **Guest Count Availability Check Function** (`src/views/wizard/event-setup.hbs`):
+  - **New Function** (Lines 296-314):
+    - Added `checkGuestCountAvailable()` helper function
+    - Checks guest count from both input field and server data attributes
+    - Returns boolean indicating if guest count is available and valid (> 0)
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Function to check if guest count is available
+      function checkGuestCountAvailable() {
+          const guestCountInput = document.querySelector('input[name="guest-count"]');
+          
+          // 🟡🟡🟡 - [GUEST COUNT CHECK] Check if guest count is available from input or server
+          if (guestCountInput) {
+              const guestCountValue = parseInt(guestCountInput.value) || 0;
+              if (guestCountValue > 0) {
+                  return true;
+              }
+          }
+          
+          // 🟡🟡🟡 - [GUEST COUNT CHECK] Check server data
+          if (hasGuestCountData && guestCountFromServer && guestCountFromServer > 0) {
+              return true;
+          }
+          
+          return false;
+      }
+      ```
+    - **Impact**: Centralizes guest count availability logic for consistent checks across all calculator operations
+
+- **Conditional Calculator Initialization** (`src/views/wizard/event-setup.hbs`):
+  - **Initialization Logic Change** (Lines 337-369):
+    - **CRITICAL FIX**: Calculator initialization now conditional on guest count availability
+    - **Previous Behavior**: Calculator initialized immediately on page load, rendering even without guest count
+    - **New Behavior**: Calculator only initializes if `checkGuestCountAvailable()` returns true
+    - **Code Updated**:
+      ```javascript
+      // 🟡🟡🟡 - [CALCULATOR INIT] Only initialize calculator if guest count is available
+      // ⚠️⚠️⚠️ - [CALCULATOR INIT] Calculator renders immediately on init, so we must check guest count first
+      const hasGuestCountForInit = checkGuestCountAvailable();
+      
+      if (menuSectionsData && window.KloiCalculator) {
+          if (hasGuestCountForInit) {
+              // Initialize calculator
+              calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0, numberOfDays: numberOfDays });
+              // ... set guest count if available
+          } else {
+              // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Store menu data for later initialization
+              window.__pendingCalculatorInit = {
+                  menuSectionsData: menuSectionsData,
+                  numberOfDays: numberOfDays,
+                  guestCountFromServer: guestCountFromServer
+              };
+          }
+      }
+      ```
+    - **Impact**: Prevents calculator from rendering without guest count, eliminating empty/invalid calculator display
+
+- **Deferred Calculator Initialization Function** (`src/views/wizard/event-setup.hbs`):
+  - **New Function** (Lines 374-395):
+    - Added `initializeCalculatorIfNeeded()` function for on-demand calculator initialization
+    - Checks if calculator is not initialized and pending initialization data exists
+    - Initializes calculator when called (typically when guest count becomes available)
+    - Sets guest count immediately after initialization
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Function to initialize calculator when guest count becomes available
+      function initializeCalculatorIfNeeded() {
+          if (!calc && window.__pendingCalculatorInit && window.KloiCalculator) {
+              const pending = window.__pendingCalculatorInit;
+              console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing deferred calculator now that guest count is available');
+              
+              calc = window.KloiCalculator.initFromMenuSections(pending.menuSectionsData, { taxPercent: 0, numberOfDays: pending.numberOfDays });
+              if (calc) {
+                  // 🟡🟡🟡 - [GUEST COUNT] Set guest count from input or server
+                  const guestCountInput = document.querySelector('input[name="guest-count"]');
+                  const guestCountValue = guestCountInput ? parseInt(guestCountInput.value) || 0 : (pending.guestCountFromServer || 0);
+                  if (guestCountValue > 0) {
+                      calc.setGuestCount(guestCountValue);
+                  }
+                  
+                  try { window.__kloiCalc = calc; } catch(_e) {}
+                  delete window.__pendingCalculatorInit;
+              }
+          }
+      }
+      ```
+    - **Impact**: Enables calculator to initialize dynamically when guest count becomes available, ensuring proper state
+
+- **Updated Visibility Control Function** (`src/views/wizard/event-setup.hbs`):
+  - **Function Refactoring** (Lines 316-335):
+    - Refactored `updateCalculatorVisibility()` to use `checkGuestCountAvailable()` helper
+    - Simplified logic by delegating guest count check to dedicated function
+    - **Code Updated**:
+      ```javascript
+      function updateCalculatorVisibility() {
+          const calculatorContainer = document.getElementById('koi-live-quote');
+          
+          if (!calculatorContainer) {
+              console.warn('⚠️⚠️⚠️ - [EVENT SETUP JS] Calculator container not found');
+              return;
+          }
+          
+          const hasGuestCount = checkGuestCountAvailable();
+          
+          // 🟡🟡🟡 - [VISIBILITY CONTROL] Show calculator if guest count is available
+          if (hasGuestCount) {
+              calculatorContainer.style.display = '';
+          } else {
+              calculatorContainer.style.display = 'none';
+          }
+      }
+      ```
+    - **Impact**: Cleaner code with consistent guest count checking logic
+
+- **Quantity Button Click Handler Update** (`src/views/wizard/event-setup.hbs`):
+  - **Guest Count Handler Enhancement** (Lines 552-578):
+    - Added call to `initializeCalculatorIfNeeded()` before using calculator
+    - Handles case where calculator is not yet initialized when guest count button is clicked
+    - **Code Updated**:
+      ```javascript
+      const productEl = this.closest('.product-item');
+      if (productEl && productEl.dataset.productId === 'guest-count') {
+          // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Initialize calculator if guest count just became available
+          if (!calc) {
+              initializeCalculatorIfNeeded();
+          }
+          
+          if (calc) {
+              calc.setGuestCount(value);
+              updateAddonMaxValues();
+              updateCalculatorVisibility();
+              updateMinimumOrderVisibility();
+          } else {
+              // Still update addon max values even if calculator not initialized
+              updateAddonMaxValues();
+              updateCalculatorVisibility();
+          }
+      }
+      ```
+    - **Impact**: Ensures calculator initializes when user clicks guest count buttons (+/-)
+
+- **Quantity Input Change Handler Update** (`src/views/wizard/event-setup.hbs`):
+  - **Guest Count Handler Enhancement** (Lines 598-622):
+    - Added call to `initializeCalculatorIfNeeded()` before using calculator
+    - Handles direct input changes to guest count field
+    - **Code Updated**:
+      ```javascript
+      if (productEl && productEl.dataset.productId === 'guest-count') {
+          // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Initialize calculator if guest count just became available
+          if (!calc) {
+              initializeCalculatorIfNeeded();
+          }
+          
+          if (calc) {
+              calc.setGuestCount(value);
+              updateAddonMaxValues();
+              updateCalculatorVisibility();
+              updateMinimumOrderVisibility();
+          } else {
+              updateAddonMaxValues();
+              updateCalculatorVisibility();
+          }
+      }
+      ```
+    - **Impact**: Ensures calculator initializes when user directly types guest count value
+
+- **Guest Count Input Listener Enhancement** (`src/views/wizard/event-setup.hbs`):
+  - **Input Event Handler Update** (Lines 629-646):
+    - Added call to `initializeCalculatorIfNeeded()` when guest count > 0 and calculator not initialized
+    - Updates calculator guest count if already initialized
+    - **Code Updated**:
+      ```javascript
+      guestCountInput.addEventListener('input', function() {
+          const value = parseInt(this.value) || 0;
+          
+          // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Initialize calculator if guest count just became available
+          if (value > 0 && !calc) {
+              initializeCalculatorIfNeeded();
+          }
+          
+          updateAddonMaxValues();
+          updateCalculatorVisibility();
+          
+          // 🟡🟡🟡 - [CALCULATOR UPDATE] Update calculator if initialized
+          if (calc) {
+              calc.setGuestCount(value);
+              updateMinimumOrderVisibility();
+          }
+      });
+      ```
+    - **Impact**: Ensures calculator initializes on real-time input changes to guest count field
+
+#### Technical Details
+
+- **Root Cause**: 
+  - `KloiCalculatorUI` constructor calls `render()` immediately (line 262 in `kloi_calculator.js`)
+  - Previous implementation initialized calculator on page load regardless of guest count availability
+  - Calculator rendered empty/invalid state even when container was hidden with CSS
+
+- **Solution Pattern**:
+  - **Deferred Initialization**: Store initialization data in `window.__pendingCalculatorInit` when guest count unavailable
+  - **On-Demand Initialization**: Initialize calculator when guest count becomes available via `initializeCalculatorIfNeeded()`
+  - **Conditional Initialization**: Check guest count availability before calling `KloiCalculator.initFromMenuSections()`
+
+- **Initialization Triggers**:
+  1. Page load with guest count in session (immediate initialization)
+  2. User clicks guest count +/- buttons (deferred initialization)
+  3. User types guest count value (deferred initialization)
+  4. User changes guest count input field (deferred initialization)
+
+- **State Management**:
+  - `calc` variable tracks calculator instance (null until initialized)
+  - `window.__pendingCalculatorInit` stores menu data for deferred initialization
+  - `window.__kloiCalc` global reference set after initialization
+
+#### Files Modified
+
+1. `src/views/wizard/event-setup.hbs`:
+   - Lines 296-314: Added `checkGuestCountAvailable()` function
+   - Lines 316-335: Refactored `updateCalculatorVisibility()` to use helper function
+   - Lines 337-369: Changed calculator initialization to conditional based on guest count
+   - Lines 374-395: Added `initializeCalculatorIfNeeded()` deferred initialization function
+   - Lines 552-578: Updated quantity button click handler for guest-count to call deferred init
+   - Lines 598-622: Updated quantity input change handler for guest-count to call deferred init
+   - Lines 629-646: Enhanced guest count input listener to call deferred init
+
+#### Impact
+
+- **User Experience**:
+  - Calculator no longer renders empty/invalid state on first page load
+  - Calculator appears smoothly when guest count is entered
+  - No visual glitches or empty calculator displays
+  - Consistent behavior whether guest count comes from session or user input
+
+- **Performance**:
+  - Calculator initialization deferred until needed (lazy loading)
+  - Reduces unnecessary DOM manipulation on page load
+  - Calculator only renders when it has valid data to display
+
+- **Code Quality**:
+  - Centralized guest count availability checking
+  - Clear separation between initialization and visibility control
+  - Better error handling for missing guest count scenarios
+
+- **Bug Fix**:
+  - **FIXED**: Calculator rendering without guest count in session cookie
+  - **FIXED**: Empty calculator display showing "Minimum Order Per Day AED 2111 Per day" with no valid data
+  - **FIXED**: Calculator rendering before guest count validation
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend JavaScript change only
+- **No API Changes Required**: Existing API endpoints remain unchanged
+- **No Session Changes Required**: Session structure remains the same
+- **Backward Compatibility**: Fully backward compatible - calculator still works with existing session data
+- **Immediate Effect**: Changes take effect immediately - calculator will no longer render without guest count
+- **Testing**: Verify calculator appears when:
+  1. Guest count entered on first visit
+  2. Returning from edit with guest count in session
+  3. Guest count changed via buttons or direct input
+
+---
+
 ### December 4, 2025 @ 21:07 - Calculator Visibility Fix and Event-Summary Rendering Improvements
 
 **Type**: 🟠 MAJOR CHANGE
