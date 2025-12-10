@@ -14,6 +14,262 @@
 
 ---
 
+### December 10, 2025 @ 16:23 - Form Pre-Filling from Session Data on Event-Setup Page
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented form pre-filling functionality on event-setup page to restore user selections from session cookie when returning from event-summary page. Users can now edit their selections without re-entering all data from scratch. Form pre-fills radio buttons, checkboxes, quantity inputs (including guest count), and properly updates calculator with restored values. Radio options are expanded/contracted correctly based on selections.
+
+#### Major Changes
+
+- **Route Handler Template Data Enhancement** (`src/routes/eventSetup.ts`):
+  - **EventSetup JSON Addition** (Line 125):
+    - Added `eventSetupJson` to template data for JavaScript access
+    - **Code Added**:
+      ```typescript
+      eventSetupJson: eventSetup ? JSON.stringify(eventSetup) : 'null', // 🟡🟡🟡 - [FORM PRE-FILL] Pass eventSetup JSON for form pre-filling
+      ```
+    - **Impact**: JavaScript can access eventSetup session data to pre-fill form inputs
+
+- **Template Data Attribute Addition** (`src/views/wizard/event-setup.hbs`):
+  - **EventSetup Data Attribute** (Line 241):
+    - Added `data-event-setup` attribute to serverData div
+    - **Code Updated**:
+      ```handlebars
+      <div id="serverData" ... data-event-setup="{{eventSetupJson}}" ...>
+      ```
+    - **Impact**: JavaScript can read eventSetup data from DOM for form pre-filling
+
+- **Form Pre-Filling Function** (`src/views/wizard/event-setup.hbs`):
+  - **New Function** (Lines 990-1085):
+    - Added `prefillFormFromSession()` function to restore form state from session
+    - Reads eventSetup data from serverData div
+    - Pre-fills radio buttons, checkboxes, and quantity inputs
+    - Expands selected radio options and contracts others
+    - Shows guest counter container if guest count > 0
+    - Updates calculator if already initialized
+    - **Code Added**:
+      ```javascript
+      function prefillFormFromSession() {
+          const serverDataDiv = document.getElementById('serverData');
+          const eventSetupJsonAttr = serverDataDiv.getAttribute('data-event-setup');
+          if (eventSetupJsonAttr && eventSetupJsonAttr !== 'null') {
+              const eventSetup = JSON.parse(eventSetupJsonAttr);
+              
+              // Pre-fill radio buttons
+              if (eventSetup.radioSelections) {
+                  Object.entries(eventSetup.radioSelections).forEach(([groupId, optionKey]) => {
+                      const radioInput = document.querySelector(`input[type="radio"][name="${groupId}"][value="${optionKey}"]`);
+                      if (radioInput) {
+                          radioInput.checked = true;
+                          // Expand selected option, contract others
+                      }
+                  });
+              }
+              
+              // Pre-fill checkboxes
+              if (eventSetup.checkboxSelections) {
+                  Object.entries(eventSetup.checkboxSelections).forEach(([optionKey, value]) => {
+                      const checkboxInput = document.querySelector(`input[type="checkbox"][name="${optionKey}"]`);
+                      if (checkboxInput) checkboxInput.checked = true;
+                  });
+              }
+              
+              // Pre-fill quantity inputs
+              if (eventSetup.productQuantities) {
+                  Object.entries(eventSetup.productQuantities).forEach(([productKey, quantity]) => {
+                      const quantityInput = document.querySelector(`input.quantity-input[name="${productKey}"]`);
+                      if (quantityInput) {
+                          quantityInput.value = quantity.toString();
+                          // Show guest counter if guest count > 0
+                      }
+                  });
+              }
+              
+              // Update calculator if already initialized
+              if (calc) {
+                  // Update calculator with pre-filled values
+              }
+          }
+      }
+      ```
+    - **Impact**: Form inputs are restored from session, providing seamless editing experience
+
+- **Radio Option Expansion Logic** (`src/views/wizard/event-setup.hbs`):
+  - **Visual State Management** (Lines 1017-1042):
+    - Expands selected radio option (adds 'expanded' class, removes 'contracted')
+    - Shows view details button for selected option
+    - Contracts other options in same group
+    - Hides view details buttons for non-selected options
+    - **Code Added**:
+      ```javascript
+      const radioOption = radioInput.closest('.radio-option');
+      radioOption.classList.remove('contracted');
+      radioOption.classList.add('expanded');
+      const viewDetailsBtn = radioOption.querySelector('.view-details-btn');
+      if (viewDetailsBtn) viewDetailsBtn.style.display = 'inline-block';
+      // Contract other options in group
+      ```
+    - **Impact**: Selected radio options are visually expanded, matching user's previous selection state
+
+- **Calculator Update After Pre-Fill** (`src/views/wizard/event-setup.hbs`):
+  - **Calculator Synchronization** (Lines 1057-1085):
+    - Updates calculator with pre-filled form values if calculator already initialized
+    - Sets guest count, radio selections, checkbox selections, and product quantities
+    - Recalculates calculator totals
+    - **Code Added**:
+      ```javascript
+      if (calc) {
+          // Update guest count
+          const guestInput = document.querySelector('#guest-counter-container .quantity-input[name="guest-count"]');
+          if (guestInput) {
+              const guestCountValue = parseInt(guestInput.value) || 0;
+              if (guestCountValue > 0) {
+                  calc.setGuestCount(guestCountValue);
+              }
+          }
+          
+          // Update radio selections
+          const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
+          selectedRadios.forEach(r => calc.setRadio(r.name, r.value));
+          
+          // Update checkbox selections
+          const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+          selectedCheckboxes.forEach(cb => calc.setCheckbox(cb.value, true));
+          
+          // Update product quantities
+          const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
+          productInputs.forEach(pi => {
+              const qty = parseInt(pi.value) || 0;
+              if (qty > 0 || pi.name === 'guest-count') {
+                  calc.setProductQty(pi.name, qty);
+              }
+          });
+          
+          calc.recalc();
+      }
+      ```
+    - **Impact**: Calculator reflects pre-filled form values immediately, showing correct quote
+
+- **Initialization Order Update** (`src/views/wizard/event-setup.hbs`):
+  - **Pre-Fill First** (Line 1087):
+    - Form pre-filling called first in `initialize()` function
+    - **Code Updated**:
+      ```javascript
+      function initialize() {
+          // Pre-fill form from session data BEFORE other initialization
+          prefillFormFromSession();
+          
+          initializePopupData();
+          initializeQuantityControls();
+          // ... rest of initialization
+      }
+      ```
+    - **Impact**: Ensures form is pre-filled before other initialization logic runs
+
+- **Deferred Calculator Initialization Enhancement** (`src/views/wizard/event-setup.hbs`):
+  - **Form Value Reading** (Lines 450-466):
+    - Updated `initializeCalculatorIfNeeded()` to read from pre-filled form values
+    - Reads radio, checkbox, and product values from form when calculator initializes later
+    - **Code Updated**:
+      ```javascript
+      calc = window.KloiCalculator.initFromMenuSections(pending.menuSectionsData, { taxPercent: 0, numberOfDays: pending.numberOfDays });
+      if (calc) {
+          // Set guest count
+          // Read pre-filled form values and set in calculator
+          const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
+          selectedRadios.forEach(r => calc.setRadio(r.name, r.value));
+          
+          const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+          selectedCheckboxes.forEach(cb => calc.setCheckbox(cb.value, true));
+          
+          const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
+          productInputs.forEach(pi => {
+              const qty = parseInt(pi.value) || 0;
+              if (qty > 0 || pi.name === 'guest-count') {
+                  calc.setProductQty(pi.name, qty);
+              }
+          });
+          
+          calc.recalc();
+      }
+      ```
+    - **Impact**: Calculator initialized later (when dates become available) correctly reads pre-filled form values
+
+#### Technical Details
+
+- **Pre-Fill Strategy**:
+  - Reads eventSetup data from session cookie via data attribute
+  - Pre-fills form inputs before other initialization
+  - Updates calculator if already initialized, or calculator reads from form when initialized later
+  - Handles both immediate and deferred calculator initialization scenarios
+
+- **Radio Option State Management**:
+  - Selected radio options are expanded (visual state)
+  - Non-selected options in same group are contracted
+  - View details buttons shown/hidden appropriately
+  - Matches user's previous interaction state
+
+- **Guest Counter Visibility**:
+  - Guest counter container shown if guest count > 0 in session
+  - Guest count input pre-filled with session value
+  - Calculator updated with guest count if initialized
+
+- **Data Flow**:
+  1. User completes event-setup → data saved to session
+  2. User navigates to event-summary → sees summary
+  3. User clicks "Edit EVENT SETUP" → returns to event-setup
+  4. Page loads → form pre-fills from session data
+  5. Calculator updates → reads pre-filled values and shows correct quote
+
+#### Files Modified
+
+1. `src/routes/eventSetup.ts`:
+   - Line 125: Added `eventSetupJson` to template data
+
+2. `src/views/wizard/event-setup.hbs`:
+   - Line 241: Added `data-event-setup` attribute to serverData div
+   - Lines 990-1085: Added `prefillFormFromSession()` function
+   - Lines 1017-1042: Added radio option expansion/contraction logic
+   - Lines 1057-1085: Added calculator update after pre-fill
+   - Line 1087: Added pre-fill call at start of `initialize()` function
+   - Lines 450-466: Updated `initializeCalculatorIfNeeded()` to read from pre-filled form
+
+#### Impact
+
+- **User Experience**:
+  - Users can edit selections without re-entering all data
+  - Form state restored from session cookie
+  - Radio options visually expanded to match selections
+  - Calculator shows correct quote immediately
+  - Seamless editing workflow
+
+- **Data Consistency**:
+  - Form inputs match session data
+  - Calculator state synchronized with form state
+  - Visual state (radio expansion) matches data state
+
+- **Code Quality**:
+  - Centralized pre-fill logic in dedicated function
+  - Handles both immediate and deferred calculator initialization
+  - Proper error handling for missing or invalid session data
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend JavaScript change only
+- **No API Changes Required**: Existing API endpoints remain unchanged
+- **Session Data**: Uses existing eventSetup session structure
+- **Backward Compatibility**: Fully backward compatible - if no session data, form starts empty (existing behavior)
+- **Immediate Effect**: Changes take effect immediately - form pre-fills when returning from event-summary
+- **Testing**: Verify form pre-fills correctly when:
+  1. Returning from event-summary after completing event-setup
+  2. Radio buttons checked and expanded
+  3. Checkboxes checked
+  4. Quantity inputs filled (including guest count)
+  5. Calculator shows correct quote with pre-filled values
+
+---
+
 ### December 10, 2025 @ 15:30 - Calculator Requirements Fix, Live Calculator on Event-Summary, and User-Friendly Label Display
 
 **Type**: 🟠 MAJOR CHANGE

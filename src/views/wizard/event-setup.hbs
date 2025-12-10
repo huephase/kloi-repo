@@ -237,8 +237,9 @@
 {{! 🟡🟡🟡 - [HIDDEN DATA] Server-side data for JavaScript }}
 {{! 🟡🟡🟡 - [GUEST COUNT] Pass guest count for calculator visibility control }}
 {{! 🟡🟡🟡 - [DATE INFO] Pass date info flags for calculator visibility control }}
+{{! 🟡🟡🟡 - [FORM PRE-FILL] Pass eventSetup data for form pre-filling }}
 {{! ⚠️⚠️⚠️ - [CALCULATOR READINESS] Calculator requires BOTH guest count AND dates }}
-<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" data-has-date-info="{{hasDateInfo}}" data-can-show-calculator="{{canShowCalculator}}" style="display: none;"></div>
+<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" data-has-date-info="{{hasDateInfo}}" data-can-show-calculator="{{canShowCalculator}}" data-event-setup="{{eventSetupJson}}" style="display: none;"></div>
 
 {{! 🟡🟡🟡 - [POPUP MODAL] Modal for displaying popup content }}
 <div id="popupModal" class="popup-modal">
@@ -457,9 +458,29 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('✅✅✅ - [EVENT SETUP JS] Guest count set in deferred calculator:', guestCountValue);
                 }
                 
+                // 🟡🟡🟡 - [FORM VALUES] Read pre-filled form values and set in calculator
+                // Radios
+                const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
+                selectedRadios.forEach(r => calc.setRadio(r.name, r.value));
+                
+                // Checkboxes
+                const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+                selectedCheckboxes.forEach(cb => calc.setCheckbox(cb.value, true));
+                
+                // Products (including addon items)
+                const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
+                productInputs.forEach(pi => {
+                    const qty = parseInt(pi.value) || 0;
+                    if (qty > 0 || pi.name === 'guest-count') {
+                        calc.setProductQty(pi.name, qty);
+                    }
+                });
+                
+                calc.recalc();
+                
                 try { window.__kloiCalc = calc; } catch(_e) {}
                 delete window.__pendingCalculatorInit;
-                console.log('✅✅✅ - [EVENT SETUP JS] Deferred calculator initialized successfully with guest count and dates');
+                console.log('✅✅✅ - [EVENT SETUP JS] Deferred calculator initialized successfully with guest count, dates, and pre-filled form values');
             }
         }
     }
@@ -987,8 +1008,146 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 🟡🟡🟡 - [INITIALIZATION] Initialize all functionality
+    // 🟡🟡🟡 - [FORM PRE-FILL] Pre-fill form inputs from session data
+    function prefillFormFromSession() {
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Pre-filling form from session data');
+        
+        const serverDataDiv = document.getElementById('serverData');
+        if (!serverDataDiv) {
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Server data div not found, skipping pre-fill');
+            return;
+        }
+        
+        const eventSetupJsonAttr = serverDataDiv.getAttribute('data-event-setup');
+        if (!eventSetupJsonAttr || eventSetupJsonAttr === 'null') {
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] No eventSetup data in session, skipping pre-fill');
+            return;
+        }
+        
+        try {
+            const eventSetup = JSON.parse(eventSetupJsonAttr);
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] EventSetup data parsed:', eventSetup);
+            
+            // 🟡🟡🟡 - [RADIO SELECTIONS] Pre-fill radio buttons
+            if (eventSetup.radioSelections && typeof eventSetup.radioSelections === 'object') {
+                Object.entries(eventSetup.radioSelections).forEach(([groupId, optionKey]) => {
+                    const radioInput = document.querySelector(`input[type="radio"][name="${groupId}"][value="${optionKey}"]`);
+                    if (radioInput) {
+                        radioInput.checked = true;
+                        // 🟡🟡🟡 - [RADIO EXPANSION] Expand the selected radio option
+                        const radioOption = radioInput.closest('.radio-option');
+                        if (radioOption) {
+                            radioOption.classList.remove('contracted');
+                            radioOption.classList.add('expanded');
+                            // 🟡🟡🟡 - [VIEW DETAILS BUTTON] Show view details button if it exists
+                            const viewDetailsBtn = radioOption.querySelector('.view-details-btn');
+                            if (viewDetailsBtn) {
+                                viewDetailsBtn.style.display = 'inline-block';
+                            }
+                        }
+                        // 🟡🟡🟡 - [RADIO CONTRACTION] Contract other options in the same group
+                        const radioGroup = radioInput.closest('.radio-group');
+                        if (radioGroup) {
+                            const otherOptions = radioGroup.querySelectorAll('.radio-option');
+                            otherOptions.forEach(otherOption => {
+                                if (otherOption !== radioOption) {
+                                    otherOption.classList.remove('expanded');
+                                    otherOption.classList.add('contracted');
+                                    const otherBtn = otherOption.querySelector('.view-details-btn');
+                                    if (otherBtn) {
+                                        otherBtn.style.display = 'none';
+                                    }
+                                }
+                            });
+                        }
+                        console.log('✅✅✅ - [EVENT SETUP JS] Pre-filled radio:', groupId, '->', optionKey);
+                    }
+                });
+            }
+            
+            // 🟡🟡🟡 - [CHECKBOX SELECTIONS] Pre-fill checkboxes
+            if (eventSetup.checkboxSelections && typeof eventSetup.checkboxSelections === 'object') {
+                Object.entries(eventSetup.checkboxSelections).forEach(([optionKey, value]) => {
+                    const checkboxInput = document.querySelector(`input[type="checkbox"][name="${optionKey}"][value="${optionKey}"]`);
+                    if (checkboxInput) {
+                        checkboxInput.checked = true;
+                        console.log('✅✅✅ - [EVENT SETUP JS] Pre-filled checkbox:', optionKey);
+                    }
+                });
+            }
+            
+            // 🟡🟡🟡 - [PRODUCT QUANTITIES] Pre-fill quantity inputs (including guest-count)
+            if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+                Object.entries(eventSetup.productQuantities).forEach(([productKey, quantity]) => {
+                    const quantityInput = document.querySelector(`input.quantity-input[name="${productKey}"]`);
+                    if (quantityInput && typeof quantity === 'number' && quantity >= 0) {
+                        quantityInput.value = quantity.toString();
+                        // 🟡🟡🟡 - [GUEST COUNT] Show guest counter container if guest count is set
+                        if (productKey === 'guest-count' && quantity > 0) {
+                            const guestCounterContainer = document.getElementById('guest-counter-container');
+                            if (guestCounterContainer) {
+                                guestCounterContainer.style.display = '';
+                            }
+                        }
+                        console.log('✅✅✅ - [EVENT SETUP JS] Pre-filled quantity:', productKey, '->', quantity);
+                    }
+                });
+            }
+            
+            console.log('✅✅✅ - [EVENT SETUP JS] Form pre-filled from session data');
+            
+            // 🟡🟡🟡 - [CALCULATOR UPDATE] Update calculator with pre-filled values if calculator is already initialized
+            if (calc) {
+                console.log('🟡🟡🟡 - [EVENT SETUP JS] Updating calculator with pre-filled form values');
+                
+                // 🟡🟡🟡 - [GUEST COUNT] Update guest count in calculator
+                const guestInput = document.querySelector('#guest-counter-container .quantity-input[name="guest-count"]');
+                if (guestInput) {
+                    const guestCountValue = parseInt(guestInput.value) || 0;
+                    if (guestCountValue > 0) {
+                        calc.setGuestCount(guestCountValue);
+                        console.log('✅✅✅ - [EVENT SETUP JS] Calculator guest count updated:', guestCountValue);
+                    }
+                }
+                
+                // 🟡🟡🟡 - [RADIO SELECTIONS] Update radio selections in calculator
+                const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
+                selectedRadios.forEach(r => {
+                    calc.setRadio(r.name, r.value);
+                    console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator radio updated:', r.name, '->', r.value);
+                });
+                
+                // 🟡🟡🟡 - [CHECKBOX SELECTIONS] Update checkbox selections in calculator
+                const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+                selectedCheckboxes.forEach(cb => {
+                    calc.setCheckbox(cb.value, true);
+                    console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator checkbox updated:', cb.value);
+                });
+                
+                // 🟡🟡🟡 - [PRODUCT QUANTITIES] Update product quantities in calculator
+                const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
+                productInputs.forEach(pi => {
+                    const qty = parseInt(pi.value) || 0;
+                    if (qty > 0 || pi.name === 'guest-count') {
+                        calc.setProductQty(pi.name, qty);
+                        console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator product quantity updated:', pi.name, '->', qty);
+                    }
+                });
+                
+                // 🟡🟡🟡 - [CALCULATOR RECALC] Recalculate calculator totals
+                calc.recalc();
+                console.log('✅✅✅ - [EVENT SETUP JS] Calculator updated with pre-filled form values');
+            }
+        } catch (error) {
+            console.error('❗❗❗ - [EVENT SETUP JS] Error pre-filling form from session:', error);
+        }
+    }
+    
     function initialize() {
         console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing event setup page');
+        
+        // 🟡🟡🟡 - [FORM PRE-FILL] Pre-fill form from session data BEFORE other initialization
+        prefillFormFromSession();
         
         initializePopupData();
         initializeQuantityControls();

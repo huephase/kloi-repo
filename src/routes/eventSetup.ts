@@ -124,6 +124,7 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
         menuSections: menuSections,
         menuSectionsJson: menuSections ? JSON.stringify(menuSections) : 'null',
         sessionData: sessionData,
+        eventSetupJson: eventSetup ? JSON.stringify(eventSetup) : 'null', // 🟡🟡🟡 - [FORM PRE-FILL] Pass eventSetup JSON for form pre-filling
         numberOfDays: numberOfDays,
         hasMenuData: !!menuSections,
         menuError: !menuSections && theme ? 'Unable to load menu data' : null,
