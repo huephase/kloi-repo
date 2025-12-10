@@ -77,10 +77,13 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
       console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Guest count available:', hasGuestCount, guestCount);
 
       // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate number of days from dateInfo.dates array
+      // ⚠️⚠️⚠️ - [DATE INFO VALIDATION] Dates are REQUIRED for accurate calculator pricing
       let numberOfDays = 1; // 🔵🔵🔵 - [DEFAULT] Default to 1 day if dateInfo not available
+      let hasDateInfo = false; // 🟡🟡🟡 - [DATE INFO FLAG] Track if valid dates are available
       const dateInfo = sessionData.dateInfo as any;
       if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
         numberOfDays = dateInfo.dates.length;
+        hasDateInfo = true; // 🟡🟡🟡 - [DATE INFO FLAG] Valid dates found in session
         console.log('✅✅✅ - [EVENT SETUP ROUTE] Number of days calculated from dateInfo:', numberOfDays);
       } else {
         // 🟡🟡🟡 - [FALLBACK] Try to get from database if not in session
@@ -95,6 +98,7 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
               const eventSetup = existingOrder.eventSetup as any;
               if (eventSetup.dates && Array.isArray(eventSetup.dates) && eventSetup.dates.length > 0) {
                 numberOfDays = eventSetup.dates.length;
+                hasDateInfo = true; // 🟡🟡🟡 - [DATE INFO FLAG] Valid dates found in database
                 console.log('✅✅✅ - [EVENT SETUP ROUTE] Number of days retrieved from database:', numberOfDays);
               }
             }
@@ -103,10 +107,16 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
           console.error('❗❗❗ - [EVENT SETUP ROUTE] Error fetching dates from database:', dbError);
           // Continue with default value
         }
-        if (numberOfDays === 1) {
+        if (!hasDateInfo) {
           console.log('⚠️⚠️⚠️ - [EVENT SETUP ROUTE] Using default numberOfDays (1) - dateInfo not available');
         }
       }
+      
+      console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Date info available:', hasDateInfo, 'numberOfDays:', numberOfDays);
+
+      // 🟡🟡🟡 - [CALCULATOR READINESS] Calculator requires BOTH guest count AND dates for accurate pricing
+      const canShowCalculator = hasGuestCount && hasDateInfo;
+      console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Calculator can be shown:', canShowCalculator, '(guestCount:', hasGuestCount, ', dates:', hasDateInfo, ')');
 
       // 🟡🟡🟡 - [TEMPLATE DATA] Prepare data for template
       const templateData = {
@@ -118,7 +128,9 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
         hasMenuData: !!menuSections,
         menuError: !menuSections && theme ? 'Unable to load menu data' : null,
         guestCount: guestCount, // 🟡🟡🟡 - [GUEST COUNT] Pass guest count for calculator visibility
-        hasGuestCount: hasGuestCount // 🟡🟡🟡 - [GUEST COUNT] Pass boolean flag for calculator visibility
+        hasGuestCount: hasGuestCount, // 🟡🟡🟡 - [GUEST COUNT] Pass boolean flag for calculator visibility
+        hasDateInfo: hasDateInfo, // 🟡🟡🟡 - [DATE INFO] Pass boolean flag indicating dates are available
+        canShowCalculator: canShowCalculator // 🟡🟡🟡 - [CALCULATOR READINESS] Both guest count AND dates required
       };
 
       console.log('✅✅✅ - [EVENT SETUP ROUTE] Rendering event setup page');

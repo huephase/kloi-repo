@@ -174,8 +174,9 @@
                     {{/if}}
 
                     {{! 🟡🟡🟡 - [DIV-GROUP] Handle div-group sections (minimum orders) }}
+                    {{! ⚠️⚠️⚠️ - [MINIMUM ORDER VISIBILITY] Only show if BOTH guest count AND dates are available }}
                     {{#if (eq htmlType "div-group")}}
-                        <div class="div-group" data-group-name="{{id}}">
+                        <div class="div-group" data-group-name="{{id}}" style="{{#unless canShowCalculator}}display: none;{{/unless}}">
                             {{#each content}}
                                 {{! 🟡🟡🟡 - [PRICE FILTER] Only render if price is greater than 0 }}
                                 {{#if (gt price 0)}}
@@ -207,13 +208,15 @@
                 </div>
             </div>
 
-            {{! 🟡🟡🟡 - [CALCULATOR CONTAINER] Calculator will be shown when guest count is available }}
-            <div id="koi-live-quote" style="{{#unless hasGuestCount}}display: none;{{/unless}}">
+            {{! 🟡🟡🟡 - [CALCULATOR CONTAINER] Calculator requires BOTH guest count AND dates for accurate pricing }}
+            {{! ⚠️⚠️⚠️ - [CALCULATOR VISIBILITY] Only show if BOTH guest count AND dates are available }}
+            <div id="koi-live-quote" style="{{#unless canShowCalculator}}display: none;{{/unless}}">
                 <div class="kloi-calculator"></div>
             </div>
 
             {{! 🟡🟡🟡 - [EDIT DATE BUTTON] Allow users to edit event date by navigating to date picker }}
-            <div id="edit-date" class="edit-date-section">
+            {{! ⚠️⚠️⚠️ - [EDIT DATE VISIBILITY] Only show if BOTH guest count AND dates are available }}
+            <div id="edit-date" class="edit-date-section" style="{{#unless canShowCalculator}}display: none;{{/unless}}">
                 <a href="/date-picker" class="edit-date-btn" title="Edit your selected event date and time">
                     <span class="edit-icon">📅</span>
                     <span class="edit-text">Edit Event Date</span>
@@ -233,7 +236,9 @@
 
 {{! 🟡🟡🟡 - [HIDDEN DATA] Server-side data for JavaScript }}
 {{! 🟡🟡🟡 - [GUEST COUNT] Pass guest count for calculator visibility control }}
-<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" style="display: none;"></div>
+{{! 🟡🟡🟡 - [DATE INFO] Pass date info flags for calculator visibility control }}
+{{! ⚠️⚠️⚠️ - [CALCULATOR READINESS] Calculator requires BOTH guest count AND dates }}
+<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" data-has-date-info="{{hasDateInfo}}" data-can-show-calculator="{{canShowCalculator}}" style="display: none;"></div>
 
 {{! 🟡🟡🟡 - [POPUP MODAL] Modal for displaying popup content }}
 <div id="popupModal" class="popup-modal">
@@ -279,7 +284,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const guestCountData = serverDataDiv?.dataset.guestCount;
     const hasGuestCountData = serverDataDiv?.dataset.hasGuestCount === 'true';
     const guestCountFromServer = guestCountData ? parseInt(guestCountData, 10) : null;
+    
+    // 🟡🟡🟡 - [DATE INFO] Read date info from server data for calculator visibility
+    // ⚠️⚠️⚠️ - [DATE INFO] Calculator requires BOTH guest count AND dates for accurate pricing
+    const hasDateInfoData = serverDataDiv?.dataset.hasDateInfo === 'true';
+    const canShowCalculatorData = serverDataDiv?.dataset.canShowCalculator === 'true';
+    
     console.log('🟡🟡🟡 - [EVENT SETUP JS] Guest count from server:', guestCountFromServer, 'hasGuestCount:', hasGuestCountData);
+    console.log('🟡🟡🟡 - [EVENT SETUP JS] Date info from server:', 'hasDateInfo:', hasDateInfoData, 'canShowCalculator:', canShowCalculatorData);
     
     let calc = null;
     // 2025-11-05T00:00:00Z 🟡🟡🟡 - [MENU LABELS] Initialize label maps for UI-friendly display across pages
@@ -293,11 +305,41 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Function to check if guest count is available
+    // 🟡🟡🟡 - [CALCULATOR READINESS] Function to check if calculator can be shown
+    // ⚠️⚠️⚠️ - [CALCULATOR REQUIREMENTS] Calculator requires BOTH guest count AND dates for accurate pricing
+    function checkCalculatorReadiness() {
+        const guestCountInput = document.querySelector('input[name="guest-count"]');
+        let hasGuestCount = false;
+        let hasDates = false;
+        
+        // 🟡🟡🟡 - [GUEST COUNT CHECK] Check if guest count is available from input or server
+        if (guestCountInput) {
+            const guestCountValue = parseInt(guestCountInput.value) || 0;
+            if (guestCountValue > 0) {
+                hasGuestCount = true;
+            }
+        }
+        
+        // 🟡🟡🟡 - [GUEST COUNT CHECK] Check server data
+        if (!hasGuestCount && hasGuestCountData && guestCountFromServer && guestCountFromServer > 0) {
+            hasGuestCount = true;
+        }
+        
+        // 🟡🟡🟡 - [DATE INFO CHECK] Check if dates are available from server
+        // ⚠️⚠️⚠️ - [DATE INFO] Dates must come from date-picker route (dateInfo session)
+        // For now, we check server data - dates cannot be entered on this page
+        hasDates = hasDateInfoData;
+        
+        // 🟡🟡🟡 - [CALCULATOR READINESS] Both conditions must be true
+        const isReady = hasGuestCount && hasDates;
+        console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator readiness check:', { hasGuestCount, hasDates, isReady });
+        return isReady;
+    }
+    
+    // 🟡🟡🟡 - [GUEST COUNT CHECK] Helper function for guest count only (used in other contexts)
     function checkGuestCountAvailable() {
         const guestCountInput = document.querySelector('input[name="guest-count"]');
         
-        // 🟡🟡🟡 - [GUEST COUNT CHECK] Check if guest count is available from input or server
         if (guestCountInput) {
             const guestCountValue = parseInt(guestCountInput.value) || 0;
             if (guestCountValue > 0) {
@@ -305,7 +347,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // 🟡🟡🟡 - [GUEST COUNT CHECK] Check server data
         if (hasGuestCountData && guestCountFromServer && guestCountFromServer > 0) {
             return true;
         }
@@ -313,36 +354,48 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }
     
-    // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Function to show/hide calculator based on guest count
+    // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Function to show/hide calculator and related elements
+    // ⚠️⚠️⚠️ - [CALCULATOR REQUIREMENTS] Calculator requires BOTH guest count AND dates
     function updateCalculatorVisibility() {
         const calculatorContainer = document.getElementById('koi-live-quote');
+        const editDateSection = document.getElementById('edit-date');
+        const minimumOrderSections = document.querySelectorAll('.div-group');
         
         if (!calculatorContainer) {
             console.warn('⚠️⚠️⚠️ - [EVENT SETUP JS] Calculator container not found');
             return;
         }
         
-        const hasGuestCount = checkGuestCountAvailable();
+        const isReady = checkCalculatorReadiness();
         
-        // 🟡🟡🟡 - [VISIBILITY CONTROL] Show calculator if guest count is available
-        if (hasGuestCount) {
+        // 🟡🟡🟡 - [VISIBILITY CONTROL] Show calculator and related elements if BOTH guest count AND dates are available
+        if (isReady) {
             calculatorContainer.style.display = '';
-            console.log('✅✅✅ - [EVENT SETUP JS] Calculator shown - guest count available');
+            if (editDateSection) editDateSection.style.display = '';
+            minimumOrderSections.forEach(section => {
+                section.style.display = '';
+            });
+            console.log('✅✅✅ - [EVENT SETUP JS] Calculator and related elements shown - guest count and dates available');
         } else {
             calculatorContainer.style.display = 'none';
-            console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator hidden - guest count not available');
+            if (editDateSection) editDateSection.style.display = 'none';
+            minimumOrderSections.forEach(section => {
+                section.style.display = 'none';
+            });
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator and related elements hidden - guest count or dates not available');
         }
     }
     
-    // 🟡🟡🟡 - [CALCULATOR INIT] Only initialize calculator if guest count is available
-    // ⚠️⚠️⚠️ - [CALCULATOR INIT] Calculator renders immediately on init, so we must check guest count first
-    const hasGuestCountForInit = checkGuestCountAvailable();
+    // 🟡🟡🟡 - [CALCULATOR INIT] Only initialize calculator if BOTH guest count AND dates are available
+    // ⚠️⚠️⚠️ - [CALCULATOR INIT] Calculator renders immediately on init and requires BOTH conditions
+    // ⚠️⚠️⚠️ - [CALCULATOR REQUIREMENTS] Calculator needs dates for accurate pricing (numberOfDays affects calculations)
+    const calculatorReadyForInit = checkCalculatorReadiness();
     
     if (menuSectionsData && window.KloiCalculator) {
-        if (hasGuestCountForInit) {
+        if (calculatorReadyForInit) {
             console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing KLOI calculator with server menu data');
             console.log('🟡🟡🟡 - [EVENT SETUP JS] Number of days from server:', numberOfDays);
-            console.log('🟡🟡🟡 - [EVENT SETUP JS] Guest count available, initializing calculator');
+            console.log('✅✅✅ - [EVENT SETUP JS] Guest count and dates available, initializing calculator');
             
             calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0, numberOfDays: numberOfDays });
             if (!calc) {
@@ -356,12 +409,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             try { window.__kloiCalc = calc; console.log('⚪⚪⚪ - [EVENT SETUP JS] Global calculator reference set'); } catch(_e) {}
         } else {
-            console.log('🟡🟡🟡 - [EVENT SETUP JS] Guest count not available, calculator will be initialized when guest count is entered');
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator not ready - guest count or dates not available, calculator will be initialized when both are available');
             // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Store menu data for later initialization
             window.__pendingCalculatorInit = {
                 menuSectionsData: menuSectionsData,
                 numberOfDays: numberOfDays,
-                guestCountFromServer: guestCountFromServer
+                guestCountFromServer: guestCountFromServer,
+                hasDateInfo: hasDateInfoData
             };
         }
     } else {
@@ -371,11 +425,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🟡🟡🟡 - [CALCULATOR VISIBILITY] Initial visibility check
     updateCalculatorVisibility();
     
-    // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Function to initialize calculator when guest count becomes available
+    // 🟡🟡🟡 - [CALCULATOR DEFERRED INIT] Function to initialize calculator when BOTH guest count AND dates become available
+    // ⚠️⚠️⚠️ - [CALCULATOR REQUIREMENTS] Calculator requires BOTH conditions for accurate pricing
     function initializeCalculatorIfNeeded() {
+        // 🟡🟡🟡 - [READINESS CHECK] Check if calculator is ready (both guest count AND dates)
+        const isReady = checkCalculatorReadiness();
+        
+        if (!isReady) {
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Calculator not ready - waiting for guest count and dates');
+            return;
+        }
+        
         if (!calc && window.__pendingCalculatorInit && window.KloiCalculator) {
             const pending = window.__pendingCalculatorInit;
-            console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing deferred calculator now that guest count is available');
+            console.log('🟡🟡🟡 - [EVENT SETUP JS] Initializing deferred calculator now that guest count and dates are available');
+            
+            // 🟡🟡🟡 - [DATE INFO CHECK] Ensure dates are available before initializing
+            // ⚠️⚠️⚠️ - [DATE INFO] Dates must be from date-picker route, cannot be entered here
+            if (!hasDateInfoData && !pending.hasDateInfo) {
+                console.log('⚠️⚠️⚠️ - [EVENT SETUP JS] Dates not available, cannot initialize calculator yet');
+                return;
+            }
             
             calc = window.KloiCalculator.initFromMenuSections(pending.menuSectionsData, { taxPercent: 0, numberOfDays: pending.numberOfDays });
             if (calc) {
@@ -389,7 +459,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 try { window.__kloiCalc = calc; } catch(_e) {}
                 delete window.__pendingCalculatorInit;
-                console.log('✅✅✅ - [EVENT SETUP JS] Deferred calculator initialized successfully');
+                console.log('✅✅✅ - [EVENT SETUP JS] Deferred calculator initialized successfully with guest count and dates');
             }
         }
     }

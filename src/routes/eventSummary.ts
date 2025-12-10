@@ -1,6 +1,7 @@
 // src/routes/eventSummary.ts
 import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { generatePageClass } from '../lib/pageClass';
+import { MenuService } from '../services/menuService';
 
 export default async function eventSummaryRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // 👍👍👍👍👍👍 - 2025-11-04 - EVENT SUMMARY PAGE ROUTE (Root path)
@@ -16,12 +17,55 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
       const page_class = generatePageClass(templatePath);
       console.log('🟡🟡🟡 - [ROUTE] Theme for event-summary:', theme);
 
+      // 🟡🟡🟡 - [MENU FETCHING] Fetch menu data for the theme (needed for calculator)
+      let menuSections = null;
+      if (theme) {
+        try {
+          menuSections = await MenuService.getThemeMenu(theme);
+          console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Menu sections loaded:', menuSections?.length || 0);
+        } catch (menuError) {
+          console.error('❗❗❗ - [EVENT SUMMARY ROUTE] Error loading menu:', menuError);
+          // Continue without menu - calculator won't initialize but page will still render
+        }
+      }
+
       // ⚪⚪⚪ - 2025-11-04T00:00:00Z - Read session-stored values for each step
       const sessionAny = (request.session as any) || {};
       const locationData = sessionAny.locationData || null;
       const eventDetails = sessionAny.eventDetails || null; // used by 'customer' and 'event-details'
       const dateInfo = sessionAny.dateInfo || null;
       const eventSetup = sessionAny.eventSetup || null;
+      
+      // 🟡🟡🟡 - [CALCULATOR DATA] Extract data needed for calculator initialization
+      let guestCount: number | null = null;
+      let numberOfDays = 1;
+      
+      // 🟡🟡🟡 - [GUEST COUNT] Extract guest count from eventSetup
+      if (eventSetup) {
+        if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+          const guestCountValue = eventSetup.productQuantities['guest-count'];
+          if (typeof guestCountValue === 'number' && guestCountValue > 0) {
+            guestCount = guestCountValue;
+            console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Guest count extracted:', guestCount);
+          }
+        }
+        if (guestCount === null && eventSetup.calculator && typeof eventSetup.calculator === 'object') {
+          const calculatorGuestCount = eventSetup.calculator.guestCount;
+          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
+            guestCount = calculatorGuestCount;
+            console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Guest count extracted from calculator:', guestCount);
+          }
+        }
+      }
+      
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate from dateInfo
+      if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+        numberOfDays = dateInfo.dates.length;
+        console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Number of days calculated:', numberOfDays);
+      }
+      
+      const canShowCalculator = guestCount !== null && guestCount > 0 && numberOfDays > 0 && menuSections !== null;
+      console.log('🟡🟡🟡 - [EVENT SUMMARY ROUTE] Calculator can be shown:', canShowCalculator, { guestCount, numberOfDays, hasMenu: !!menuSections });
 
       console.log('⚪⚪⚪ - [EVENT SUMMARY] Session ID:', request.session?.sessionId?.substring(0, 8));
       console.log('⚪⚪⚪ - [EVENT SUMMARY] Keys present:', {
@@ -88,19 +132,47 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
               }
             }
             
+            // 🟡🟡🟡 - [RADIO SELECTIONS] Display radio selections with user-friendly labels
             if (data.radioSelections && typeof data.radioSelections === 'object') {
-              const radioItems = Object.entries(data.radioSelections).map(([key, val]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</li>`).join('');
+              // 🟡🟡🟡 - [DISPLAY LABELS] Use radioSelectionsDisplay for friendly labels, fallback to raw keys
+              const radioItems = Object.entries(data.radioSelections).map(([groupId, optionKey]) => {
+                let displayLabel = String(optionKey);
+                // 🟡🟡🟡 - [FRIENDLY LABEL] Try to get friendly label from radioSelectionsDisplay
+                if (data.radioSelectionsDisplay && typeof data.radioSelectionsDisplay === 'object' && data.radioSelectionsDisplay[groupId]) {
+                  displayLabel = data.radioSelectionsDisplay[groupId];
+                }
+                return `<li><strong>${escapeHtml(displayLabel)}</strong></li>`;
+              }).join('');
               if (radioItems) items.push(`<dt>Menu Selections</dt><dd><ul class="selection-list">${radioItems}</ul></dd>`);
             }
+            
+            // 🟡🟡🟡 - [CHECKBOX SELECTIONS] Display checkbox selections with user-friendly labels
             if (data.checkboxSelections && typeof data.checkboxSelections === 'object') {
-              const checkboxItems = Object.entries(data.checkboxSelections).map(([key, val]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</li>`).join('');
+              // 🟡🟡🟡 - [DISPLAY LABELS] Use checkboxSelectionsDisplay for friendly labels, fallback to raw keys
+              const checkboxItems = Object.entries(data.checkboxSelections).map(([optionKey]) => {
+                let displayLabel = String(optionKey);
+                // 🟡🟡🟡 - [FRIENDLY LABEL] Try to get friendly label from checkboxSelectionsDisplay
+                if (data.checkboxSelectionsDisplay && typeof data.checkboxSelectionsDisplay === 'object' && data.checkboxSelectionsDisplay[optionKey]) {
+                  displayLabel = data.checkboxSelectionsDisplay[optionKey];
+                }
+                return `<li><strong>${escapeHtml(displayLabel)}</strong></li>`;
+              }).join('');
               if (checkboxItems) items.push(`<dt>Upgrades</dt><dd><ul class="selection-list">${checkboxItems}</ul></dd>`);
             }
+            
+            // 🟡🟡🟡 - [PRODUCT QUANTITIES] Display product quantities with user-friendly labels
             if (data.productQuantities && typeof data.productQuantities === 'object') {
-              // 🟡🟡🟡 - [PRODUCT QUANTITIES] Display product quantities, excluding guest-count (already displayed above)
+              // 🟡🟡🟡 - [DISPLAY LABELS] Use productLabels for friendly labels, fallback to raw keys
               const quantityItems = Object.entries(data.productQuantities)
                 .filter(([key]) => key !== 'guest-count') // Exclude guest-count as it's displayed separately
-                .map(([key, val]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(val))}</li>`)
+                .map(([productKey, qty]) => {
+                  let displayLabel = String(productKey);
+                  // 🟡🟡🟡 - [FRIENDLY LABEL] Try to get friendly label from productLabels
+                  if (data.productLabels && typeof data.productLabels === 'object' && data.productLabels[productKey]) {
+                    displayLabel = data.productLabels[productKey];
+                  }
+                  return `<li><strong>${escapeHtml(displayLabel)}:</strong> ${escapeHtml(String(qty))}</li>`;
+                })
                 .join('');
               if (quantityItems) items.push(`<dt>Product Quantities</dt><dd><ul class="selection-list">${quantityItems}</ul></dd>`);
             }
@@ -114,7 +186,8 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
               }
             }
             // 🟡🟡🟡 - [FALLBACK] Display other fields generically, excluding already handled fields
-            const excludedKeys = ['radioSelections', 'checkboxSelections', 'productQuantities', 'calculator'];
+            // ⚠️⚠️⚠️ - [EXCLUDE DISPLAY LABELS] Exclude display label fields as they're only used for rendering, not for display
+            const excludedKeys = ['radioSelections', 'checkboxSelections', 'productQuantities', 'calculator', 'radioSelectionsDisplay', 'checkboxSelectionsDisplay', 'productLabels'];
             Object.entries(data).forEach(([key, val]) => {
               if (!excludedKeys.includes(key) && val !== null && val !== undefined) {
                 if (typeof val === 'object' && !Array.isArray(val)) {
@@ -179,6 +252,12 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
         eventDetails,
         dateInfo,
         eventSetup,
+        eventSetupJson: eventSetup ? JSON.stringify(eventSetup) : 'null', // 🟡🟡🟡 - [CALCULATOR] JSON string for JavaScript state restoration
+        menuSections: menuSections, // 🟡🟡🟡 - [CALCULATOR] Menu sections for calculator initialization
+        menuSectionsJson: menuSections ? JSON.stringify(menuSections) : 'null', // 🟡🟡🟡 - [CALCULATOR] JSON string for JavaScript
+        guestCount: guestCount, // 🟡🟡🟡 - [CALCULATOR] Guest count for calculator
+        numberOfDays: numberOfDays, // 🟡🟡🟡 - [CALCULATOR] Number of days for calculator
+        canShowCalculator: canShowCalculator, // 🟡🟡🟡 - [CALCULATOR] Flag indicating calculator can be shown
         renderLocation: renderDataAsHTML(locationData, 'location'),
         renderCustomer: renderDataAsHTML(eventDetails, 'customer'),
         renderEventDetails: renderDataAsHTML(eventDetails, 'event-details'),

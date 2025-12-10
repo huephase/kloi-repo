@@ -41,6 +41,16 @@
   <section class="summary-section" id="summary-event-setup">
     <h2>Event Setup</h2>
     {{{renderEventSetup}}}
+    
+    {{! 🟡🟡🟡 - [LIVE CALCULATOR] Display live calculator if all required data is available }}
+    {{! ⚠️⚠️⚠️ - [CALCULATOR REQUIREMENTS] Calculator requires menu sections, guest count, and dates }}
+    {{#if canShowCalculator}}
+    <div id="koi-live-quote-summary" class="calculator-summary-section">
+      <h3>Live Quote</h3>
+      <div class="kloi-calculator"></div>
+    </div>
+    {{/if}}
+    
     <div class="actions">
       <a class="edit-btn" href="/event-setup" data-step="event">Edit EVENT SETUP</a>
     </div>
@@ -51,11 +61,152 @@
   </div>
 </div>
 
+{{! 🟡🟡🟡 - [HIDDEN DATA] Server-side data for calculator initialization }}
+{{#if canShowCalculator}}
+<div id="summaryServerData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-event-setup="{{eventSetupJson}}" style="display: none;"></div>
+{{/if}}
+
+<script src="/public/global/js/kloi_calculator.js"></script>
+<script src="/public/global/js/menu_labels.js"></script>
 <script src="/public/global/js/wizard__progress.js"></script>
 <script>
   // 🟡🟡🟡 - [EVENT SUMMARY VIEW] Initialize client-side handlers
   document.addEventListener('DOMContentLoaded', function() {
     console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Loaded with theme:', '{{theme}}');
+
+    // 🟡🟡🟡 - [LIVE CALCULATOR] Initialize calculator if all required data is available
+    {{#if canShowCalculator}}
+    try {
+      const summaryServerData = document.getElementById('summaryServerData');
+      if (summaryServerData && window.KloiCalculator) {
+        const menuSectionsJson = summaryServerData.dataset.menuSections;
+        const numberOfDaysData = summaryServerData.dataset.numberOfDays;
+        const guestCountData = summaryServerData.dataset.guestCount;
+        
+        const numberOfDays = numberOfDaysData ? parseInt(numberOfDaysData, 10) : 1;
+        const guestCount = guestCountData ? parseInt(guestCountData, 10) : null;
+        
+        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Initializing calculator:', { numberOfDays, guestCount });
+        
+        if (menuSectionsJson && menuSectionsJson !== 'null' && guestCount && guestCount > 0) {
+          // 🟡🟡🟡 - [MENU LABELS] Initialize menu labels first
+          if (window.KloiMenuLabels) {
+            try {
+              window.KloiMenuLabels.initFromMenuSections(menuSectionsJson);
+              window.KloiMenuLabels.annotateDomLabels(document);
+              console.log('✅✅✅ - [EVENT SUMMARY VIEW] Menu labels initialized');
+            } catch (e) {
+              console.error('❗❗❗ - [EVENT SUMMARY VIEW] Menu labels init failed:', e);
+            }
+          }
+          
+          // 🟡🟡🟡 - [CALCULATOR INIT] Initialize calculator (initFromMenuSections accepts JSON string or object)
+          const calc = window.KloiCalculator.initFromMenuSections(menuSectionsJson, { taxPercent: 0, numberOfDays: numberOfDays });
+          if (calc) {
+            // 🟡🟡🟡 - [GUEST COUNT] Set guest count
+            calc.setGuestCount(guestCount);
+            console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator initialized with guest count:', guestCount);
+            
+            // 🟡🟡🟡 - [CALCULATOR STATE] Restore calculator state from session if available
+            const eventSetupJsonAttr = summaryServerData.getAttribute('data-event-setup');
+            if (eventSetupJsonAttr && eventSetupJsonAttr !== 'null') {
+              try {
+                const eventSetup = JSON.parse(eventSetupJsonAttr);
+                console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] EventSetup data:', eventSetup);
+                
+                // 🟡🟡🟡 - [RESTORE FROM CALCULATOR STATE] Try to restore from calculator.getState() format first
+                if (eventSetup && eventSetup.calculator) {
+                  const calcState = eventSetup.calculator;
+                  
+                  // 🟡🟡🟡 - [RADIO SELECTIONS] Restore radio selections from calculator state
+                  if (calcState.radios && typeof calcState.radios === 'object') {
+                    Object.entries(calcState.radios).forEach(([groupId, optionKey]) => {
+                      calc.setRadio(groupId, optionKey);
+                      console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored radio:', groupId, '->', optionKey);
+                    });
+                  }
+                  
+                  // 🟡🟡🟡 - [CHECKBOX SELECTIONS] Restore checkbox selections from calculator state
+                  if (calcState.checkboxes && Array.isArray(calcState.checkboxes)) {
+                    calcState.checkboxes.forEach(optionKey => {
+                      calc.setCheckbox(optionKey, true);
+                      console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored checkbox:', optionKey);
+                    });
+                  }
+                  
+                  // 🟡🟡🟡 - [PRODUCT QUANTITIES] Restore product quantities from calculator state
+                  if (calcState.products && typeof calcState.products === 'object') {
+                    Object.entries(calcState.products).forEach(([productKey, qty]) => {
+                      if (productKey !== 'guest-count') { // Guest count already set above
+                        calc.setProductQty(productKey, qty);
+                        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored product:', productKey, '->', qty);
+                      }
+                    });
+                  }
+                }
+                
+                // 🟡🟡🟡 - [RESTORE FROM FORM DATA] Fallback to form data if calculator state not available or incomplete
+                // ⚠️⚠️⚠️ - [FALLBACK] This handles cases where calculator state wasn't saved but form data exists
+                if (eventSetup) {
+                  // 🟡🟡🟡 - [RADIO SELECTIONS] Restore from radioSelections (form data format)
+                  if (eventSetup.radioSelections && typeof eventSetup.radioSelections === 'object') {
+                    Object.entries(eventSetup.radioSelections).forEach(([groupId, optionKey]) => {
+                      // Only set if not already set from calculator state
+                      if (!eventSetup.calculator || !eventSetup.calculator.radios || !eventSetup.calculator.radios[groupId]) {
+                        calc.setRadio(groupId, optionKey);
+                        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored radio from form data:', groupId, '->', optionKey);
+                      }
+                    });
+                  }
+                  
+                  // 🟡🟡🟡 - [CHECKBOX SELECTIONS] Restore from checkboxSelections (form data format)
+                  if (eventSetup.checkboxSelections && typeof eventSetup.checkboxSelections === 'object') {
+                    Object.entries(eventSetup.checkboxSelections).forEach(([optionKey, value]) => {
+                      // Only set if not already set from calculator state
+                      if (!eventSetup.calculator || !eventSetup.calculator.checkboxes || !eventSetup.calculator.checkboxes.includes(optionKey)) {
+                        calc.setCheckbox(optionKey, true);
+                        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored checkbox from form data:', optionKey);
+                      }
+                    });
+                  }
+                  
+                  // 🟡🟡🟡 - [PRODUCT QUANTITIES] Restore from productQuantities (form data format)
+                  if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+                    Object.entries(eventSetup.productQuantities).forEach(([productKey, qty]) => {
+                      if (productKey !== 'guest-count') { // Guest count already set above
+                        // Only set if not already set from calculator state
+                        if (!eventSetup.calculator || !eventSetup.calculator.products || !eventSetup.calculator.products[productKey]) {
+                          calc.setProductQty(productKey, qty);
+                          console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored product from form data:', productKey, '->', qty);
+                        }
+                      }
+                    });
+                  }
+                }
+                
+                console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator state restored from session');
+              } catch (e) {
+                console.error('❗❗❗ - [EVENT SUMMARY VIEW] Error parsing eventSetup JSON:', e);
+              }
+            } else {
+              console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY VIEW] No eventSetup data available for state restoration');
+            }
+            
+            // 🟡🟡🟡 - [GLOBAL REF] Make calculator accessible globally
+            try { window.__kloiCalc = calc; } catch(_e) {}
+          } else {
+            console.error('❗❗❗ - [EVENT SUMMARY VIEW] Calculator failed to initialize');
+          }
+        } else {
+          console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY VIEW] Missing data for calculator initialization');
+        }
+      }
+    } catch (error) {
+      console.error('❗❗❗ - [EVENT SUMMARY VIEW] Error initializing calculator:', error);
+    }
+    {{else}}
+    console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Calculator not shown - missing required data');
+    {{/if}}
 
     const editButtons = document.querySelectorAll('.edit-btn');
     editButtons.forEach(function(btn) {

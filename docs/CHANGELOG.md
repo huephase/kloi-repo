@@ -14,6 +14,362 @@
 
 ---
 
+### December 10, 2025 @ 15:30 - Calculator Requirements Fix, Live Calculator on Event-Summary, and User-Friendly Label Display
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical calculator visibility logic to require BOTH guest count AND dates before showing calculator and related elements. Added live calculator to event-summary page with full state restoration. Fixed event-summary display to show user-friendly labels instead of raw keys. Calculator now properly initializes on event-summary page with all selections restored from session data.
+
+#### Major Changes
+
+- **Calculator Visibility Requirements Update** (`src/routes/eventSetup.ts`):
+  - **Date Info Validation** (Lines 79-109):
+    - Added `hasDateInfo` flag to track if valid dates are available in session
+    - Calculates `numberOfDays` from `dateInfo.dates` array
+    - **Code Added**:
+      ```typescript
+      let hasDateInfo = false;
+      const dateInfo = sessionData.dateInfo as any;
+      if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+        numberOfDays = dateInfo.dates.length;
+        hasDateInfo = true;
+      }
+      ```
+    - **Impact**: Ensures dates are available before calculator can be shown
+  - **Calculator Readiness Flag** (Lines 111-112):
+    - Added `canShowCalculator` flag requiring BOTH guest count AND dates
+    - **Code Added**:
+      ```typescript
+      const canShowCalculator = hasGuestCount && hasDateInfo;
+      ```
+    - **Impact**: Calculator only shows when both conditions are met, ensuring accurate pricing
+
+- **Template Visibility Updates** (`src/views/wizard/event-setup.hbs`):
+  - **Minimum Order Sections** (Line 178):
+    - Added conditional hiding based on `canShowCalculator`
+    - **Code Updated**:
+      ```handlebars
+      <div class="div-group" data-group-name="{{id}}" style="{{#unless canShowCalculator}}display: none;{{/unless}}">
+      ```
+  - **Calculator Container** (Line 211):
+    - Changed visibility condition from `hasGuestCount` to `canShowCalculator`
+    - **Code Updated**:
+      ```handlebars
+      <div id="koi-live-quote" style="{{#unless canShowCalculator}}display: none;{{/unless}}">
+      ```
+  - **Edit Date Section** (Line 216):
+    - Added conditional hiding based on `canShowCalculator`
+    - **Code Updated**:
+      ```handlebars
+      <div id="edit-date" class="edit-date-section" style="{{#unless canShowCalculator}}display: none;{{/unless}}">
+      ```
+  - **Server Data Attributes** (Line 236):
+    - Added `hasDateInfo` and `canShowCalculator` to server data div
+    - **Code Updated**:
+      ```handlebars
+      <div id="serverData" ... data-has-date-info="{{hasDateInfo}}" data-can-show-calculator="{{canShowCalculator}}" ...>
+      ```
+    - **Impact**: JavaScript can check both guest count and dates availability
+
+- **JavaScript Calculator Readiness Check** (`src/views/wizard/event-setup.hbs`):
+  - **New Function** (Lines 296-314):
+    - Added `checkCalculatorReadiness()` function requiring BOTH guest count AND dates
+    - **Code Added**:
+      ```javascript
+      function checkCalculatorReadiness() {
+          let hasGuestCount = false;
+          let hasDates = false;
+          // Check guest count from input or server
+          // Check dates from server (dates come from date-picker route)
+          hasDates = hasDateInfoData;
+          return hasGuestCount && hasDates;
+      }
+      ```
+    - **Impact**: Centralizes calculator readiness logic requiring both conditions
+  - **Updated Visibility Function** (Lines 316-335):
+    - Updated `updateCalculatorVisibility()` to check both conditions
+    - Hides/shows calculator, edit-date section, and minimum order sections
+    - **Code Updated**:
+      ```javascript
+      function updateCalculatorVisibility() {
+          const isReady = checkCalculatorReadiness();
+          if (isReady) {
+              calculatorContainer.style.display = '';
+              editDateSection.style.display = '';
+              minimumOrderSections.forEach(section => section.style.display = '');
+          } else {
+              calculatorContainer.style.display = 'none';
+              editDateSection.style.display = 'none';
+              minimumOrderSections.forEach(section => section.style.display = 'none');
+          }
+      }
+      ```
+    - **Impact**: All calculator-related elements show/hide together based on both conditions
+
+- **Calculator Initialization Update** (`src/views/wizard/event-setup.hbs`):
+  - **Conditional Initialization** (Lines 389-420):
+    - Calculator only initializes if `checkCalculatorReadiness()` returns true
+    - **Code Updated**:
+      ```javascript
+      const calculatorReadyForInit = checkCalculatorReadiness();
+      if (calculatorReadyForInit) {
+          // Initialize calculator
+      } else {
+          // Store menu data for deferred initialization
+          window.__pendingCalculatorInit = { ... };
+      }
+      ```
+    - **Impact**: Prevents calculator from initializing without dates, ensuring accurate pricing
+  - **Deferred Initialization Function** (Lines 422-450):
+    - Updated `initializeCalculatorIfNeeded()` to check both conditions
+    - **Code Updated**:
+      ```javascript
+      function initializeCalculatorIfNeeded() {
+          const isReady = checkCalculatorReadiness();
+          if (!isReady) return;
+          // Initialize calculator when both conditions met
+      }
+      ```
+    - **Impact**: Calculator initializes when user enters guest count AND dates are available
+
+- **Live Calculator on Event-Summary Page** (`src/routes/eventSummary.ts`):
+  - **Menu Sections Fetching** (Lines 18-30):
+    - Added `MenuService` import and menu fetching logic
+    - **Code Added**:
+      ```typescript
+      import { MenuService } from '../services/menuService';
+      let menuSections = null;
+      if (theme) {
+        menuSections = await MenuService.getThemeMenu(theme);
+      }
+      ```
+    - **Impact**: Menu sections available for calculator initialization
+  - **Calculator Data Extraction** (Lines 32-58):
+    - Extracts guest count from `eventSetup` session
+    - Calculates `numberOfDays` from `dateInfo.dates`
+    - Determines `canShowCalculator` flag
+    - **Code Added**:
+      ```typescript
+      let guestCount: number | null = null;
+      let numberOfDays = 1;
+      // Extract guest count from eventSetup
+      // Calculate numberOfDays from dateInfo.dates
+      const canShowCalculator = guestCount !== null && guestCount > 0 && numberOfDays > 0 && menuSections !== null;
+      ```
+    - **Impact**: Calculator can be initialized on event-summary page
+  - **Template Data Enhancement** (Lines 200-210):
+    - Added calculator-related data to template
+    - **Code Added**:
+      ```typescript
+      menuSections: menuSections,
+      menuSectionsJson: menuSections ? JSON.stringify(menuSections) : 'null',
+      guestCount: guestCount,
+      numberOfDays: numberOfDays,
+      canShowCalculator: canShowCalculator,
+      eventSetupJson: eventSetup ? JSON.stringify(eventSetup) : 'null'
+      ```
+    - **Impact**: Template has all data needed for calculator initialization
+
+- **Event-Summary Template Calculator Integration** (`src/views/wizard/event-summary.hbs`):
+  - **Calculator Container** (Lines 45-52):
+    - Added calculator container in event-setup section
+    - **Code Added**:
+      ```handlebars
+      {{#if canShowCalculator}}
+      <div id="koi-live-quote-summary" class="calculator-summary-section">
+        <h3>Live Quote</h3>
+        <div class="kloi-calculator"></div>
+      </div>
+      {{/if}}
+      ```
+    - **Impact**: Calculator displays on event-summary page
+  - **Hidden Data Div** (Lines 64-67):
+    - Added server data div with calculator initialization data
+    - **Code Added**:
+      ```handlebars
+      <div id="summaryServerData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-event-setup="{{eventSetupJson}}" ...>
+      ```
+    - **Impact**: JavaScript can access all calculator initialization data
+  - **Calculator Initialization Script** (Lines 77-232):
+    - Initializes menu labels
+    - Initializes calculator with menu sections, numberOfDays, and guest count
+    - Restores calculator state from session (radios, checkboxes, products)
+    - **Code Added**:
+      ```javascript
+      // Initialize menu labels
+      window.KloiMenuLabels.initFromMenuSections(menuSectionsJson);
+      // Initialize calculator
+      const calc = window.KloiCalculator.initFromMenuSections(menuSectionsJson, { taxPercent: 0, numberOfDays: numberOfDays });
+      calc.setGuestCount(guestCount);
+      // Restore state from session
+      ```
+    - **Impact**: Calculator shows live quote with all user selections restored
+
+- **Calculator State Restoration Enhancement** (`src/views/wizard/event-summary.hbs`):
+  - **Dual Source Restoration** (Lines 110-195):
+    - Restores from `calculator.getState()` format first (radios, checkboxes, products)
+    - Falls back to form data format (radioSelections, checkboxSelections, productQuantities)
+    - **Code Added**:
+      ```javascript
+      // Restore from calculator state
+      if (eventSetup.calculator) {
+          if (calcState.radios) { /* restore radios */ }
+          if (calcState.checkboxes) { /* restore checkboxes */ }
+          if (calcState.products) { /* restore products */ }
+      }
+      // Fallback to form data
+      if (eventSetup.radioSelections) { /* restore from form data */ }
+      ```
+    - **Impact**: Calculator state restored even if calculator state wasn't saved, using form data as fallback
+
+- **User-Friendly Label Display Fix** (`src/routes/eventSummary.ts`):
+  - **Radio Selections Display** (Lines 135-147):
+    - Uses `radioSelectionsDisplay` for friendly labels
+    - Falls back to raw option key if display label unavailable
+    - **Code Updated**:
+      ```typescript
+      const radioItems = Object.entries(data.radioSelections).map(([groupId, optionKey]) => {
+        let displayLabel = String(optionKey);
+        if (data.radioSelectionsDisplay && data.radioSelectionsDisplay[groupId]) {
+          displayLabel = data.radioSelectionsDisplay[groupId];
+        }
+        return `<li><strong>${escapeHtml(displayLabel)}</strong></li>`;
+      }).join('');
+      ```
+    - **Impact**: Shows "Matcha Ice Cream Only" instead of "section5: radio1"
+  - **Checkbox Selections Display** (Lines 149-161):
+    - Uses `checkboxSelectionsDisplay` for friendly labels
+    - Falls back to raw option key if display label unavailable
+    - **Code Updated**:
+      ```typescript
+      const checkboxItems = Object.entries(data.checkboxSelections).map(([optionKey]) => {
+        let displayLabel = String(optionKey);
+        if (data.checkboxSelectionsDisplay && data.checkboxSelectionsDisplay[optionKey]) {
+          displayLabel = data.checkboxSelectionsDisplay[optionKey];
+        }
+        return `<li><strong>${escapeHtml(displayLabel)}</strong></li>`;
+      }).join('');
+      ```
+    - **Impact**: Shows "Matcha Upgrade (Ceremonial Grade)" instead of "checbox1: checbox1"
+  - **Product Quantities Display** (Lines 163-178):
+    - Uses `productLabels` for friendly labels
+    - Falls back to raw product key if display label unavailable
+    - **Code Updated**:
+      ```typescript
+      const quantityItems = Object.entries(data.productQuantities)
+        .filter(([key]) => key !== 'guest-count')
+        .map(([productKey, qty]) => {
+          let displayLabel = String(productKey);
+          if (data.productLabels && data.productLabels[productKey]) {
+            displayLabel = data.productLabels[productKey];
+          }
+          return `<li><strong>${escapeHtml(displayLabel)}:</strong> ${escapeHtml(String(qty))}</li>`;
+        }).join('');
+      ```
+    - **Impact**: Shows "Zero Sugar Ice Cream: 30" instead of "zero-sugar: 30"
+  - **Excluded Display Label Fields** (Line 186):
+    - Added display label fields to excluded keys list
+    - **Code Updated**:
+      ```typescript
+      const excludedKeys = ['radioSelections', 'checkboxSelections', 'productQuantities', 'calculator', 'radioSelectionsDisplay', 'checkboxSelectionsDisplay', 'productLabels'];
+      ```
+    - **Impact**: Prevents display label metadata from appearing in generic fallback display
+
+- **TypeScript Error Fix** (`src/routes/eventSummary.ts`):
+  - **Unused Variable Removal** (Line 152):
+    - Removed unused `value` parameter from checkbox items mapping
+    - **Code Updated**:
+      ```typescript
+      const checkboxItems = Object.entries(data.checkboxSelections).map(([optionKey]) => {
+        // Removed unused 'value' parameter
+      });
+      ```
+    - **Impact**: Resolves TypeScript compilation error TS6133
+
+#### Technical Details
+
+- **Calculator Requirements Rationale**:
+  - Calculator needs `numberOfDays` for accurate pricing (affects minimum order calculations)
+  - Dates come from date-picker route, not event-setup route
+  - Calculator should only show when both guest count AND dates are available
+  - This ensures accurate pricing calculations from the start
+
+- **State Restoration Strategy**:
+  - Primary: Restore from `calculator.getState()` format (radios, checkboxes, products)
+  - Fallback: Restore from form data format (radioSelections, checkboxSelections, productQuantities)
+  - This handles cases where calculator state wasn't saved but form data exists
+
+- **Label Display Strategy**:
+  - Use display label fields (`radioSelectionsDisplay`, `checkboxSelectionsDisplay`, `productLabels`) when available
+  - Fallback to raw keys if display labels not available
+  - Ensures consistent user-friendly display across all pages
+
+#### Files Modified
+
+1. `src/routes/eventSetup.ts`:
+   - Lines 79-109: Added date info validation and `hasDateInfo` flag
+   - Lines 111-112: Added `canShowCalculator` flag calculation
+   - Lines 120-122: Added `hasDateInfo` and `canShowCalculator` to template data
+
+2. `src/views/wizard/event-setup.hbs`:
+   - Line 178: Added conditional hiding for minimum order sections
+   - Line 211: Changed calculator visibility condition to `canShowCalculator`
+   - Line 216: Added conditional hiding for edit-date section
+   - Line 236: Added `hasDateInfo` and `canShowCalculator` to server data attributes
+   - Lines 296-314: Added `checkCalculatorReadiness()` function
+   - Lines 316-335: Updated `updateCalculatorVisibility()` to check both conditions
+   - Lines 389-420: Updated calculator initialization to require both conditions
+   - Lines 422-450: Updated `initializeCalculatorIfNeeded()` to check both conditions
+
+3. `src/routes/eventSummary.ts`:
+   - Line 3: Added `MenuService` import
+   - Lines 18-30: Added menu sections fetching logic
+   - Lines 32-58: Added calculator data extraction (guest count, numberOfDays, canShowCalculator)
+   - Lines 200-210: Added calculator-related data to template
+   - Lines 135-147: Updated radio selections display to use friendly labels
+   - Lines 149-161: Updated checkbox selections display to use friendly labels
+   - Lines 163-178: Updated product quantities display to use friendly labels
+   - Line 186: Added display label fields to excluded keys
+
+4. `src/views/wizard/event-summary.hbs`:
+   - Lines 45-52: Added calculator container in event-setup section
+   - Lines 64-67: Added hidden server data div with calculator initialization data
+   - Lines 69-71: Added calculator and menu labels script includes
+   - Lines 77-232: Added calculator initialization script with state restoration
+
+#### Impact
+
+- **User Experience**:
+  - Calculator only shows when both guest count AND dates are available
+  - Live calculator displays on event-summary page with accurate pricing
+  - User-friendly labels displayed throughout event-summary page
+  - Consistent display format across event-setup and event-summary pages
+
+- **Data Accuracy**:
+  - Calculator pricing calculations are accurate from initialization
+  - Calculator state properly restored from session data
+  - Fallback to form data ensures state restoration even if calculator state not saved
+
+- **Code Quality**:
+  - Centralized calculator readiness logic
+  - Proper separation of concerns (visibility vs initialization)
+  - TypeScript compilation errors resolved
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend and routing change only
+- **No API Changes Required**: Existing API endpoints remain unchanged
+- **Session Data**: Existing sessions will work correctly - calculator will show when both conditions met
+- **Backward Compatibility**: Fully backward compatible - calculator state restoration handles both formats
+- **Immediate Effect**: Changes take effect immediately - calculator visibility and label display updated
+- **Testing**: Verify calculator:
+  1. Only shows when both guest count AND dates are available
+  2. Displays correctly on event-summary page
+  3. Shows user-friendly labels instead of raw keys
+  4. Restores state correctly from session data
+
+---
+
 ### December 5, 2025 @ 12:16 - Calculator Initialization Fix - Prevent Rendering Without Guest Count
 
 **Type**: 🟠 MAJOR CHANGE
