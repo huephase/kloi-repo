@@ -174,7 +174,7 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
                   return `<li><strong>${escapeHtml(displayLabel)}:</strong> ${escapeHtml(String(qty))}</li>`;
                 })
                 .join('');
-              if (quantityItems) items.push(`<dt>Product Quantities</dt><dd><ul class="selection-list">${quantityItems}</ul></dd>`);
+              if (quantityItems) items.push(`<dt>Addons & Upgrades</dt><dd><ul class="selection-list">${quantityItems}</ul></dd>`);
             }
             // 🟡🟡🟡 - [CALCULATOR TOTALS] Display calculator totals if available
             if (data.calculator && typeof data.calculator === 'object' && data.calculator.totals) {

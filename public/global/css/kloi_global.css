@@ -376,3 +376,16 @@ footer {
     background-color: var(--kloi-accent);
     color: var(--kloi-text);
 }
+
+.skip-to-content{
+    display: block;
+    max-width: 300px;
+    margin: 0 auto;
+    background: var(--kloi-accent);
+    color: var(--kloi-text);
+    padding: 10px 1rem;
+    text-align: center;
+    border-radius: 100px;
+    cursor: pointer;
+    border: 1px solid var(--kloi-text);
+}
