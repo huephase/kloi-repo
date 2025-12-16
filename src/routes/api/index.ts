@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 import { reverseGeocodeQuerySchema } from '../../schemas/common.schemas';
 import { sanitizeEmail } from '../../lib/utils';
 import { createCustomerSafely, resolveCustomerConflict } from '../../services/conflictResolutionService';
+import { createLead, detectLeadConflicts } from '../../services/leadService';
 import paymentRoutes from './payment';
 
 // Maps wizard steps to session keys and redirect targets
@@ -893,9 +894,9 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
     }
   });
 
-  // 🟡🟡🟡 - [CONFLICT RESOLUTION API] Endpoint to handle customer conflict resolution
+  // 🟡🟡🟡 - [CONFLICT RESOLUTION API] Endpoint to handle lead conflict resolution
   app.post('/resolve-conflict', async (request, reply: FastifyReply) => {
-    console.log('🟡🟡🟡 - [CONFLICT RESOLUTION API] Resolving customer conflict');
+    console.log('🟡🟡🟡 - [CONFLICT RESOLUTION API] Resolving lead conflict');
     console.log('🟡🟡🟡 - [CONFLICT RESOLUTION API] Request body:', JSON.stringify(request.body, null, 2));
     
     if (!request.session || !request.session.sessionId) {
@@ -918,22 +919,22 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
         });
       }
 
-      // 🟡🟡🟡 - [CONFLICT RESOLUTION] Resolve the conflict
-      const resolutionResult = await resolveCustomerConflict(
+      // 🟡🟡🟡 - [CONFLICT RESOLUTION] Create lead after user confirms (leads allow duplicates)
+      // User has confirmed they want to proceed, so create the lead
+      const leadResult = await createLead(
         phone,
         email,
         firstName,
-        lastName,
-        conflictType
+        lastName
       );
 
-      if (resolutionResult.success) {
-        console.log('✅✅✅ - [CONFLICT RESOLUTION API] Conflict resolved successfully:', resolutionResult.customerId);
+      if (leadResult.success && leadResult.leadId) {
+        console.log('✅✅✅ - [CONFLICT RESOLUTION API] Lead created successfully after conflict resolution:', leadResult.leadId);
         
-        // Store customer ID in session for future reference
-        (request.session as any).customerId = resolutionResult.customerId;
+        // Store lead ID in session for future reference
+        (request.session as any).leadId = leadResult.leadId;
         
-        // Update session with the resolved customer data
+        // Update session with the resolved lead data
         (request.session as any).eventDetails = {
           firstName: firstName,
           lastName: lastName,
@@ -941,20 +942,20 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
           email: email
         };
         
-        console.log('✅✅✅ - [CONFLICT RESOLUTION API] Session updated with resolved customer data');
+        console.log('✅✅✅ - [CONFLICT RESOLUTION API] Session updated with resolved lead data');
         
         return reply.send({
           success: true,
-          message: 'Customer conflict resolved successfully',
-          customerId: resolutionResult.customerId,
+          message: 'Lead conflict resolved successfully',
+          leadId: leadResult.leadId,
           timestamp: new Date().toISOString()
         });
       } else {
-        console.log('❗❗❗ - [CONFLICT RESOLUTION API] Failed to resolve conflict:', resolutionResult.message);
+        console.log('❗❗❗ - [CONFLICT RESOLUTION API] Failed to create lead:', leadResult.message);
         return reply.status(500).send({
           success: false,
-          message: 'Failed to resolve customer conflict',
-          error: resolutionResult.message
+          message: 'Failed to resolve lead conflict',
+          error: leadResult.message
         });
       }
       
@@ -962,7 +963,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
       console.error('❌❌❌ - [CONFLICT RESOLUTION API] Error resolving conflict:', error);
       return reply.status(500).send({
         success: false,
-        message: 'Error resolving customer conflict',
+        message: 'Error resolving lead conflict',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
@@ -1191,50 +1192,66 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             });
           }
 
-          // 🟡🟡🟡 - [CUSTOMER CREATION] Create or update customer record with conflict detection
-          let customer = null;
+          // 🟡🟡🟡 - [LEAD CREATION] Create lead record with conflict detection (for UI purposes)
+          let lead = null;
           let sanitizedEmail = null;
           
           if (validatedData.phone) {
-            console.log('🟡🟡🟡 - [CUSTOMER CREATION] Creating/updating customer with phone:', validatedData.phone);
+            console.log('🟡🟡🟡 - [LEAD CREATION] Creating lead with phone:', validatedData.phone);
             
             // 🟡🟡🟡 - [EMAIL SANITIZATION] Sanitize email input
             sanitizedEmail = sanitizeEmail(validatedData.email);
-            console.log('🟡🟡🟡 - [CUSTOMER CREATION] Sanitized email:', sanitizedEmail);
+            console.log('🟡🟡🟡 - [LEAD CREATION] Sanitized email:', sanitizedEmail);
             
-            // 🟡🟡🟡 - [SAFE CUSTOMER CREATION] Use conflict-aware customer creation
-            const customerResult = await createCustomerSafely(
+            // 🟡🟡🟡 - [LEAD CONFLICT DETECTION] Check for existing leads (for UI conflict resolution)
+            const conflictCheck = await detectLeadConflicts(
+              validatedData.phone,
+              validatedData.email
+            );
+            
+            if (!conflictCheck.success) {
+              // 🟡🟡🟡 - [LEAD CONFLICT] Conflict detected in leads, return conflict info to client
+              console.log('❗❗❗ - [LEAD CREATION] Lead conflict detected:', conflictCheck.message);
+              
+              return reply.status(409).send({
+                success: false,
+                message: 'Lead conflict detected',
+                conflict: {
+                  type: conflictCheck.conflictType,
+                  existingCustomer: conflictCheck.existingCustomer,
+                  message: conflictCheck.message
+                },
+                requiresUserConfirmation: true
+              });
+            }
+            
+            // 🟡🟡🟡 - [LEAD CREATION] No conflicts, create lead
+            const leadResult = await createLead(
               validatedData.phone,
               validatedData.email,
               validatedData.firstName,
               validatedData.lastName
             );
             
-            if (customerResult.success) {
-              // Customer created successfully
-              console.log('✅✅✅ - [CUSTOMER CREATION] Customer created/updated successfully:', customerResult.customerId);
+            if (leadResult.success && leadResult.leadId) {
+              // Lead created successfully
+              console.log('✅✅✅ - [LEAD CREATION] Lead created successfully:', leadResult.leadId);
               
-              // Fetch the customer record
-              customer = await prisma.customers.findUnique({
-                where: { id: customerResult.customerId! }
+              // Fetch the lead record
+              lead = await prisma.leads.findUnique({
+                where: { id: leadResult.leadId }
               });
             } else {
-              // Conflict detected, return conflict information to client
-              console.log('❗❗❗ - [CUSTOMER CREATION] Conflict detected:', customerResult.message);
-              
-              return reply.status(409).send({
+              // Lead creation failed
+              console.error('❗❗❗ - [LEAD CREATION] Failed to create lead:', leadResult.message);
+              return reply.status(500).send({
                 success: false,
-                message: 'Customer conflict detected',
-                conflict: {
-                  type: customerResult.conflictType,
-                  existingCustomer: customerResult.existingCustomer,
-                  message: customerResult.message
-                },
-                requiresUserConfirmation: true
+                message: 'Failed to create lead. Please try again.',
+                errors: { database: 'Lead creation failed' }
               });
             }
           } else {
-            console.log('🟡🟡🟡 - [CUSTOMER CREATION] No phone provided, creating order without customer link');
+            console.log('🟡🟡🟡 - [LEAD CREATION] No phone provided, creating order without lead link');
             // Still sanitize email for order creation
             sanitizedEmail = sanitizeEmail(validatedData.email);
           }
@@ -1262,8 +1279,8 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
                 additionalDirections: validatedData.additionalDirections || null,
               },
               
-              // Link to customer if created
-              userId: customer?.id || null,
+              // Link to lead if created (userId will be set after payment success)
+              leadId: lead?.id || null,
               
               // Session reference
               sessionId: request.session.sessionId,
@@ -1275,14 +1292,14 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
 
           console.log('✅✅✅ - [DATABASE SAVE] Order saved successfully:', savedOrder.id);
           console.log('✅✅✅ - [DATABASE SAVE] Order number:', savedOrder.orderNumber);
-          if (customer) {
-            console.log('✅✅✅ - [DATABASE SAVE] Order linked to customer:', customer.id);
+          if (lead) {
+            console.log('✅✅✅ - [DATABASE SAVE] Order linked to lead:', lead.id);
           }
           
-          // Store order ID and customer ID in session for future reference
+          // Store order ID and lead ID in session for future reference
           (request.session as any).orderId = savedOrder.id;
           (request.session as any).orderNumber = savedOrder.orderNumber;
-          (request.session as any).customerId = customer?.id || null;
+          (request.session as any).leadId = lead?.id || null;
           
         } catch (dbError) {
           const prismaErr = dbError as any;

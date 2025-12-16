@@ -2,6 +2,15 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     
+    // 🟡🟡🟡 - [FORM PRE-FILL] Reset submit button state immediately on page load to clear any previous submission state
+    const submitButton = document.getElementById('event-details-submit');
+    if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.classList.remove('btn-success'); // 🟡🟡🟡 - [FORM PRE-FILL] Remove success state from previous submission
+        submitButton.classList.remove('btn-active'); // 🟡🟡🟡 - [FORM PRE-FILL] Reset active state
+        console.log('🟡🟡🟡 - [EVENT DETAILS JS] Submit button state reset on DOMContentLoaded');
+    }
+    
     const propertyTypeRadios = document.querySelectorAll('input[name="propertyType"]');
     const conditionalFields = document.querySelectorAll('.conditional-field');
     const unitNumberInput = document.getElementById('unitNumber');
@@ -218,10 +227,12 @@ function initializeSubmitButtonBehavior() {
         return;
     }
     
-    // 🟡🟡🟡 - [SUBMIT BUTTON] Set initial state (enabled so validation messages can show)
+    // 🟡🟡🟡 - [SUBMIT BUTTON] Reset button state completely (remove any previous submission state)
     submitButton.disabled = false;
     submitButton.textContent = 'Kindly fill in above details';
     submitButton.classList.remove('btn-active');
+    submitButton.classList.remove('btn-success'); // 🟡🟡🟡 - [FORM PRE-FILL] Remove success state from previous submission
+    console.log('🟡🟡🟡 - [SUBMIT BUTTON] Button state reset on page load');
     
     // 🟡🟡🟡 - [SUBMIT BUTTON] Function to check if all required fields are filled
     function checkFormCompleteness() {
@@ -296,8 +307,12 @@ function initializeSubmitButtonBehavior() {
         });
     });
     
-    // 🟡🟡🟡 - [SUBMIT BUTTON] Initial check
-    setTimeout(checkFormCompleteness, 100);
+    // 🟡🟡🟡 - [SUBMIT BUTTON] Initial check after form fields are populated (including pre-filled from session)
+    // 🟡🟡🟡 - [FORM PRE-FILL] Increased delay to ensure form fields are fully populated from session data
+    setTimeout(() => {
+        console.log('🟡🟡🟡 - [SUBMIT BUTTON] Checking form completeness after page load');
+        checkFormCompleteness();
+    }, 200);
     
 }
 

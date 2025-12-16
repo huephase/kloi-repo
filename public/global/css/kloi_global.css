@@ -380,7 +380,7 @@ footer {
 .skip-to-content{
     display: block;
     max-width: 300px;
-    margin: 0 auto;
+    margin: 1rem auto;
     background: var(--kloi-accent);
     color: var(--kloi-text);
     padding: 10px 1rem;

@@ -14,6 +14,268 @@
 
 ---
 
+### December 16, 2025 @ 19:48 - Leads Table Implementation: Pre-Checkout Customer Data Management
+
+**Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED
+
+**Summary**: Implemented a Leads table system to store customer information during the wizard flow (before payment completion), and convert leads to customers only after successful payment. This prevents duplicate customer entries for users who don't complete checkout. The Leads table allows duplicates (no unique constraints), while Customers table maintains strict uniqueness. During the wizard flow, customer data is saved to Leads table and linked to orders via `leadId`. Upon successful payment completion, leads are converted to customers with conflict detection, and orders are linked to customers via `userId`.
+
+#### Major Changes
+
+- **Database Migration** (`prisma/migrations/20251216194559_create_leads_table/migration.sql`):
+  - **New Leads Table** (Lines 6-15):
+    - Created `Leads` table with same structure as `Customers` table
+    - Fields: `id` (UUID primary key), `email` (VARCHAR(100), nullable), `phone` (VARCHAR(20), nullable), `firstName` (VARCHAR(50), nullable), `lastName` (VARCHAR(50), nullable), `createdAt` (TIMESTAMP)
+    - **No unique constraints** - allows duplicate phone/email combinations
+    - **Code Added**:
+      ```sql
+      CREATE TABLE "Leads" (
+          "id" TEXT NOT NULL,
+          "email" VARCHAR(100),
+          "phone" VARCHAR(20),
+          "firstName" VARCHAR(50),
+          "lastName" VARCHAR(50),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "Leads_pkey" PRIMARY KEY ("id")
+      );
+      ```
+    - **Impact**: Provides storage for pre-checkout customer data without uniqueness restrictions
+
+  - **Order Table Enhancement** (Lines 18-21):
+    - Added `leadId` field to `kloiOrdersTable` to link orders to leads
+    - Added foreign key constraint with `ON DELETE SET NULL ON UPDATE CASCADE`
+    - **Code Added**:
+      ```sql
+      ALTER TABLE "kloiOrdersTable" ADD COLUMN IF NOT EXISTS "leadId" TEXT;
+      ALTER TABLE "kloiOrdersTable" ADD CONSTRAINT "kloiOrdersTable_leadId_fkey" 
+          FOREIGN KEY ("leadId") REFERENCES "Leads"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+      ```
+    - **Impact**: Orders can now link to leads during wizard flow, then to customers after payment
+
+- **Prisma Schema Updates** (`prisma/schema.prisma`):
+  - **New Leads Model** (Lines 25-35):
+    - Added `Leads` model matching `Customers` structure without unique constraint
+    - **Code Added**:
+      ```prisma
+      model Leads {
+        id        String            @id @default(uuid())
+        email     String?           @db.VarChar(100)
+        phone     String?           @db.VarChar(20)
+        createdAt DateTime          @default(now())
+        firstName String?           @db.VarChar(50)
+        lastName  String?           @db.VarChar(50)
+        orders    kloiOrdersTable[]
+
+        @@map("Leads")
+      }
+      ```
+    - **Impact**: Prisma client now includes Leads model for type-safe database operations
+
+  - **Order Model Enhancement** (Lines 76-80):
+    - Added `leadId` field and `lead` relation to `kloiOrdersTable` model
+    - **Code Added**:
+      ```prisma
+      leadId        String?
+      lead          Leads?      @relation(fields: [leadId], references: [id])
+      ```
+    - **Impact**: Type-safe access to lead data from orders
+
+- **New Lead Service** (`src/services/leadService.ts` - New File):
+  - **Lead Creation Function** (Lines 8-44):
+    - `createLead()` - Creates lead records without conflict detection (allows duplicates)
+    - **Code Added**:
+      ```typescript
+      export async function createLead(
+        phone: string,
+        email: string | null,
+        firstName: string,
+        lastName: string
+      ): Promise<{ success: boolean; leadId?: string; message?: string }> {
+        const sanitizedEmail = sanitizeEmail(email);
+        const lead = await prisma.leads.create({
+          data: {
+            phone: phone,
+            firstName: firstName,
+            lastName: lastName,
+            email: sanitizedEmail,
+          }
+        });
+        return { success: true, leadId: lead.id, message: 'Lead created successfully' };
+      }
+      ```
+    - **Impact**: Simple lead creation without uniqueness constraints
+
+  - **Lead to Customer Conversion** (Lines 47-92):
+    - `convertLeadToCustomer()` - Converts lead to customer with conflict detection
+    - Reuses existing `createCustomerSafely()` function (DRY principle)
+    - **Code Added**:
+      ```typescript
+      export async function convertLeadToCustomer(
+        leadId: string
+      ): Promise<ConflictResolutionResult & { converted?: boolean }> {
+        const lead = await prisma.leads.findUnique({ where: { id: leadId } });
+        const customerResult = await createCustomerSafely(
+          lead.phone,
+          lead.email,
+          lead.firstName || '',
+          lead.lastName || ''
+        );
+        return { ...customerResult, converted: customerResult.success };
+      }
+      ```
+    - **Impact**: Converts leads to customers only after payment, with proper conflict handling
+
+  - **Lead Conflict Detection** (Lines 95-177):
+    - `detectLeadConflicts()` - Checks for existing leads (for UI conflict resolution)
+    - **Code Added**:
+      ```typescript
+      export async function detectLeadConflicts(
+        phone: string, 
+        email: string | null
+      ): Promise<ConflictResolutionResult> {
+        const existingByPhone = await prisma.leads.findFirst({ where: { phone: phone } });
+        const existingByEmail = sanitizedEmail ? 
+          await prisma.leads.findFirst({ where: { email: sanitizedEmail } }) : null;
+        // Returns conflict information for UI
+      }
+      ```
+    - **Impact**: Enables conflict resolution UI to show existing leads to users
+
+- **Event-Details Step Handler Updates** (`src/routes/api/index.ts`):
+  - **Import Statement Update** (Line 11):
+    - Added import for lead service functions
+    - **Code Added**:
+      ```typescript
+      import { createLead, detectLeadConflicts } from '../../services/leadService';
+      ```
+    - **Impact**: Access to lead creation and conflict detection functions
+
+  - **Customer Creation Replaced with Lead Creation** (Lines 1195-1235):
+    - Replaced `createCustomerSafely()` with `createLead()` and `detectLeadConflicts()`
+    - Added lead conflict detection before creating lead
+    - **Code Changed**:
+      ```typescript
+      // OLD: const customerResult = await createCustomerSafely(...)
+      // NEW:
+      const conflictCheck = await detectLeadConflicts(
+        validatedData.phone,
+        validatedData.email
+      );
+      if (!conflictCheck.success) {
+        return reply.status(409).send({
+          success: false,
+          message: 'Lead conflict detected',
+          conflict: { ... }
+        });
+      }
+      const leadResult = await createLead(...);
+      ```
+    - **Impact**: Customer data now saved to Leads table during wizard flow
+
+  - **Order Creation Update** (Lines 1237-1274):
+    - Changed order linking from `userId` to `leadId`
+    - **Code Changed**:
+      ```typescript
+      // OLD: userId: customer?.id || null,
+      // NEW:
+      leadId: lead?.id || null,
+      ```
+    - **Impact**: Orders link to leads during wizard, not customers
+
+  - **Session Storage Update** (Lines 1283-1286):
+    - Changed session storage from `customerId` to `leadId`
+    - **Code Changed**:
+      ```typescript
+      // OLD: (request.session as any).customerId = customer?.id || null;
+      // NEW:
+      (request.session as any).leadId = lead?.id || null;
+      ```
+    - **Impact**: Session tracks lead ID instead of customer ID during wizard
+
+- **Conflict Resolution Endpoint Update** (`src/routes/api/index.ts`, Lines 897-970):
+  - **Endpoint Logic Change**:
+    - Changed from `resolveCustomerConflict()` to `createLead()` after user confirmation
+    - **Code Changed**:
+      ```typescript
+      // OLD: const resolutionResult = await resolveCustomerConflict(...)
+      // NEW:
+      const leadResult = await createLead(
+        phone,
+        email,
+        firstName,
+        lastName
+      );
+      (request.session as any).leadId = leadResult.leadId;
+      ```
+    - **Impact**: Conflict resolution now creates leads instead of customers
+
+- **Payment Success Handler Enhancement** (`src/services/paymentService.ts`, Lines 292-350):
+  - **Lead to Customer Conversion on Payment Success**:
+    - Added lead-to-customer conversion in `payment_intent.succeeded` webhook handler
+    - **Code Added**:
+      ```typescript
+      case 'payment_intent.succeeded':
+        let customerId: string | null = null;
+        if (order.leadId) {
+          const { convertLeadToCustomer } = await import('./leadService');
+          const conversionResult = await convertLeadToCustomer(order.leadId);
+          
+          if (conversionResult.success && conversionResult.customerId) {
+            customerId = conversionResult.customerId;
+          } else {
+            // Handle conflict - find existing customer
+            const lead = await prisma.leads.findUnique({ where: { id: order.leadId } });
+            const existingCustomer = await prisma.customers.findFirst({
+              where: { OR: [{ phone: lead.phone }, { email: lead.email }] }
+            });
+            customerId = existingCustomer?.id || null;
+          }
+        }
+        
+        await prisma.kloiOrdersTable.update({
+          where: { id: order.id },
+          data: {
+            status: OrderStatus.COMPLETED,
+            paymentStatus: 'succeeded',
+            paidAt: new Date(),
+            userId: customerId || undefined, // Link to customer
+          }
+        });
+      ```
+    - **Impact**: Leads are automatically converted to customers only after successful payment, with conflict detection
+
+#### Migration Instructions
+
+1. **Run Database Migration**:
+   ```bash
+   npx prisma migrate deploy
+   # or
+   npx prisma migrate dev
+   ```
+
+2. **Generate Prisma Client**:
+   ```bash
+   npx prisma generate
+   ```
+
+3. **No Code Changes Required**: Existing code automatically uses new Leads system
+
+#### Breaking Changes
+
+- **Session Data**: Session now stores `leadId` instead of `customerId` during wizard flow
+- **Order Linking**: Orders link to leads via `leadId` during wizard, then to customers via `userId` after payment
+- **Conflict Resolution**: `/resolve-conflict` endpoint now creates leads instead of customers
+
+#### Benefits
+
+- **Prevents Duplicate Customers**: Only users who complete payment become customers
+- **Maintains Data Integrity**: Customers table only contains paid customers
+- **Audit Trail**: Leads table preserves all customer attempts, even if payment fails
+- **DRY Principle**: Reuses existing customer creation and conflict detection logic
+- **Backward Compatible**: Existing customer conflict detection logic remains unchanged
+
+---
+
 ### December 10, 2025 @ 16:23 - Form Pre-Filling from Session Data on Event-Setup Page
 
 **Type**: 🟠 MAJOR CHANGE

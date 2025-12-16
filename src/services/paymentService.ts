@@ -292,16 +292,64 @@ class PaymentService {
         case 'payment_intent.succeeded':
           console.log('✅✅✅ - [PAYMENT SERVICE] Payment succeeded for order:', order.id);
           
+          // 🟡🟡🟡 - [LEAD TO CUSTOMER CONVERSION] Convert lead to customer after successful payment
+          let customerId: string | null = null;
+          if (order.leadId) {
+            console.log('🟡🟡🟡 - [PAYMENT SERVICE] Converting lead to customer:', order.leadId);
+            
+            // Import convertLeadToCustomer dynamically to avoid circular dependencies
+            const { convertLeadToCustomer } = await import('./leadService');
+            const conversionResult = await convertLeadToCustomer(order.leadId);
+            
+            if (conversionResult.success && conversionResult.customerId) {
+              customerId = conversionResult.customerId;
+              console.log('✅✅✅ - [PAYMENT SERVICE] Lead converted to customer successfully:', customerId);
+            } else {
+              // 🟡🟡🟡 - [CONFLICT HANDLING] Conflict detected during conversion
+              // This means customer already exists, use existing customer
+              console.log('❗❗❗ - [PAYMENT SERVICE] Conflict detected during lead conversion:', conversionResult.message);
+              
+              // 🟡🟡🟡 - [CONFLICT RESOLUTION] Try to find existing customer by phone/email from lead
+              const lead = await prisma.leads.findUnique({
+                where: { id: order.leadId }
+              });
+              
+              if (lead && lead.phone) {
+                // Check for existing customer
+                const existingCustomer = await prisma.customers.findFirst({
+                  where: {
+                    OR: [
+                      { phone: lead.phone },
+                      ...(lead.email ? [{ email: lead.email }] : [])
+                    ]
+                  }
+                });
+                
+                if (existingCustomer) {
+                  customerId = existingCustomer.id;
+                  console.log('✅✅✅ - [PAYMENT SERVICE] Using existing customer:', customerId);
+                } else {
+                  console.error('❌❌❌ - [PAYMENT SERVICE] Could not find existing customer for lead');
+                }
+              }
+            }
+          }
+          
+          // 🟡🟡🟡 - [ORDER UPDATE] Update order with COMPLETED status and link to customer
           await prisma.kloiOrdersTable.update({
             where: { id: order.id },
             data: {
               status: OrderStatus.COMPLETED,
               paymentStatus: 'succeeded',
               paidAt: new Date(),
+              userId: customerId || undefined, // Link to customer if conversion succeeded
             }
           });
           
           console.log('✅✅✅ - [PAYMENT SERVICE] Order status updated to COMPLETED');
+          if (customerId) {
+            console.log('✅✅✅ - [PAYMENT SERVICE] Order linked to customer:', customerId);
+          }
           break;
 
         case 'payment_intent.payment_failed':
