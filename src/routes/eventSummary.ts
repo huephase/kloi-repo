@@ -61,7 +61,9 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
       // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate from dateInfo
       if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
         numberOfDays = dateInfo.dates.length;
-        console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Number of days calculated:', numberOfDays);
+        console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Number of days calculated:', numberOfDays, 'from dates:', dateInfo.dates);
+      } else {
+        console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY ROUTE] No valid dates found in dateInfo, using default numberOfDays:', numberOfDays);
       }
       
       const canShowCalculator = guestCount !== null && guestCount > 0 && numberOfDays > 0 && menuSections !== null;

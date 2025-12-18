@@ -1,7 +1,7 @@
 // 🟡🟡🟡 - [LEAD SERVICE] Service to handle lead creation and conversion to customers
 import { prisma } from '../lib/prisma';
 import { sanitizeEmail } from '../lib/utils';
-import { createCustomerSafely, detectCustomerConflicts, ConflictResolutionResult } from './conflictResolutionService';
+import { createCustomerSafely, ConflictResolutionResult } from './conflictResolutionService';
 
 // 🟡🟡🟡 - [LEAD CREATION] Create a lead (no conflict detection, allows duplicates)
 export async function createLead(

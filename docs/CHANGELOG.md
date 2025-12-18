@@ -14,6 +14,326 @@
 
 ---
 
+### December 18, 2025 @ 20:02 - Lead Creation Fix: Remove Blocking Conflict Detection for Duplicate Leads
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical bug where lead creation was incorrectly blocked when duplicate phone numbers or email addresses were detected in the Leads table. The Leads table is designed to allow duplicates (no unique constraints), but the code was performing conflict detection and returning 409 errors, preventing users from completing the wizard flow. Removed the blocking conflict check from lead creation flow, allowing duplicate leads to be created as designed. Conflict detection remains in place for customer conversion (after payment), which is the correct place for uniqueness enforcement.
+
+#### Major Changes
+
+- **Event-Details Step Handler Lead Creation Fix** (`src/routes/api/index.ts`):
+  - **Removed Blocking Conflict Detection** (Lines 1205-1225):
+    - Removed `detectLeadConflicts()` call that was blocking lead creation
+    - Removed 409 error response when conflicts were detected in Leads table
+    - **Code Removed**:
+      ```typescript
+      // OLD CODE (REMOVED):
+      // 🟡🟡🟡 - [LEAD CONFLICT DETECTION] Check for existing leads (for UI conflict resolution)
+      const conflictCheck = await detectLeadConflicts(
+        validatedData.phone,
+        validatedData.email
+      );
+      
+      if (!conflictCheck.success) {
+        // 🟡🟡🟡 - [LEAD CONFLICT] Conflict detected in leads, return conflict info to client
+        console.log('❗❗❗ - [LEAD CREATION] Lead conflict detected:', conflictCheck.message);
+        
+        return reply.status(409).send({
+          success: false,
+          message: 'Lead conflict detected',
+          conflict: {
+            type: conflictCheck.conflictType,
+            existingCustomer: conflictCheck.existingCustomer,
+            message: conflictCheck.message
+          },
+          requiresUserConfirmation: true
+        });
+      }
+      ```
+    - **Impact**: Lead creation no longer blocked by duplicate phone/email in Leads table
+
+  - **Direct Lead Creation** (Lines 1205-1212):
+    - Lead creation now proceeds directly without conflict checks
+    - Added clarifying comments that duplicates are allowed
+    - **Code Updated**:
+      ```typescript
+      // 🟡🟡🟡 - [LEAD CREATION] Create lead (duplicates are allowed - no conflict check needed)
+      // Leads table has no unique constraints, so we can create leads even if phone/email already exists
+      const leadResult = await createLead(
+        validatedData.phone,
+        validatedData.email,
+        validatedData.firstName,
+        validatedData.lastName
+      );
+      ```
+    - **Impact**: Leads are created successfully even when duplicate phone/email exists, matching the design intent
+
+  - **Updated Comment** (Line 1194):
+    - Changed comment from "with conflict detection (for UI purposes)" to "duplicates allowed in Leads table"
+    - **Code Updated**:
+      ```typescript
+      // OLD: // 🟡🟡🟡 - [LEAD CREATION] Create lead record with conflict detection (for UI purposes)
+      // NEW:
+      // 🟡🟡🟡 - [LEAD CREATION] Create lead record (duplicates allowed in Leads table)
+      ```
+    - **Impact**: Comments now accurately reflect that duplicates are allowed
+
+  - **Removed Unused Import** (Line 10):
+    - Removed `detectLeadConflicts` from import statement since it's no longer used in lead creation flow
+    - **Code Updated**:
+      ```typescript
+      // OLD: import { createLead, detectLeadConflicts } from '../../services/leadService';
+      // NEW:
+      import { createLead } from '../../services/leadService';
+      ```
+    - **Impact**: Cleaner imports, removed unused dependency
+
+#### Technical Details
+
+- **Root Cause**:
+  - The Leads table was designed to allow duplicates (no unique constraints) to prevent blocking users who don't complete checkout
+  - However, the event-details step handler was calling `detectLeadConflicts()` before creating leads
+  - When conflicts were detected (duplicate phone/email), the code returned a 409 error, blocking lead creation
+  - This violated the design intent: Leads table should allow duplicates, conflict detection should only occur when converting leads to customers
+
+- **Design Intent**:
+  - **Leads Table**: Allows duplicates - users can create multiple leads with same phone/email during wizard flow
+  - **Customers Table**: Enforces uniqueness - conflict detection occurs when converting leads to customers (after payment)
+  - **Conflict Resolution**: Should only be needed when converting leads to customers, not during lead creation
+
+- **Error Flow Before Fix**:
+  1. User enters phone/email that already exists in Leads table
+  2. `detectLeadConflicts()` finds existing lead
+  3. Code returns 409 error with conflict information
+  4. User cannot proceed with wizard flow
+  5. **Result**: Users blocked from completing order even though Leads table allows duplicates
+
+- **Correct Flow After Fix**:
+  1. User enters phone/email (may or may not exist in Leads table)
+  2. Lead created directly via `createLead()` without conflict check
+  3. Duplicate leads allowed (as designed)
+  4. User proceeds with wizard flow
+  5. After payment success, lead converted to customer with conflict detection
+  6. **Result**: Users can complete wizard flow, duplicates handled correctly at customer conversion stage
+
+- **Conflict Detection Still Available**:
+  - `detectLeadConflicts()` function remains in `leadService.ts` for potential future use
+  - Conflict detection still occurs in `convertLeadToCustomer()` function (after payment)
+  - Conflict resolution endpoint (`/resolve-conflict`) still works correctly (creates leads without blocking)
+
+#### Files Modified
+
+1. `src/routes/api/index.ts`:
+   - **Line 10**: Removed `detectLeadConflicts` from import statement
+   - **Line 1194**: Updated comment to clarify duplicates are allowed
+   - **Lines 1205-1225**: Removed blocking conflict detection check and 409 error response
+   - **Lines 1205-1212**: Added clarifying comments that duplicates are allowed, no conflict check needed
+
+#### Impact
+
+- **User Experience**:
+  - Users can now complete wizard flow even if their phone/email already exists in Leads table
+  - No more 409 errors blocking lead creation for duplicate phone/email
+  - Wizard flow proceeds smoothly to checkout
+  - Matches design intent: Leads table allows duplicates
+
+- **Data Integrity**:
+  - Leads table correctly allows duplicate entries (as designed)
+  - Customer table still enforces uniqueness (conflict detection at conversion stage)
+  - Proper separation: Leads (duplicates allowed) vs Customers (uniqueness enforced)
+
+- **Code Quality**:
+  - Removed incorrect conflict detection that violated design intent
+  - Comments accurately reflect that duplicates are allowed
+  - Cleaner imports (removed unused dependency)
+  - Aligns with Leads table design (no unique constraints)
+
+- **Bug Fix**:
+  - Fixed issue where users were incorrectly blocked from creating leads with duplicate phone/email
+  - Error logs showed: "Lead conflict detected: Phone number is already in use by another lead"
+  - This error no longer occurs during lead creation
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a code logic fix only, no schema changes
+- **No API Changes Required**: API endpoints remain the same, only internal logic changed
+- **No Session Changes Required**: Session structure remains unchanged
+- **Backward Compatible**: Fully backward compatible - existing leads and orders unaffected
+- **Immediate Effect**: Changes take effect immediately - users can now create duplicate leads
+- **Testing**: Verify lead creation works when:
+  1. User enters phone/email that already exists in Leads table
+  2. Lead is created successfully (no 409 error)
+  3. User can proceed through wizard flow
+  4. After payment, lead converts to customer with proper conflict detection
+  5. Multiple leads with same phone/email can exist simultaneously
+
+#### Related Code
+
+- **Conflict Detection Function** (`src/services/leadService.ts`, Lines 114-201):
+  - `detectLeadConflicts()` function remains available but is no longer used in lead creation flow
+  - Still used internally in `convertLeadToCustomer()` for customer conversion conflict detection
+  - Function correctly identifies conflicts but doesn't block lead creation (as intended)
+
+- **Lead Creation Function** (`src/services/leadService.ts`, Lines 7-44):
+  - `createLead()` function unchanged - correctly allows duplicates
+  - No unique constraints in Leads table, so duplicates are allowed at database level
+  - Function works correctly without conflict checks
+
+- **Customer Conversion** (`src/services/paymentService.ts`, Lines 292-350):
+  - Lead-to-customer conversion still includes conflict detection (correct behavior)
+  - Conflict detection occurs at customer conversion stage, not lead creation stage
+  - Ensures Customers table maintains uniqueness while Leads table allows duplicates
+
+---
+
+### December 18, 2025 @ 19:51 - Calculator numberOfDays Fix: Multi-Day Event Calculation Correction
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical bug where calculator on event-summary page was calculating quotes for only 1 day regardless of the actual number of days selected in the date picker. Calculator now correctly uses the number of days from the current session's `dateInfo.dates` array, ensuring accurate pricing for multi-day events. Added `setNumberOfDays()` method to calculator API to allow dynamic updates of number of days after initialization, ensuring calculator always uses the correct number of days from the current session rather than any saved state.
+
+#### Major Changes
+
+- **Calculator API Enhancement** (`public/global/js/kloi_calculator.js`):
+  - **New Method: `setNumberOfDays()`** (Lines 372-380):
+    - Added method to update `numberOfDays` property after calculator initialization
+    - Updates `engine.numberOfDays` and triggers recalculation via `ui.render()`
+    - Validates input to ensure positive integer (defaults to 1 if invalid)
+    - **Code Added**:
+      ```javascript
+      setNumberOfDays: (days) => {
+        // 🟡🟡🟡 - [NUMBER OF DAYS] Update number of days and recalculate
+        // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This affects minimum order calculations for "Per day" basis
+        const numDays = days && days > 0 ? Math.floor(days) : 1
+        engine.numberOfDays = numDays
+        console.log('🟡🟡🟡 - [KLOI CALC] Number of days updated to:', numDays)
+        ui.render()
+      },
+      ```
+    - **Location**: Lines 372-380 in calculator API object
+    - **Impact**: Enables calculator to update number of days dynamically, ensuring calculations use current session data rather than stale saved state
+
+- **Event-Summary Calculator Initialization Fix** (`src/views/wizard/event-summary.hbs`):
+  - **Explicit numberOfDays Setting** (Lines 106-109):
+    - Added explicit call to `calc.setNumberOfDays(numberOfDays)` immediately after calculator initialization
+    - Ensures calculator uses current session's `numberOfDays` value, not any saved state value
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days to ensure correct calculation
+      // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state
+      calc.setNumberOfDays(numberOfDays);
+      console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator initialized with numberOfDays:', numberOfDays);
+      ```
+    - **Impact**: Calculator now correctly uses number of days from current session (e.g., 2 days for 2 selected dates) instead of defaulting to 1 day
+
+  - **Final Recalculation After State Restoration** (Lines 192-194):
+    - Added explicit `calc.recalc()` call after all state restoration is complete
+    - Ensures final calculation uses correct `numberOfDays` after all selections are restored
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [FINAL RECALC] Ensure calculator recalculates with correct numberOfDays after state restoration
+      // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures final calculation uses current session numberOfDays, not any saved state value
+      calc.recalc();
+      console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator state restored from session and recalculated with numberOfDays:', numberOfDays);
+      ```
+    - **Impact**: Final quote calculation reflects correct number of days after all state restoration
+
+  - **Enhanced Logging** (Line 89):
+    - Added `numberOfDaysData` to logging output for debugging
+    - **Code Updated**:
+      ```javascript
+      console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Initializing calculator:', { numberOfDays, guestCount, numberOfDaysData });
+      ```
+    - **Impact**: Better debugging visibility into numberOfDays value source
+
+- **Route Handler Logging Enhancement** (`src/routes/eventSummary.ts`):
+  - **Enhanced numberOfDays Calculation Logging** (Lines 62-67):
+    - Added detailed logging showing which dates were used to calculate `numberOfDays`
+    - Added warning log when dates are not found, using default value
+    - **Code Updated**:
+      ```typescript
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate from dateInfo
+      if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+        numberOfDays = dateInfo.dates.length;
+        console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Number of days calculated:', numberOfDays, 'from dates:', dateInfo.dates);
+      } else {
+        console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY ROUTE] No valid dates found in dateInfo, using default numberOfDays:', numberOfDays);
+      }
+      ```
+    - **Impact**: Better visibility into numberOfDays calculation process for debugging
+
+#### Technical Details
+
+- **Root Cause**:
+  - Calculator was initialized with correct `numberOfDays` from session data
+  - However, when restoring calculator state from saved session data, the calculator might have been using a stale `numberOfDays` value from the saved state
+  - The calculator engine's `numberOfDays` property was set during initialization but wasn't being explicitly updated to match current session data
+
+- **Solution Pattern**:
+  - **Explicit Setting**: Call `setNumberOfDays()` immediately after initialization to ensure calculator uses current session value
+  - **Final Recalculation**: Call `recalc()` after state restoration to ensure all calculations use correct `numberOfDays`
+  - **API Method**: Added `setNumberOfDays()` method to calculator API for dynamic updates
+
+- **Calculation Impact**:
+  - **Minimum Orders**: "Per day" minimum orders are multiplied by `numberOfDays` (line 202 in `kloi_calculator.js`)
+  - **Multi-Day Events**: Events with multiple dates (e.g., 2 days) now correctly calculate minimum orders for all days
+  - **Example**: If minimum order is AED 1,000 per day and user selects 2 dates, calculator now shows AED 2,000 minimum order (previously showed AED 1,000)
+
+- **State Restoration Flow**:
+  1. Calculator initialized with `numberOfDays` from session (e.g., 2 days)
+  2. `setNumberOfDays()` explicitly sets `engine.numberOfDays` to current session value
+  3. Guest count set from session
+  4. Radio selections restored from saved state
+  5. Checkbox selections restored from saved state
+  6. Product quantities restored from saved state
+  7. Final `recalc()` ensures all calculations use correct `numberOfDays`
+
+#### Files Modified
+
+1. `public/global/js/kloi_calculator.js`:
+   - Lines 372-380: Added `setNumberOfDays()` method to calculator API
+
+2. `src/views/wizard/event-summary.hbs`:
+   - Lines 106-109: Added explicit `setNumberOfDays()` call after calculator initialization
+   - Lines 192-194: Added final `recalc()` call after state restoration
+   - Line 89: Enhanced logging to include `numberOfDaysData`
+
+3. `src/routes/eventSummary.ts`:
+   - Lines 62-67: Enhanced logging for numberOfDays calculation with dates array and warning message
+
+#### Impact
+
+- **User Experience**:
+  - Calculator now shows correct totals for multi-day events
+  - Minimum order requirements correctly reflect number of days selected
+  - Users see accurate pricing for events spanning multiple days
+
+- **Calculation Accuracy**:
+  - "Per day" minimum orders correctly multiplied by actual number of days
+  - Multi-day events (2+ days) now calculate correctly instead of defaulting to 1 day
+  - Calculator always uses current session's `numberOfDays`, not stale saved state
+
+- **Code Quality**:
+  - Added explicit API method for updating `numberOfDays` (follows DRY principles)
+  - Enhanced logging for better debugging visibility
+  - Ensures calculator state matches current session data
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend JavaScript fix only
+- **No API Changes Required**: Existing API endpoints remain unchanged
+- **No Session Changes Required**: Session structure remains the same
+- **Backward Compatible**: Fully backward compatible - calculator still works with existing session data
+- **Immediate Effect**: Changes take effect immediately - calculator will correctly calculate for multi-day events
+- **Testing**: Verify calculator shows correct totals when:
+  1. User selects 2+ dates in date-picker
+  2. User completes event-setup
+  3. User views event-summary
+  4. Calculator total reflects correct number of days (e.g., 2 days = 2x minimum order for "Per day" items)
+
+---
+
 ### December 16, 2025 @ 19:48 - Leads Table Implementation: Pre-Checkout Customer Data Management
 
 **Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED

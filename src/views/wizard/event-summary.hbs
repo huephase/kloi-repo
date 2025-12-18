@@ -86,7 +86,7 @@
         const numberOfDays = numberOfDaysData ? parseInt(numberOfDaysData, 10) : 1;
         const guestCount = guestCountData ? parseInt(guestCountData, 10) : null;
         
-        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Initializing calculator:', { numberOfDays, guestCount });
+        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Initializing calculator:', { numberOfDays, guestCount, numberOfDaysData });
         
         if (menuSectionsJson && menuSectionsJson !== 'null' && guestCount && guestCount > 0) {
           // 🟡🟡🟡 - [MENU LABELS] Initialize menu labels first
@@ -103,6 +103,11 @@
           // 🟡🟡🟡 - [CALCULATOR INIT] Initialize calculator (initFromMenuSections accepts JSON string or object)
           const calc = window.KloiCalculator.initFromMenuSections(menuSectionsJson, { taxPercent: 0, numberOfDays: numberOfDays });
           if (calc) {
+            // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days to ensure correct calculation
+            // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state
+            calc.setNumberOfDays(numberOfDays);
+            console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator initialized with numberOfDays:', numberOfDays);
+            
             // 🟡🟡🟡 - [GUEST COUNT] Set guest count
             calc.setGuestCount(guestCount);
             console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator initialized with guest count:', guestCount);
@@ -184,7 +189,10 @@
                   }
                 }
                 
-                console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator state restored from session');
+                // 🟡🟡🟡 - [FINAL RECALC] Ensure calculator recalculates with correct numberOfDays after state restoration
+                // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures final calculation uses current session numberOfDays, not any saved state value
+                calc.recalc();
+                console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator state restored from session and recalculated with numberOfDays:', numberOfDays);
               } catch (e) {
                 console.error('❗❗❗ - [EVENT SUMMARY VIEW] Error parsing eventSetup JSON:', e);
               }

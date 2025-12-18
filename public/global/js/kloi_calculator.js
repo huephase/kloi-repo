@@ -370,6 +370,14 @@
             engine.setProductQuantity(productKey, qty)
             ui.render()
           },
+          setNumberOfDays: (days) => {
+            // 🟡🟡🟡 - [NUMBER OF DAYS] Update number of days and recalculate
+            // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This affects minimum order calculations for "Per day" basis
+            const numDays = days && days > 0 ? Math.floor(days) : 1
+            engine.numberOfDays = numDays
+            console.log('🟡🟡🟡 - [KLOI CALC] Number of days updated to:', numDays)
+            ui.render()
+          },
           // 2025-11-05T00:00:00Z 🟡🟡🟡 - [API] Expose read-only getters for saving to session/DB
           getState: () => {
             try {

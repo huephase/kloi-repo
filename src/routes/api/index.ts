@@ -7,8 +7,7 @@ import { eventDetailsSchema, locationDataSchema, dateSelectionSchema, eventSetup
 import { ZodError } from 'zod';
 import { reverseGeocodeQuerySchema } from '../../schemas/common.schemas';
 import { sanitizeEmail } from '../../lib/utils';
-import { createCustomerSafely, resolveCustomerConflict } from '../../services/conflictResolutionService';
-import { createLead, detectLeadConflicts } from '../../services/leadService';
+import { createLead } from '../../services/leadService';
 import paymentRoutes from './payment';
 
 // Maps wizard steps to session keys and redirect targets
@@ -1192,7 +1191,7 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             });
           }
 
-          // 🟡🟡🟡 - [LEAD CREATION] Create lead record with conflict detection (for UI purposes)
+          // 🟡🟡🟡 - [LEAD CREATION] Create lead record (duplicates allowed in Leads table)
           let lead = null;
           let sanitizedEmail = null;
           
@@ -1203,29 +1202,8 @@ export default async function apiRoutes(app: FastifyInstance, _opts: FastifyPlug
             sanitizedEmail = sanitizeEmail(validatedData.email);
             console.log('🟡🟡🟡 - [LEAD CREATION] Sanitized email:', sanitizedEmail);
             
-            // 🟡🟡🟡 - [LEAD CONFLICT DETECTION] Check for existing leads (for UI conflict resolution)
-            const conflictCheck = await detectLeadConflicts(
-              validatedData.phone,
-              validatedData.email
-            );
-            
-            if (!conflictCheck.success) {
-              // 🟡🟡🟡 - [LEAD CONFLICT] Conflict detected in leads, return conflict info to client
-              console.log('❗❗❗ - [LEAD CREATION] Lead conflict detected:', conflictCheck.message);
-              
-              return reply.status(409).send({
-                success: false,
-                message: 'Lead conflict detected',
-                conflict: {
-                  type: conflictCheck.conflictType,
-                  existingCustomer: conflictCheck.existingCustomer,
-                  message: conflictCheck.message
-                },
-                requiresUserConfirmation: true
-              });
-            }
-            
-            // 🟡🟡🟡 - [LEAD CREATION] No conflicts, create lead
+            // 🟡🟡🟡 - [LEAD CREATION] Create lead (duplicates are allowed - no conflict check needed)
+            // Leads table has no unique constraints, so we can create leads even if phone/email already exists
             const leadResult = await createLead(
               validatedData.phone,
               validatedData.email,
