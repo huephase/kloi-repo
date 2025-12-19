@@ -238,8 +238,9 @@
 {{! 🟡🟡🟡 - [GUEST COUNT] Pass guest count for calculator visibility control }}
 {{! 🟡🟡🟡 - [DATE INFO] Pass date info flags for calculator visibility control }}
 {{! 🟡🟡🟡 - [FORM PRE-FILL] Pass eventSetup data for form pre-filling }}
+{{! 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees data for calculator }}
 {{! ⚠️⚠️⚠️ - [CALCULATOR READINESS] Calculator requires BOTH guest count AND dates }}
-<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" data-has-date-info="{{hasDateInfo}}" data-can-show-calculator="{{canShowCalculator}}" data-event-setup="{{eventSetupJson}}" style="display: none;"></div>
+<div id="serverData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-has-guest-count="{{hasGuestCount}}" data-has-date-info="{{hasDateInfo}}" data-can-show-calculator="{{canShowCalculator}}" data-event-setup="{{eventSetupJson}}" data-taxes-fees="{{taxesFeesJson}}" style="display: none;"></div>
 
 {{! 🟡🟡🟡 - [POPUP MODAL] Modal for displaying popup content }}
 <div id="popupModal" class="popup-modal">
@@ -290,6 +291,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // ⚠️⚠️⚠️ - [DATE INFO] Calculator requires BOTH guest count AND dates for accurate pricing
     const hasDateInfoData = serverDataDiv?.dataset.hasDateInfo === 'true';
     const canShowCalculatorData = serverDataDiv?.dataset.canShowCalculator === 'true';
+    
+    // 🟡🟡🟡 - [TAXES FEES] Read taxes/fees from server data for calculator
+    const taxesFeesData = serverDataDiv?.dataset.taxesFees;
+    let taxesFeesArray = [];
+    if (taxesFeesData && taxesFeesData !== 'null' && taxesFeesData !== '') {
+        try {
+            taxesFeesArray = JSON.parse(taxesFeesData);
+            console.log('✅✅✅ - [EVENT SETUP JS] Taxes/fees loaded from server:', taxesFeesArray.length);
+        } catch (e) {
+            console.error('❗❗❗ - [EVENT SETUP JS] Error parsing taxes/fees data:', e);
+        }
+    }
     
     console.log('🟡🟡🟡 - [EVENT SETUP JS] Guest count from server:', guestCountFromServer, 'hasGuestCount:', hasGuestCountData);
     console.log('🟡🟡🟡 - [EVENT SETUP JS] Date info from server:', 'hasDateInfo:', hasDateInfoData, 'canShowCalculator:', canShowCalculatorData);
@@ -398,10 +411,15 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('🟡🟡🟡 - [EVENT SETUP JS] Number of days from server:', numberOfDays);
             console.log('✅✅✅ - [EVENT SETUP JS] Guest count and dates available, initializing calculator');
             
-            calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxPercent: 0, numberOfDays: numberOfDays });
+            calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxesFees: taxesFeesArray, numberOfDays: numberOfDays });
             if (!calc) {
                 console.error('❗❗❗ - [EVENT SETUP JS] Calculator failed to initialize');
             } else {
+                // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days to ensure correct calculation
+                // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state
+                calc.setNumberOfDays(numberOfDays);
+                console.log('✅✅✅ - [EVENT SETUP JS] Calculator initialized with numberOfDays:', numberOfDays);
+                
                 // 🟡🟡🟡 - [GUEST COUNT] Set guest count if available from server
                 if (guestCountFromServer && guestCountFromServer > 0) {
                     calc.setGuestCount(guestCountFromServer);
@@ -416,7 +434,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 menuSectionsData: menuSectionsData,
                 numberOfDays: numberOfDays,
                 guestCountFromServer: guestCountFromServer,
-                hasDateInfo: hasDateInfoData
+                hasDateInfo: hasDateInfoData,
+                taxesFees: taxesFeesArray
             };
         }
     } else {
@@ -448,8 +467,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            calc = window.KloiCalculator.initFromMenuSections(pending.menuSectionsData, { taxPercent: 0, numberOfDays: pending.numberOfDays });
+            // 🟡🟡🟡 - [NUMBER OF DAYS] Get current numberOfDays from server data (may have been updated)
+            const currentNumberOfDaysData = serverDataDiv?.dataset.numberOfDays;
+            const currentNumberOfDays = currentNumberOfDaysData ? parseInt(currentNumberOfDaysData, 10) : (pending.numberOfDays || 1);
+            
+            // 🟡🟡🟡 - [TAXES FEES] Get current taxes/fees from server data (may have been updated)
+            const currentTaxesFeesData = serverDataDiv?.dataset.taxesFees;
+            let currentTaxesFees = pending.taxesFees || [];
+            if (currentTaxesFeesData && currentTaxesFeesData !== 'null' && currentTaxesFeesData !== '') {
+                try {
+                    currentTaxesFees = JSON.parse(currentTaxesFeesData);
+                } catch (e) {
+                    console.error('❗❗❗ - [EVENT SETUP JS] Error parsing taxes/fees in deferred init:', e);
+                }
+            }
+            
+            calc = window.KloiCalculator.initFromMenuSections(pending.menuSectionsData, { taxesFees: currentTaxesFees, numberOfDays: currentNumberOfDays });
             if (calc) {
+                // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days to ensure correct calculation
+                // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state
+                calc.setNumberOfDays(currentNumberOfDays);
+                console.log('✅✅✅ - [EVENT SETUP JS] Deferred calculator initialized with numberOfDays:', currentNumberOfDays);
+                
                 // 🟡🟡🟡 - [GUEST COUNT] Set guest count from input or server
                 const guestCountInput = document.querySelector('input[name="guest-count"]');
                 const guestCountValue = guestCountInput ? parseInt(guestCountInput.value) || 0 : (pending.guestCountFromServer || 0);

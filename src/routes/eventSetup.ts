@@ -2,6 +2,7 @@
 // Route for GET /event-setup - Event setup with menu selection
 import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { MenuService } from '../services/menuService';
+import { TaxesFeesService } from '../services/taxesFeesService';
 import { prisma } from '../lib/prisma';
 
 // 🟡🟡🟡 - [EVENT SETUP ROUTE] Main route handler for event setup page
@@ -118,6 +119,22 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
       const canShowCalculator = hasGuestCount && hasDateInfo;
       console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Calculator can be shown:', canShowCalculator, '(guestCount:', hasGuestCount, ', dates:', hasDateInfo, ')');
 
+      // 🟡🟡🟡 - [TAXES FEES] Load taxes and fees based on country code from location data
+      let taxesFees = [];
+      try {
+        const locationData = sessionData.locationData;
+        if (locationData) {
+          const countryCode = TaxesFeesService.getCountryCodeFromLocation(locationData);
+          taxesFees = await TaxesFeesService.getTaxesFeesByCountry(countryCode);
+          console.log('✅✅✅ - [EVENT SETUP ROUTE] Loaded', taxesFees.length, 'taxes/fees for country:', countryCode);
+        } else {
+          console.log('⚠️⚠️⚠️ - [EVENT SETUP ROUTE] No location data available, skipping taxes/fees loading');
+        }
+      } catch (taxesFeesError) {
+        console.error('❗❗❗ - [EVENT SETUP ROUTE] Error loading taxes/fees:', taxesFeesError);
+        // Continue without taxes/fees - calculator will work normally
+      }
+
       // 🟡🟡🟡 - [TEMPLATE DATA] Prepare data for template
       const templateData = {
         theme: theme,
@@ -131,7 +148,9 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
         guestCount: guestCount, // 🟡🟡🟡 - [GUEST COUNT] Pass guest count for calculator visibility
         hasGuestCount: hasGuestCount, // 🟡🟡🟡 - [GUEST COUNT] Pass boolean flag for calculator visibility
         hasDateInfo: hasDateInfo, // 🟡🟡🟡 - [DATE INFO] Pass boolean flag indicating dates are available
-        canShowCalculator: canShowCalculator // 🟡🟡🟡 - [CALCULATOR READINESS] Both guest count AND dates required
+        canShowCalculator: canShowCalculator, // 🟡🟡🟡 - [CALCULATOR READINESS] Both guest count AND dates required
+        taxesFees: taxesFees, // 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees array for calculator
+        taxesFeesJson: JSON.stringify(taxesFees) // 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees JSON for calculator initialization
       };
 
       console.log('✅✅✅ - [EVENT SETUP ROUTE] Rendering event setup page');

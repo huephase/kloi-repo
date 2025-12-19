@@ -14,6 +14,648 @@
 
 ---
 
+### December 19, 2025 @ 17:20 - Database-Driven Taxes and Fees System Implementation
+
+**Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED
+
+**Summary**: Implemented a comprehensive database-driven taxes and fees system for the live calculator, replacing the hardcoded `taxPercent` option with configurable taxes and fees loaded from a new `taxesFees` table. The system filters taxes/fees by country code, applies them to order total (after minimum order calculation), supports both percentage and fixed calculations, and includes active/inactive status and time-based rules via startDate/endDate fields. Taxes and fees are loaded server-side and passed to the calculator via route handlers, ensuring accurate pricing calculations based on location.
+
+#### Major Changes
+
+- **Database Migration** (`prisma/migrations/20251219130502_create_taxes_fees_table/migration.sql`):
+  - **New TaxesFees Table** (Lines 3-20):
+    - Created `taxesFees` table with comprehensive tax/fee configuration fields
+    - Fields: `id` (TEXT UUID primary key), `code` (VARCHAR(50) UNIQUE), `name` (VARCHAR(100)), `type` (VARCHAR(20) - 'TAX' or 'FEE'), `category` (VARCHAR(50)), `country_code` (VARCHAR(10)), `applies_to` (VARCHAR(50) - 'ORDER_TOTAL' or 'SUBTOTAL'), `calculation_type` (VARCHAR(20) - 'PERCENTAGE' or 'FIXED'), `rate_value` (DECIMAL(10, 2)), `currency` (VARCHAR(10)), `active` (BOOLEAN DEFAULT TRUE), `startDate` (TIMESTAMP NULL), `endDate` (TIMESTAMP NULL), `createdAt`, `updatedAt`
+    - **Indexes Created**:
+      - Unique index on `code` for tax/fee identification
+      - Index on `country_code` for efficient country-based filtering
+      - Index on `active` for filtering active taxes/fees
+      - Composite index on `(startDate, endDate)` for date range queries
+    - **Seed Data**: Inserted initial taxes/fees (VAT_AE 5%, SERVICE_FEE 3%, PROC_FEE_150 AED 150) with `active = TRUE` and NULL dates
+    - **Code Added**:
+      ```sql
+      CREATE TABLE IF NOT EXISTS "taxesFees" (
+          "id" TEXT NOT NULL,
+          "code" VARCHAR(50) NOT NULL,
+          "name" VARCHAR(100) NOT NULL,
+          "type" VARCHAR(20) NOT NULL,
+          "category" VARCHAR(50) NOT NULL,
+          "country_code" VARCHAR(10) NOT NULL,
+          "applies_to" VARCHAR(50) NOT NULL,
+          "calculation_type" VARCHAR(20) NOT NULL,
+          "rate_value" DECIMAL(10, 2) NOT NULL,
+          "currency" VARCHAR(10) NOT NULL,
+          "active" BOOLEAN NOT NULL DEFAULT true,
+          "startDate" TIMESTAMP(3),
+          "endDate" TIMESTAMP(3),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "taxesFees_pkey" PRIMARY KEY ("id")
+      );
+      ```
+    - **Impact**: Provides flexible, database-driven tax/fee management with country-specific rules and time-based activation
+
+- **Prisma Schema Update** (`prisma/schema.prisma`):
+  - **New TaxesFees Model** (Lines 98-118):
+    - Added `TaxesFees` model matching table structure with all fields including `active`, `startDate`, `endDate`
+    - Used `@@map("taxesFees")` to match table name
+    - Added indexes matching migration SQL
+    - **Code Added**:
+      ```prisma
+      model TaxesFees {
+        id              String    @id @default(uuid())
+        code            String    @unique @db.VarChar(50)
+        name            String    @db.VarChar(100)
+        type            String    @db.VarChar(20)
+        category        String    @db.VarChar(50)
+        country_code    String    @db.VarChar(10)
+        applies_to      String    @db.VarChar(50)
+        calculation_type String   @db.VarChar(20)
+        rate_value      Decimal   @db.Decimal(10, 2)
+        currency        String    @db.VarChar(10)
+        active          Boolean   @default(true)
+        startDate       DateTime? @db.Timestamptz(3)
+        endDate         DateTime? @db.Timestamptz(3)
+        createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+        updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+        @@index([country_code], map: "taxesFees_country_code_idx")
+        @@index([active], map: "taxesFees_active_idx")
+        @@index([startDate, endDate], map: "taxesFees_dates_idx")
+        @@map("taxesFees")
+      }
+      ```
+    - **Impact**: Prisma client now includes TaxesFees model for type-safe database operations
+
+- **New TaxesFeesService** (`src/services/taxesFeesService.ts` - New File):
+  - **Service Class** (Lines 30-120):
+    - Follows pattern from `MenuService` (static methods, emoji-prefixed logging)
+    - `getTaxesFeesByCountry(countryCode: string, effectiveDate?: Date)`: Fetches active taxes/fees for country
+      - Filters by `country_code`, `active = TRUE`, and date ranges (`startDate IS NULL OR startDate <= effectiveDate`, `endDate IS NULL OR endDate >= effectiveDate`)
+      - Returns array sorted by type (TAX first) then by creation date
+      - Handles errors gracefully (logs, returns empty array)
+      - Converts Prisma Decimal to number for `rate_value`
+    - `getCountryCodeFromLocation(locationData: any)`: Extracts country code from location data
+      - Checks `locationData.components.country` first, then `locationData.country`
+      - Maps country names to codes (e.g., 'UAE' -> 'AE', 'United Arab Emirates' -> 'AE')
+      - Returns 'AE' as default if country not found
+    - **Type Definitions**:
+      - `TaxFee` interface matching table structure
+      - `CalculationType` type: 'PERCENTAGE' | 'FIXED'
+      - `TaxFeeType` type: 'TAX' | 'FEE'
+      - `AppliesTo` type: 'ORDER_TOTAL' | 'SUBTOTAL'
+    - **Code Added**:
+      ```typescript
+      export class TaxesFeesService {
+        static async getTaxesFeesByCountry(countryCode: string, effectiveDate?: Date): Promise<TaxFee[]> {
+          const now = effectiveDate || new Date();
+          const taxesFees = await prisma.taxesFees.findMany({
+            where: {
+              country_code: countryCode,
+              active: true,
+              AND: [
+                { OR: [{ startDate: null }, { startDate: { lte: now } }] },
+                { OR: [{ endDate: null }, { endDate: { gte: now } }] }
+              ]
+            },
+            orderBy: [{ type: 'asc' }, { createdAt: 'asc' }]
+          });
+          return taxesFees.map(tf => ({ ...tf, rate_value: Number(tf.rate_value) }));
+        }
+        
+        static getCountryCodeFromLocation(locationData: any): string {
+          // Extract and map country code from location data
+        }
+      }
+      ```
+    - **Impact**: Provides centralized service for loading and processing taxes/fees based on country and date
+
+- **Calculator Engine Updates** (`public/global/js/kloi_calculator.js`):
+  - **Constructor Enhancement** (Lines 19-38):
+    - Added `taxesFees` parameter to constructor options
+    - Store `taxesFees` array in engine instance
+    - Added logging for taxes/fees count
+    - **Code Updated**:
+      ```javascript
+      constructor(menuSections, options = {}) {
+        // ... existing code ...
+        this.taxesFees = Array.isArray(options.taxesFees) ? options.taxesFees : []
+        console.log('🟡🟡🟡 - [KLOI CALC] Taxes/fees loaded:', this.taxesFees.length)
+      }
+      ```
+    - **Impact**: Calculator engine now accepts and stores taxes/fees configuration
+
+  - **New applyTaxesFees() Method** (Lines 137-175):
+    - Applies taxes/fees to order total after minimum order calculation
+    - For `PERCENTAGE`: calculates as `currentTotal * (rate_value / 100)` (compound)
+    - For `FIXED`: adds `rate_value` directly
+    - Applies in order (TAX first, then FEE, as sorted by service)
+    - Returns breakdown array with name, type, category, code, calculation_type, rate_value, amount
+    - **Code Added**:
+      ```javascript
+      applyTaxesFees(baseAmount) {
+        if (!this.taxesFees || this.taxesFees.length === 0) {
+          return { total: baseAmount, breakdown: [] }
+        }
+        let currentTotal = baseAmount
+        const breakdown = []
+        this.taxesFees.forEach((taxFee) => {
+          if (taxFee.applies_to !== 'ORDER_TOTAL') return
+          let amount = 0
+          if (taxFee.calculation_type === 'PERCENTAGE') {
+            amount = currentTotal * (taxFee.rate_value / 100)
+          } else if (taxFee.calculation_type === 'FIXED') {
+            amount = taxFee.rate_value
+          }
+          if (amount > 0) {
+            currentTotal += amount
+            breakdown.push({ name: taxFee.name, type: taxFee.type, ... })
+          }
+        })
+        return { total: currentTotal, breakdown }
+      }
+      ```
+    - **Impact**: Taxes/fees are applied correctly after minimum order, with compound percentage calculations
+
+  - **Updated calculate() Method** (Lines 256-280):
+    - Calls `applyTaxesFees()` after minimum order logic
+    - Adds taxes/fees breakdown to return object
+    - Includes taxes/fees in `modifiersMeta` for display
+    - **Code Updated**:
+      ```javascript
+      // After minimum order logic
+      const taxesFeesResult = this.applyTaxesFees(total)
+      total = taxesFeesResult.total
+      const taxesFeesBreakdown = taxesFeesResult.breakdown
+      
+      // Add to modifiersMeta for display
+      taxesFeesBreakdown.forEach((tf) => {
+        modifiersMeta.push({ name: tf.name, delta: tf.amount, meta: { ... } })
+      })
+      
+      return { ..., taxesFeesBreakdown }
+      ```
+    - **Impact**: Calculator now includes taxes/fees in total calculation and breakdown
+
+  - **Removed taxPercent Option** (Lines 406-420):
+    - Removed hardcoded `taxPercent` modifier logic from `initFromMenuSections()`
+    - Calculator no longer accepts `taxPercent` option
+    - **Code Removed**:
+      ```javascript
+      // REMOVED:
+      if (options.taxPercent && options.taxPercent > 0) {
+        const pct = toNumber(options.taxPercent)
+        engine.use(function tax({ subtotal }) {
+          const taxAmount = subtotal * (pct / 100)
+          return { total: subtotal + taxAmount, meta: { taxPercent: pct, taxAmount } }
+        })
+      }
+      ```
+    - **Impact**: Breaking change - `taxPercent` option removed, must use database taxes/fees instead
+
+- **Calculator UI Updates** (`public/global/js/kloi_calculator.js`):
+  - **Updated render() Method** (Lines 344-400):
+    - Includes `taxesFeesBreakdown` in destructuring from `calculate()`
+    - Taxes/fees automatically displayed in modifiers section via `modifiersMeta`
+    - Uses existing `calc-mod` class for styling
+    - **Code Updated**:
+      ```javascript
+      render() {
+        const { ..., taxesFeesBreakdown } = this.engine.calculate()
+        // Taxes/fees displayed via modifiersMeta (already includes taxes/fees breakdown)
+      }
+      ```
+    - **Impact**: Taxes/fees breakdown displayed in calculator UI automatically
+
+- **Route Handler Updates** (`src/routes/eventSetup.ts`):
+  - **Import Addition** (Line 4):
+    - Added `TaxesFeesService` import
+    - **Code Added**:
+      ```typescript
+      import { TaxesFeesService } from '../services/taxesFeesService';
+      ```
+  
+  - **Taxes/Fees Loading** (Lines 117-130):
+    - Extract country code from `locationData` using `TaxesFeesService.getCountryCodeFromLocation()`
+    - Fetch taxes/fees using `TaxesFeesService.getTaxesFeesByCountry(countryCode)`
+    - Handle errors gracefully (log, continue without taxes/fees)
+    - **Code Added**:
+      ```typescript
+      let taxesFees = [];
+      try {
+        const locationData = sessionData.locationData;
+        if (locationData) {
+          const countryCode = TaxesFeesService.getCountryCodeFromLocation(locationData);
+          taxesFees = await TaxesFeesService.getTaxesFeesByCountry(countryCode);
+        }
+      } catch (taxesFeesError) {
+        console.error('❗❗❗ - [EVENT SETUP ROUTE] Error loading taxes/fees:', taxesFeesError);
+      }
+      ```
+  
+  - **Template Data Enhancement** (Lines 121-135):
+    - Added `taxesFees` and `taxesFeesJson` to template data
+    - **Code Added**:
+      ```typescript
+      taxesFees: taxesFees,
+      taxesFeesJson: JSON.stringify(taxesFees)
+      ```
+    - **Impact**: Taxes/fees available to template for calculator initialization
+
+- **Route Handler Updates** (`src/routes/eventSummary.ts`):
+  - **Import Addition** (Line 4):
+    - Added `TaxesFeesService` import
+  
+  - **Taxes/Fees Loading** (Lines 69-82):
+    - Extract country code from `locationData`
+    - Fetch taxes/fees using `TaxesFeesService.getTaxesFeesByCountry(countryCode)`
+    - Handle errors gracefully
+  
+  - **Template Data Enhancement** (Lines 255-274):
+    - Added `taxesFees` and `taxesFeesJson` to template data
+    - **Impact**: Taxes/fees available to template for calculator initialization
+
+- **Template Updates** (`src/views/wizard/event-setup.hbs`):
+  - **Server Data Attribute** (Line 242):
+    - Added `data-taxes-fees="{{taxesFeesJson}}"` attribute to `serverData` div
+    - **Code Updated**:
+      ```handlebars
+      <div id="serverData" ... data-taxes-fees="{{taxesFeesJson}}" ...>
+      ```
+  
+  - **JavaScript Taxes/Fees Reading** (Lines 293-304):
+    - Read `taxesFees` from server data attribute
+    - Parse JSON if string
+    - **Code Added**:
+      ```javascript
+      const taxesFeesData = serverDataDiv?.dataset.taxesFees;
+      let taxesFeesArray = [];
+      if (taxesFeesData && taxesFeesData !== 'null' && taxesFeesData !== '') {
+        try {
+          taxesFeesArray = JSON.parse(taxesFeesData);
+        } catch (e) {
+          console.error('❗❗❗ - [EVENT SETUP JS] Error parsing taxes/fees data:', e);
+        }
+      }
+      ```
+  
+  - **Calculator Initialization Updates** (Lines 401, 460):
+    - Updated `initFromMenuSections()` calls to pass `taxesFees: taxesFeesArray` instead of `taxPercent: 0`
+    - Updated deferred initialization to include taxes/fees
+    - **Code Updated**:
+      ```javascript
+      // OLD: { taxPercent: 0, numberOfDays: numberOfDays }
+      // NEW:
+      calc = window.KloiCalculator.initFromMenuSections(menuSectionsData, { taxesFees: taxesFeesArray, numberOfDays: numberOfDays });
+      ```
+    - **Impact**: Calculator initialized with database taxes/fees instead of hardcoded tax percent
+
+- **Template Updates** (`src/views/wizard/event-summary.hbs`):
+  - **Server Data Attribute** (Line 66):
+    - Added `data-taxes-fees="{{taxesFeesJson}}"` attribute to `summaryServerData` div
+  
+  - **JavaScript Taxes/Fees Reading** (Lines 82-95):
+    - Read and parse `taxesFees` from server data
+  
+  - **Calculator Initialization Update** (Line 104):
+    - Updated `initFromMenuSections()` call to pass `taxesFees: taxesFeesArray` instead of `taxPercent: 0`
+    - **Impact**: Calculator initialized with database taxes/fees on event-summary page
+
+#### Technical Details
+
+- **Calculation Order**:
+  1. Calculate subtotal (line items: radios, checkboxes, products)
+  2. Apply minimum order if subtotal < minimumOrderTotal
+  3. Apply taxes/fees to order total (after minimum order)
+     - For PERCENTAGE: apply to running total (compound)
+     - For FIXED: add fixed amount
+  4. Return final total
+
+- **Percentage Calculation**:
+  - Apply percentage to the current total (after previous taxes/fees)
+  - Example: Subtotal 1000, VAT 5% = 50, Service Fee 3% of 1050 = 31.50, Total = 1081.50
+
+- **Fixed Fee Calculation**:
+  - Add fixed amount to current total
+  - Example: Subtotal 1000, Processing Fee 150 = 1150
+
+- **Active Status Filtering**:
+  - Only taxes/fees with `active = TRUE` are loaded and applied
+  - Inactive taxes/fees are excluded from queries
+
+- **Date Range Filtering**:
+  - Taxes/fees with `startDate` in the future are excluded
+  - Taxes/fees with `endDate` in the past are excluded
+  - NULL dates mean no limit (always active if within other date range)
+  - Uses current date/time for date range checks (server time)
+
+- **Country Code Extraction**:
+  - Checks `locationData.components.country` first (from delivery-location page)
+  - Falls back to `locationData.country` (from map geocoding)
+  - Maps country names to codes (e.g., 'UAE' -> 'AE')
+  - Defaults to 'AE' if country not found
+
+- **Error Handling**:
+  - Missing country code: Defaults to 'AE'
+  - No taxes/fees found: Calculator works normally, no taxes/fees applied
+  - Invalid calculation type: Logs error, skips invalid tax/fee
+  - Zero rate value: Skips tax/fee with zero rate
+  - Database errors: Logs error, continues without taxes/fees (graceful degradation)
+
+#### Files Modified
+
+1. `prisma/migrations/20251219130502_create_taxes_fees_table/migration.sql` (CREATED):
+   - Created `taxesFees` table with all required columns and indexes
+   - Inserted initial seed data
+
+2. `prisma/schema.prisma` (MODIFIED):
+   - Added `TaxesFees` model matching table structure
+
+3. `src/services/taxesFeesService.ts` (CREATED):
+   - Created service with `getTaxesFeesByCountry()` and `getCountryCodeFromLocation()` methods
+   - Includes type definitions and error handling
+
+4. `public/global/js/kloi_calculator.js` (MODIFIED):
+   - Added `taxesFees` to constructor options
+   - Created `applyTaxesFees()` method
+   - Updated `calculate()` method to apply taxes/fees after minimum order
+   - Removed `taxPercent` option handling
+   - Updated `render()` method to include taxes/fees breakdown
+
+5. `src/routes/eventSetup.ts` (MODIFIED):
+   - Added `TaxesFeesService` import
+   - Added taxes/fees loading logic
+   - Added `taxesFees` and `taxesFeesJson` to template data
+
+6. `src/routes/eventSummary.ts` (MODIFIED):
+   - Added `TaxesFeesService` import
+   - Added taxes/fees loading logic
+   - Added `taxesFees` and `taxesFeesJson` to template data
+
+7. `src/views/wizard/event-setup.hbs` (MODIFIED):
+   - Added `data-taxes-fees` attribute to serverData div
+   - Added JavaScript to read and parse taxes/fees
+   - Updated calculator initialization to pass `taxesFees` instead of `taxPercent: 0`
+
+8. `src/views/wizard/event-summary.hbs` (MODIFIED):
+   - Added `data-taxes-fees` attribute to summaryServerData div
+   - Added JavaScript to read and parse taxes/fees
+   - Updated calculator initialization to pass `taxesFees` instead of `taxPercent: 0`
+
+#### Impact
+
+- **User Experience**:
+  - Calculator now shows accurate totals with taxes and fees applied
+  - Taxes/fees breakdown displayed in calculator UI
+  - Country-specific taxes/fees automatically applied based on location
+  - Time-based tax/fee rules supported (e.g., promotional fees with end dates)
+
+- **Business Logic**:
+  - Flexible tax/fee management via database (no code changes needed)
+  - Support for multiple taxes/fees per country
+  - Active/inactive status for enabling/disabling taxes/fees
+  - Date range support for time-based rules (e.g., seasonal fees)
+
+- **Code Quality**:
+  - Follows DRY principles (reusable service, centralized logic)
+  - Consistent with existing patterns (MenuService, emoji-prefixed logging)
+  - Type-safe with TypeScript interfaces
+  - Graceful error handling (continues without taxes/fees on errors)
+
+- **Breaking Changes**:
+  - **`taxPercent` option removed**: Calculator no longer accepts `taxPercent` option
+  - **Migration Required**: New `taxesFees` table must be created
+  - **Backward Compatibility**: Existing calculator initializations without `taxesFees` will work (no taxes applied)
+
+#### Migration Notes
+
+- **Database Changes**: New `taxesFees` table required
+  - Run migration: `npx prisma migrate deploy` or `npx prisma migrate dev`
+  - Generate Prisma client: `npx prisma generate`
+- **Breaking Change**: `taxPercent` option removed from calculator API
+- **Backward Compatibility**: Existing calculator initializations without `taxesFees` will work (no taxes applied)
+- **Data Migration**: Seed initial taxes/fees data via migration SQL (already included)
+- **Testing**: Verify calculator shows correct totals with taxes/fees applied:
+  1. User selects location (country code extracted)
+  2. Taxes/fees loaded from database based on country code
+  3. Calculator applies taxes/fees after minimum order
+  4. Calculator displays taxes/fees breakdown in modifiers section
+  5. Total includes taxes/fees correctly
+
+---
+
+### December 19, 2025 @ 16:30 - Multi-Day Event Calculation Fix: All Line Items Now Multiplied by Number of Days
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical calculator bugs affecting multi-day event pricing. Calculator was only multiplying minimum orders by `numberOfDays`, but not the actual line items (menu selections, upgrades, addons). Additionally, fixed minimum order display logic on event-summary page to only show when relevant (subtotal < minimumOrderTotal), and ensured `numberOfDays` is explicitly set after calculator initialization and state restoration on both event-setup and event-summary pages. All line items (radios, checkboxes, products) are now correctly multiplied by `numberOfDays` for multi-day events, ensuring accurate pricing (e.g., 2-day event with AED 17,325 subtotal now correctly shows AED 34,650 total).
+
+#### Major Changes
+
+- **Calculator Multi-Day Event Calculation Fix** (`public/global/js/kloi_calculator.js`):
+  - **All Line Items Multiplied by numberOfDays** (Lines 143-187):
+    - **Root Cause**: Calculator was only multiplying minimum orders by `numberOfDays`, but not line items (radios, checkboxes, products)
+    - **Fix Applied**: All line items now multiplied by `numberOfDays` after base calculation
+    - **Radio Selections** (Lines 149-159):
+      - **Previous**: `lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice`
+      - **New**: `lineTotal = (basis === 'Per guest' ? basePrice * guestCount : basePrice) * numberOfDays`
+      - **Code Updated**:
+        ```javascript
+        // 🟡🟡🟡 - [LINE ITEM CALCULATION] Calculate base line total (per guest or fixed)
+        let lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice
+        // 🟡🟡🟡 - [MULTI-DAY MULTIPLICATION] Multiply by numberOfDays for multi-day events
+        lineTotal = lineTotal * numberOfDays
+        ```
+      - **Impact**: Radio selections (menu options) now correctly multiplied by number of days
+    - **Checkbox Selections** (Lines 161-170):
+      - **Previous**: `lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice`
+      - **New**: `lineTotal = (basis === 'Per guest' ? basePrice * guestCount : basePrice) * numberOfDays`
+      - **Code Updated**:
+        ```javascript
+        // 🟡🟡🟡 - [LINE ITEM CALCULATION] Calculate base line total (per guest or fixed)
+        let lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice
+        // 🟡🟡🟡 - [MULTI-DAY MULTIPLICATION] Multiply by numberOfDays for multi-day events
+        lineTotal = lineTotal * numberOfDays
+        ```
+      - **Impact**: Checkbox selections (upgrades) now correctly multiplied by number of days
+    - **Product Quantities** (Lines 172-187):
+      - **Previous**: `lineTotal = basePrice * qty`
+      - **New**: `lineTotal = (basePrice * qty) * numberOfDays`
+      - **Code Updated**:
+        ```javascript
+        // 🟡🟡🟡 - [LINE ITEM CALCULATION] Calculate base line total (price * quantity)
+        let lineTotal = basePrice * qty
+        // 🟡🟡🟡 - [MULTI-DAY MULTIPLICATION] Multiply by numberOfDays for multi-day events
+        lineTotal = lineTotal * numberOfDays
+        ```
+      - **Impact**: Product quantities (addons) now correctly multiplied by number of days
+    - **Enhanced Logging** (Lines 252-253):
+      - Added `numberOfDays` to calculation log output
+      - Added dedicated log line for multi-day event calculation visibility
+      - **Code Added**:
+        ```javascript
+        console.log('✅✅✅ - [KLOI CALC] Calculated', { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown, numberOfDays })
+        console.log('🟡🟡🟡 - [KLOI CALC] Multi-day event calculation - numberOfDays:', numberOfDays, 'subtotal:', subtotal, 'total:', total)
+        ```
+      - **Impact**: Better debugging visibility into multi-day event calculations
+
+- **Minimum Order Display Fix on Event-Summary** (`src/routes/eventSummary.ts`):
+  - **Conditional Minimum Order Display** (Lines 181-189):
+    - **Previous**: Minimum order always displayed when `minimumOrderTotal > 0`
+    - **New**: Minimum order only displayed when `subtotal < minimumOrderTotal`
+    - **Code Updated**:
+      ```typescript
+      // 🟡🟡🟡 - [MINIMUM ORDER DISPLAY] Only show minimum order if subtotal < minimumOrderTotal
+      // ⚠️⚠️⚠️ - [MINIMUM ORDER LOGIC] When minimum is met, do NOT display minimum order requirement
+      if (totals.minimumOrderTotal !== undefined && totals.minimumOrderTotal > 0) {
+        const subtotal = totals.subtotal || 0;
+        if (subtotal < totals.minimumOrderTotal) {
+          items.push(`<dt>Minimum Order</dt><dd>AED ${escapeHtml(String(totals.minimumOrderTotal.toFixed(2)))}</dd>`);
+        }
+      }
+      ```
+    - **Impact**: Minimum order only appears when relevant (user hasn't met minimum yet), reducing visual clutter
+
+- **Number of Days Explicit Setting on Event-Summary** (`src/views/wizard/event-summary.hbs`):
+  - **Explicit setNumberOfDays() After State Restoration** (Line 193):
+    - Added explicit `calc.setNumberOfDays(numberOfDays)` call after all state restoration is complete
+    - Ensures calculator uses current session `numberOfDays` value, not any saved state value
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days again after state restoration
+      // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state value
+      calc.setNumberOfDays(numberOfDays);
+      ```
+    - **Impact**: Calculator correctly uses number of days from current session (e.g., 2 days) after state restoration
+
+- **Number of Days Explicit Setting on Event-Setup** (`src/views/wizard/event-setup.hbs`):
+  - **Immediate Initialization** (Lines 405-408):
+    - Added explicit `calc.setNumberOfDays(numberOfDays)` call immediately after calculator initialization
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days to ensure correct calculation
+      // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state
+      calc.setNumberOfDays(numberOfDays);
+      console.log('✅✅✅ - [EVENT SETUP JS] Calculator initialized with numberOfDays:', numberOfDays);
+      ```
+    - **Impact**: Calculator uses correct number of days when initialized with guest count and dates available
+  - **Deferred Initialization** (Lines 456-465):
+    - Added logic to read current `numberOfDays` from server data (may have been updated)
+    - Added explicit `calc.setNumberOfDays(currentNumberOfDays)` call after deferred initialization
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Get current numberOfDays from server data (may have been updated)
+      const currentNumberOfDaysData = serverDataDiv?.dataset.numberOfDays;
+      const currentNumberOfDays = currentNumberOfDaysData ? parseInt(currentNumberOfDaysData, 10) : (pending.numberOfDays || 1);
+      
+      calc = window.KloiCalculator.initFromMenuSections(pending.menuSectionsData, { taxPercent: 0, numberOfDays: currentNumberOfDays });
+      if (calc) {
+        // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days to ensure correct calculation
+        // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state
+        calc.setNumberOfDays(currentNumberOfDays);
+        console.log('✅✅✅ - [EVENT SETUP JS] Deferred calculator initialized with numberOfDays:', currentNumberOfDays);
+      ```
+    - **Impact**: Calculator correctly uses number of days when initialized later (when guest count becomes available)
+
+#### Technical Details
+
+- **Root Cause Analysis**:
+  - **Multi-Day Calculation Bug**: Calculator was only multiplying minimum orders by `numberOfDays` (for "Per day" basis), but not the actual line items (radios, checkboxes, products)
+  - **Example**: 2-day event with AED 17,325 subtotal was showing AED 17,325 total instead of AED 34,650 (17,325 × 2)
+  - **Minimum Order Display Bug**: Minimum order was always displayed even when user had already met the minimum requirement
+  - **Number of Days Not Applied**: Even though `numberOfDays` was passed during initialization, it wasn't being explicitly set after state restoration, potentially allowing stale saved state values to override current session values
+
+- **Calculation Flow Before Fix**:
+  1. Calculate base line totals (radios, checkboxes, products) without multiplying by `numberOfDays`
+  2. Calculate minimum orders (only "Per day" items multiplied by `numberOfDays`)
+  3. Add minimum order to total if subtotal < minimumOrderTotal
+  4. **Result**: Multi-day events showed incorrect totals (1-day pricing for 2+ day events)
+
+- **Calculation Flow After Fix**:
+  1. Calculate base line totals (radios, checkboxes, products)
+  2. **Multiply all line items by `numberOfDays`** (NEW)
+  3. Calculate minimum orders (already multiplied by `numberOfDays` for "Per day" basis)
+  4. Add minimum order to total if subtotal < minimumOrderTotal
+  5. **Result**: Multi-day events show correct totals (e.g., 2-day event = 2× line items)
+
+- **Multi-Day Event Example**:
+  - **Before Fix**: 2-day event, 188 guests, menu selection AED 7,050 per day
+    - Subtotal: AED 14,100 (calculated as 1 day)
+    - Total: AED 14,100
+  - **After Fix**: 2-day event, 188 guests, menu selection AED 7,050 per day
+    - Subtotal: AED 28,200 (14,100 × 2 days)
+    - Total: AED 28,200
+
+- **State Restoration Flow**:
+  1. Calculator initialized with `numberOfDays` from session (e.g., 2 days)
+  2. `setNumberOfDays()` explicitly sets `engine.numberOfDays` to current session value
+  3. Guest count set from session
+  4. Radio selections restored from saved state
+  5. Checkbox selections restored from saved state
+  6. Product quantities restored from saved state
+  7. **`setNumberOfDays()` called again after state restoration** (NEW)
+  8. Final `recalc()` ensures all calculations use correct `numberOfDays`
+
+#### Files Modified
+
+1. `public/global/js/kloi_calculator.js`:
+   - **Line 145**: Added `numberOfDays` variable at start of `calculate()` method
+   - **Lines 149-159**: Updated radio selections to multiply by `numberOfDays` after base calculation
+   - **Lines 161-170**: Updated checkbox selections to multiply by `numberOfDays` after base calculation
+   - **Lines 172-187**: Updated product quantities to multiply by `numberOfDays` after base calculation
+   - **Lines 252-253**: Enhanced logging to include `numberOfDays` and multi-day calculation visibility
+
+2. `src/routes/eventSummary.ts`:
+   - **Lines 181-189**: Updated minimum order display logic to only show when `subtotal < minimumOrderTotal`
+
+3. `src/views/wizard/event-summary.hbs`:
+   - **Line 193**: Added explicit `calc.setNumberOfDays(numberOfDays)` call after state restoration
+
+4. `src/views/wizard/event-setup.hbs`:
+   - **Lines 405-408**: Added explicit `calc.setNumberOfDays(numberOfDays)` call after immediate calculator initialization
+   - **Lines 456-465**: Added logic to read current `numberOfDays` from server data and explicitly set it after deferred calculator initialization
+
+#### Impact
+
+- **User Experience**:
+  - Multi-day events now show correct pricing (all line items multiplied by number of days)
+  - Minimum order only appears when relevant (user hasn't met minimum yet)
+  - Calculator totals accurately reflect multi-day event costs
+  - Users see correct pricing for events spanning multiple days
+
+- **Calculation Accuracy**:
+  - **Before**: 2-day event with AED 17,325 subtotal showed AED 17,325 total (incorrect)
+  - **After**: 2-day event with AED 17,325 subtotal shows AED 34,650 total (correct)
+  - All line items (menu selections, upgrades, addons) correctly multiplied by `numberOfDays`
+  - Minimum orders already working correctly (no change needed)
+
+- **Code Quality**:
+  - Consistent multiplication pattern: all line items multiplied by `numberOfDays`
+  - Explicit `setNumberOfDays()` calls ensure calculator always uses current session value
+  - Enhanced logging for better debugging visibility
+  - Minimum order display logic matches calculator display logic (only show when relevant)
+
+- **Bug Fixes**:
+  - **FIXED**: Multi-day events showing incorrect totals (1-day pricing for 2+ day events)
+  - **FIXED**: Minimum order displayed even when user had already met minimum requirement
+  - **FIXED**: Calculator potentially using stale `numberOfDays` value from saved state instead of current session
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a frontend JavaScript calculation fix only
+- **No API Changes Required**: Existing API endpoints remain unchanged
+- **No Session Changes Required**: Session structure remains the same
+- **Backward Compatible**: Fully backward compatible - calculator still works with existing session data
+- **Immediate Effect**: Changes take effect immediately - calculator will correctly calculate for multi-day events
+- **Testing**: Verify calculator shows correct totals when:
+  1. User selects 2+ dates in date-picker
+  2. User completes event-setup with menu selections
+  3. Calculator shows correct total (e.g., 2 days = 2× all line items)
+  4. Minimum order only appears when subtotal < minimumOrderTotal
+  5. Calculator correctly uses `numberOfDays` from current session, not saved state
+
+---
+
 ### December 18, 2025 @ 20:02 - Lead Creation Fix: Remove Blocking Conflict Detection for Duplicate Leads
 
 **Type**: 🟠 MAJOR CHANGE

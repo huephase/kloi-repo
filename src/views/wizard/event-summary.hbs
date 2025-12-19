@@ -63,7 +63,7 @@
 
 {{! 🟡🟡🟡 - [HIDDEN DATA] Server-side data for calculator initialization }}
 {{#if canShowCalculator}}
-<div id="summaryServerData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-event-setup="{{eventSetupJson}}" style="display: none;"></div>
+<div id="summaryServerData" data-menu-sections="{{menuSectionsJson}}" data-number-of-days="{{numberOfDays}}" data-guest-count="{{guestCount}}" data-event-setup="{{eventSetupJson}}" data-taxes-fees="{{taxesFeesJson}}" style="display: none;"></div>
 {{/if}}
 
 <script src="/public/global/js/kloi_calculator.js"></script>
@@ -82,9 +82,21 @@
         const menuSectionsJson = summaryServerData.dataset.menuSections;
         const numberOfDaysData = summaryServerData.dataset.numberOfDays;
         const guestCountData = summaryServerData.dataset.guestCount;
+        const taxesFeesData = summaryServerData.dataset.taxesFees;
         
         const numberOfDays = numberOfDaysData ? parseInt(numberOfDaysData, 10) : 1;
         const guestCount = guestCountData ? parseInt(guestCountData, 10) : null;
+        
+        // 🟡🟡🟡 - [TAXES FEES] Parse taxes/fees from server data
+        let taxesFeesArray = [];
+        if (taxesFeesData && taxesFeesData !== 'null' && taxesFeesData !== '') {
+            try {
+                taxesFeesArray = JSON.parse(taxesFeesData);
+                console.log('✅✅✅ - [EVENT SUMMARY VIEW] Taxes/fees loaded:', taxesFeesArray.length);
+            } catch (e) {
+                console.error('❗❗❗ - [EVENT SUMMARY VIEW] Error parsing taxes/fees data:', e);
+            }
+        }
         
         console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Initializing calculator:', { numberOfDays, guestCount, numberOfDaysData });
         
@@ -101,7 +113,7 @@
           }
           
           // 🟡🟡🟡 - [CALCULATOR INIT] Initialize calculator (initFromMenuSections accepts JSON string or object)
-          const calc = window.KloiCalculator.initFromMenuSections(menuSectionsJson, { taxPercent: 0, numberOfDays: numberOfDays });
+          const calc = window.KloiCalculator.initFromMenuSections(menuSectionsJson, { taxesFees: taxesFeesArray, numberOfDays: numberOfDays });
           if (calc) {
             // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days to ensure correct calculation
             // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state
@@ -188,6 +200,10 @@
                     });
                   }
                 }
+                
+                // 🟡🟡🟡 - [NUMBER OF DAYS] Explicitly set number of days again after state restoration
+                // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures calculator uses current session numberOfDays, not any saved state value
+                calc.setNumberOfDays(numberOfDays);
                 
                 // 🟡🟡🟡 - [FINAL RECALC] Ensure calculator recalculates with correct numberOfDays after state restoration
                 // ⚠️⚠️⚠️ - [NUMBER OF DAYS] This ensures final calculation uses current session numberOfDays, not any saved state value

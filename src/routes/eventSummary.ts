@@ -2,6 +2,7 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { generatePageClass } from '../lib/pageClass';
 import { MenuService } from '../services/menuService';
+import { TaxesFeesService } from '../services/taxesFeesService';
 
 export default async function eventSummaryRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // 👍👍👍👍👍👍 - 2025-11-04 - EVENT SUMMARY PAGE ROUTE (Root path)
@@ -68,6 +69,21 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
       
       const canShowCalculator = guestCount !== null && guestCount > 0 && numberOfDays > 0 && menuSections !== null;
       console.log('🟡🟡🟡 - [EVENT SUMMARY ROUTE] Calculator can be shown:', canShowCalculator, { guestCount, numberOfDays, hasMenu: !!menuSections });
+
+      // 🟡🟡🟡 - [TAXES FEES] Load taxes and fees based on country code from location data
+      let taxesFees = [];
+      try {
+        if (locationData) {
+          const countryCode = TaxesFeesService.getCountryCodeFromLocation(locationData);
+          taxesFees = await TaxesFeesService.getTaxesFeesByCountry(countryCode);
+          console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Loaded', taxesFees.length, 'taxes/fees for country:', countryCode);
+        } else {
+          console.log('⚠️⚠️⚠️ - [EVENT SUMMARY ROUTE] No location data available, skipping taxes/fees loading');
+        }
+      } catch (taxesFeesError) {
+        console.error('❗❗❗ - [EVENT SUMMARY ROUTE] Error loading taxes/fees:', taxesFeesError);
+        // Continue without taxes/fees - calculator will work normally
+      }
 
       console.log('⚪⚪⚪ - [EVENT SUMMARY] Session ID:', request.session?.sessionId?.substring(0, 8));
       console.log('⚪⚪⚪ - [EVENT SUMMARY] Keys present:', {
@@ -183,8 +199,13 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
               const totals = data.calculator.totals;
               if (totals.subtotal !== undefined) items.push(`<dt>Subtotal</dt><dd>AED ${escapeHtml(String(totals.subtotal.toFixed(2)))}</dd>`);
               if (totals.total !== undefined) items.push(`<dt>Total</dt><dd>AED ${escapeHtml(String(totals.total.toFixed(2)))}</dd>`);
+              // 🟡🟡🟡 - [MINIMUM ORDER DISPLAY] Only show minimum order if subtotal < minimumOrderTotal
+              // ⚠️⚠️⚠️ - [MINIMUM ORDER LOGIC] When minimum is met, do NOT display minimum order requirement
               if (totals.minimumOrderTotal !== undefined && totals.minimumOrderTotal > 0) {
+                const subtotal = totals.subtotal || 0;
+                if (subtotal < totals.minimumOrderTotal) {
                 items.push(`<dt>Minimum Order</dt><dd>AED ${escapeHtml(String(totals.minimumOrderTotal.toFixed(2)))}</dd>`);
+                }
               }
             }
             // 🟡🟡🟡 - [FALLBACK] Display other fields generically, excluding already handled fields
@@ -260,6 +281,8 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
         guestCount: guestCount, // 🟡🟡🟡 - [CALCULATOR] Guest count for calculator
         numberOfDays: numberOfDays, // 🟡🟡🟡 - [CALCULATOR] Number of days for calculator
         canShowCalculator: canShowCalculator, // 🟡🟡🟡 - [CALCULATOR] Flag indicating calculator can be shown
+        taxesFees: taxesFees, // 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees array for calculator
+        taxesFeesJson: JSON.stringify(taxesFees) // 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees JSON for calculator initialization
         renderLocation: renderDataAsHTML(locationData, 'location'),
         renderCustomer: renderDataAsHTML(eventDetails, 'customer'),
         renderEventDetails: renderDataAsHTML(eventDetails, 'event-details'),

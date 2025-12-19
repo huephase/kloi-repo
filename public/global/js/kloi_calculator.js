@@ -24,6 +24,8 @@
       this.priceIndex = this.buildPriceIndex(this.menuSections)
       // 🟡🟡🟡 - [NUMBER OF DAYS] Store number of days from options (default to 1 if not provided)
       this.numberOfDays = options.numberOfDays && options.numberOfDays > 0 ? Math.floor(options.numberOfDays) : 1
+      // 🟡🟡🟡 - [TAXES FEES] Store taxes and fees array from options
+      this.taxesFees = Array.isArray(options.taxesFees) ? options.taxesFees : []
       // 🟡🟡🟡 - Current selections/state shape
       this.state = {
         guestCount: 0,
@@ -35,6 +37,7 @@
       this.modifiers = []
       console.log('🟡🟡🟡 - [KLOI CALC] Engine initialized with sections:', this.menuSections.length)
       console.log('🟡🟡🟡 - [KLOI CALC] Number of days for minimum orders:', this.numberOfDays)
+      console.log('🟡🟡🟡 - [KLOI CALC] Taxes/fees loaded:', this.taxesFees.length)
     }
 
     // 🟡🟡🟡 - Build a look-up of prices and bases
@@ -140,31 +143,84 @@
       this.modifiers.push(modifierFn)
     }
 
+    // 🟡🟡🟡 - [TAXES FEES] Apply taxes and fees to order total
+    applyTaxesFees(baseAmount) {
+      if (!this.taxesFees || this.taxesFees.length === 0) {
+        return { total: baseAmount, breakdown: [] }
+      }
+
+      let currentTotal = baseAmount
+      const breakdown = []
+
+      // Apply taxes/fees in order (already sorted by service: TAX first, then FEE)
+      this.taxesFees.forEach((taxFee) => {
+        // Only apply if applies_to is ORDER_TOTAL (for now)
+        if (taxFee.applies_to !== 'ORDER_TOTAL') {
+          return
+        }
+
+        let amount = 0
+        if (taxFee.calculation_type === 'PERCENTAGE') {
+          // Apply percentage to current total (compound)
+          amount = currentTotal * (taxFee.rate_value / 100)
+        } else if (taxFee.calculation_type === 'FIXED') {
+          // Add fixed amount
+          amount = taxFee.rate_value
+        }
+
+        if (amount > 0) {
+          currentTotal += amount
+          breakdown.push({
+            name: taxFee.name,
+            type: taxFee.type,
+            category: taxFee.category,
+            code: taxFee.code,
+            calculation_type: taxFee.calculation_type,
+            rate_value: taxFee.rate_value,
+            amount: amount
+          })
+        }
+      })
+
+      return { total: currentTotal, breakdown }
+    }
+
     // 🟡🟡🟡 - Core calculation
     calculate() {
       const guestCount = this.state.guestCount || 0
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Get number of days for multiplying all line items
+      // ⚠️⚠️⚠️ - [MULTI-DAY EVENTS] All line items must be multiplied by numberOfDays for multi-day events
+      const numberOfDays = this.numberOfDays
       let subtotal = 0
       const breakdown = []
 
       // Radios: exactly one per group contributes, basis respected
+      // 🟡🟡🟡 - [MULTI-DAY EVENTS] Multiply by numberOfDays for multi-day events
       Object.entries(this.state.radios).forEach(([groupId, optionKey]) => {
         const group = this.priceIndex.radios[groupId]
         const meta = group ? group[optionKey] : null
         if (!meta) return
         const basePrice = meta.price
         const basis = meta.basis
-        const lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice
+        // 🟡🟡🟡 - [LINE ITEM CALCULATION] Calculate base line total (per guest or fixed)
+        let lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice
+        // 🟡🟡🟡 - [MULTI-DAY MULTIPLICATION] Multiply by numberOfDays for multi-day events
+        lineTotal = lineTotal * numberOfDays
         subtotal += lineTotal
         breakdown.push({ kind: 'radio', key: `${groupId}.${optionKey}`, basis, amount: lineTotal })
       })
 
       // Checkboxes: all selected add up
+      // 🟡🟡🟡 - [MULTI-DAY EVENTS] Multiply by numberOfDays for multi-day events
       this.state.checkboxes.forEach((optionKey) => {
         const meta = this.priceIndex.checkboxes[optionKey]
         if (!meta) return
         const basePrice = meta.price
         const basis = meta.basis
-        const lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice
+        // 🟡🟡🟡 - [LINE ITEM CALCULATION] Calculate base line total (per guest or fixed)
+        let lineTotal = basis === 'Per guest' ? basePrice * guestCount : basePrice
+        // 🟡🟡🟡 - [MULTI-DAY MULTIPLICATION] Multiply by numberOfDays for multi-day events
+        lineTotal = lineTotal * numberOfDays
         subtotal += lineTotal
         breakdown.push({ kind: 'checkbox', key: optionKey, basis, amount: lineTotal })
       })
@@ -173,22 +229,24 @@
       // ⚠️⚠️⚠️ NOTE: For "Per guest" items, the quantity input already represents how many guests get this add-on
       // So we should NOT multiply by the main guest count - only by the item's own quantity input
       // The quantity input represents the number of units/guests for this specific product
+      // 🟡🟡🟡 - [MULTI-DAY EVENTS] Multiply by numberOfDays for multi-day events
       Object.entries(this.state.products).forEach(([productKey, qty]) => {
         const meta = this.priceIndex.products[productKey]
         if (!meta) return
         const basePrice = meta.price
         const basis = meta.basis
-        // 🟡🟡🟡 - For products, always multiply basePrice by the quantity input (qty)
+        // 🟡🟡🟡 - [LINE ITEM CALCULATION] Calculate base line total (price * quantity)
         // The "Per guest" label means each unit costs basePrice, and qty represents how many units
         // We do NOT multiply by the main guest count here - each product has its own quantity counter
-        const lineTotal = basePrice * qty
+        let lineTotal = basePrice * qty
+        // 🟡🟡🟡 - [MULTI-DAY MULTIPLICATION] Multiply by numberOfDays for multi-day events
+        lineTotal = lineTotal * numberOfDays
         subtotal += lineTotal
         breakdown.push({ kind: 'product', key: productKey, basis, qty, amount: lineTotal })
       })
 
       // 🟡🟡🟡 - [MINIMUM ORDERS] Calculate minimum order requirements
       // 🟡🟡🟡 - [DYNAMIC NUMBER OF DAYS] Use numberOfDays from engine (set from database/session data)
-      const numberOfDays = this.numberOfDays
       let minimumOrderTotal = 0
       const minimumOrderBreakdown = []
 
@@ -249,8 +307,29 @@
         console.log('✅✅✅ - [KLOI CALC] Minimum order met, NOT adding minimum order amount to total')
       }
 
-      console.log('✅✅✅ - [KLOI CALC] Calculated', { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown })
-      return { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown }
+      // 🟡🟡🟡 - [TAXES FEES] Apply taxes and fees to order total (after minimum order)
+      const taxesFeesResult = this.applyTaxesFees(total)
+      total = taxesFeesResult.total
+      const taxesFeesBreakdown = taxesFeesResult.breakdown
+
+      // Add taxes/fees to modifiersMeta for display
+      taxesFeesBreakdown.forEach((tf) => {
+        modifiersMeta.push({
+          name: tf.name,
+          delta: tf.amount,
+          meta: {
+            type: tf.type,
+            category: tf.category,
+            code: tf.code,
+            calculation_type: tf.calculation_type,
+            rate_value: tf.rate_value
+          }
+        })
+      })
+
+      console.log('✅✅✅ - [KLOI CALC] Calculated', { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown, numberOfDays, taxesFeesBreakdown })
+      console.log('🟡🟡🟡 - [KLOI CALC] Multi-day event calculation - numberOfDays:', numberOfDays, 'subtotal:', subtotal, 'total:', total)
+      return { guestCount, subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown, taxesFeesBreakdown }
     }
   }
 
@@ -263,7 +342,7 @@
     }
 
     render() {
-      const { subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown } = this.engine.calculate()
+      const { subtotal, total, breakdown, modifiersMeta, minimumOrderTotal, minimumOrderBreakdown, taxesFeesBreakdown } = this.engine.calculate()
       const lines = breakdown
         .map((l) => {
           // 2025-11-05T00:00:00Z 🟡🟡🟡 - [LABELS] Use friendly labels from KloiMenuLabels where available
@@ -330,15 +409,6 @@
           ? menuSections
           : JSON.parse(menuSections)
         const engine = new KloiCalculatorEngine(sections, options)
-
-        // 🟡🟡🟡 - Optional: add tax modifier via options.taxPercent
-        if (options.taxPercent && options.taxPercent > 0) {
-          const pct = toNumber(options.taxPercent)
-          engine.use(function tax({ subtotal }) {
-            const taxAmount = subtotal * (pct / 100)
-            return { total: subtotal + taxAmount, meta: { taxPercent: pct, taxAmount } }
-          })
-        }
 
         // 🟡🟡🟡 - Find calculator container
         const container = document.querySelector('.kloi-calculator')
