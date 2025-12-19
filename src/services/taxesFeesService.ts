@@ -63,13 +63,16 @@ export class TaxesFeesService {
 
       console.log('✅✅✅ - [TAXES FEES SERVICE] Found', taxesFees.length, 'active taxes/fees for country:', countryCode);
       
-      // Convert Prisma Decimal to number for rate_value
+      // Convert Prisma Decimal to number for rate_value and ensure proper types
       return taxesFees.map(tf => ({
         ...tf,
         rate_value: Number(tf.rate_value),
+        type: tf.type as TaxFeeType,
+        calculation_type: tf.calculation_type as CalculationType,
+        applies_to: tf.applies_to as AppliesTo,
         startDate: tf.startDate,
         endDate: tf.endDate
-      }));
+      })) as TaxFee[];
       
     } catch (error) {
       console.error('❗❗❗ - [TAXES FEES SERVICE] Error fetching taxes/fees for country:', countryCode, error);

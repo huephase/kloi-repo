@@ -2,7 +2,7 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { generatePageClass } from '../lib/pageClass';
 import { MenuService } from '../services/menuService';
-import { TaxesFeesService } from '../services/taxesFeesService';
+import { TaxesFeesService, TaxFee } from '../services/taxesFeesService';
 
 export default async function eventSummaryRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // 👍👍👍👍👍👍 - 2025-11-04 - EVENT SUMMARY PAGE ROUTE (Root path)
@@ -71,7 +71,7 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
       console.log('🟡🟡🟡 - [EVENT SUMMARY ROUTE] Calculator can be shown:', canShowCalculator, { guestCount, numberOfDays, hasMenu: !!menuSections });
 
       // 🟡🟡🟡 - [TAXES FEES] Load taxes and fees based on country code from location data
-      let taxesFees = [];
+      let taxesFees: TaxFee[] = [];
       try {
         if (locationData) {
           const countryCode = TaxesFeesService.getCountryCodeFromLocation(locationData);
@@ -194,11 +194,10 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
                 .join('');
               if (quantityItems) items.push(`<dt>Addons & Upgrades</dt><dd><ul class="selection-list">${quantityItems}</ul></dd>`);
             }
-            // 🟡🟡🟡 - [CALCULATOR TOTALS] Display calculator totals if available
+            // 🟡🟡🟡 - [CALCULATOR TOTALS] Skip displaying subtotal/total here - live calculator shows them
+            // ⚠️⚠️⚠️ - [CALCULATOR TOTALS] Subtotal and Total are displayed in the live calculator section below
             if (data.calculator && typeof data.calculator === 'object' && data.calculator.totals) {
               const totals = data.calculator.totals;
-              if (totals.subtotal !== undefined) items.push(`<dt>Subtotal</dt><dd>AED ${escapeHtml(String(totals.subtotal.toFixed(2)))}</dd>`);
-              if (totals.total !== undefined) items.push(`<dt>Total</dt><dd>AED ${escapeHtml(String(totals.total.toFixed(2)))}</dd>`);
               // 🟡🟡🟡 - [MINIMUM ORDER DISPLAY] Only show minimum order if subtotal < minimumOrderTotal
               // ⚠️⚠️⚠️ - [MINIMUM ORDER LOGIC] When minimum is met, do NOT display minimum order requirement
               if (totals.minimumOrderTotal !== undefined && totals.minimumOrderTotal > 0) {
@@ -235,7 +234,7 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
             });
           }
 
-          return items.length > 0 ? `<dl class="data-display">${items.join('')}</dl>` : '<p class="data-empty">No data captured yet.</p>';
+          return items.length > 0 ? `<dl class="data-display setup-summary">${items.join('')}</dl>` : '<p class="data-empty">No data captured yet.</p>';
         } catch (err) {
           console.error('❗❗❗ - [RENDER DATA] Error rendering data for section:', sectionName, err);
           return '<p class="data-empty">Error displaying data.</p>';
@@ -282,7 +281,7 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
         numberOfDays: numberOfDays, // 🟡🟡🟡 - [CALCULATOR] Number of days for calculator
         canShowCalculator: canShowCalculator, // 🟡🟡🟡 - [CALCULATOR] Flag indicating calculator can be shown
         taxesFees: taxesFees, // 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees array for calculator
-        taxesFeesJson: JSON.stringify(taxesFees) // 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees JSON for calculator initialization
+        taxesFeesJson: JSON.stringify(taxesFees), // 🟡🟡🟡 - [TAXES FEES] Pass taxes/fees JSON for calculator initialization
         renderLocation: renderDataAsHTML(locationData, 'location'),
         renderCustomer: renderDataAsHTML(eventDetails, 'customer'),
         renderEventDetails: renderDataAsHTML(eventDetails, 'event-details'),

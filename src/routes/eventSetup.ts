@@ -2,7 +2,7 @@
 // Route for GET /event-setup - Event setup with menu selection
 import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { MenuService } from '../services/menuService';
-import { TaxesFeesService } from '../services/taxesFeesService';
+import { TaxesFeesService, TaxFee } from '../services/taxesFeesService';
 import { prisma } from '../lib/prisma';
 
 // 🟡🟡🟡 - [EVENT SETUP ROUTE] Main route handler for event setup page
@@ -120,7 +120,7 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
       console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Calculator can be shown:', canShowCalculator, '(guestCount:', hasGuestCount, ', dates:', hasDateInfo, ')');
 
       // 🟡🟡🟡 - [TAXES FEES] Load taxes and fees based on country code from location data
-      let taxesFees = [];
+      let taxesFees: TaxFee[] = [];
       try {
         const locationData = sessionData.locationData;
         if (locationData) {

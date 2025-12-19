@@ -387,13 +387,17 @@
         `
       }
 
+      // 🟡🟡🟡 - [NUMBER OF DAYS DISPLAY] Add number of days to Total label when > 1
+      const numberOfDays = this.engine.numberOfDays || 1
+      const totalLabel = numberOfDays > 1 ? `Total (for ${numberOfDays} days):` : 'Total:'
+      
       const html = `
         <div class="calc-wrapper">
           <div class="calc-breakdown">${lines || '<div class="calc-line">No selections yet</div>'}</div>
           <div class="calc-subtotal"><h4>Subtotal:</h4><p>${formatCurrency(subtotal)}</p></div>
           ${mods}
           ${minimumOrderHtml}
-          <div class="calc-total"><h4><strong>Total:</strong></h4><p>${formatCurrency(total)}</p></div>
+          <div class="calc-total"><h4>${totalLabel}</h4><p>${formatCurrency(total)}</p></div>
         </div>
       `
       this.container.innerHTML = html

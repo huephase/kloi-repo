@@ -1,5 +1,4 @@
 .event-setup-container {
-    max-width: 800px;
     text-align: center;
 }
 
@@ -339,4 +338,30 @@
 
 .popup-body {
     margin-top: 20px;
+}
+
+#koi-live-quote {
+    border: 4px solid var(--kloi-text);
+    padding: 1vh;
+    border-radius: 10px;
+    margin: 3vh auto;
+}
+
+#koi-live-quote h4 {
+    text-transform: uppercase;
+    font-weight: 800;
+    margin-bottom: 0;
+    line-height: 1.5rem;
+}
+
+.calc-total {
+    background-color: var(--kloi-text);
+    color: var(--kloi-background);
+    padding: 1vh;
+    border-radius: 10px;
+    margin: 3vh auto;
+    max-width: 70vw;
+}
+.calc-total h4{
+    margin:0 auto
 }
