@@ -2,6 +2,7 @@
 
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from 'fastify';
 import { generatePageClass } from '../lib/pageClass';
+import { extractGuestCountFromSession } from '../lib/utils';
 
 export default async function datePicker(app: FastifyInstance, _opts: FastifyPluginOptions) {
   app.get('/date-picker', (request: FastifyRequest, reply: FastifyReply) => {
@@ -44,35 +45,17 @@ export default async function datePicker(app: FastifyInstance, _opts: FastifyPlu
       console.log('🟡🟡🟡 - [DATE PICKER] Restoring dates:', dateInfo.dates?.length || 0, 'dates');
     }
 
-    // 🟡🟡🟡 - [GUEST COUNT VALIDATION] Extract guest count from eventSetup session data
+    // 🟡🟡🟡 - [GUEST COUNT VALIDATION] Extract guest count from session using centralized utility
     // ⚠️⚠️⚠️ - [GUEST COUNT VALIDATION] Guest count is REQUIRED - missing guest count means invalid session
-    const eventSetup = (request.session as any)?.eventSetup;
-    let guestCount: number | null = null;
-    
-    if (eventSetup) {
-      // 🟡🟡🟡 - [GUEST COUNT EXTRACTION] Try to get guest count from productQuantities first
-      if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
-        const guestCountValue = eventSetup.productQuantities['guest-count'];
-        if (typeof guestCountValue === 'number' && guestCountValue > 0) {
-          guestCount = guestCountValue;
-          console.log('✅✅✅ - [DATE PICKER] Guest count extracted from productQuantities:', guestCount);
-        }
-      }
-      
-      // 🟡🟡🟡 - [GUEST COUNT EXTRACTION] Fallback to calculator.guestCount if not found
-      if (guestCount === null && eventSetup.calculator && typeof eventSetup.calculator === 'object') {
-        const calculatorGuestCount = eventSetup.calculator.guestCount;
-        if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
-          guestCount = calculatorGuestCount;
-          console.log('✅✅✅ - [DATE PICKER] Guest count extracted from calculator:', guestCount);
-        }
-      }
-    }
+    // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using extractGuestCountFromSession() instead of duplicated logic
+    const sessionData = { eventSetup: (request.session as any)?.eventSetup };
+    const guestCount = extractGuestCountFromSession(sessionData);
     
     // ⚠️⚠️⚠️ - [GUEST COUNT VALIDATION] If guest count is missing, redirect to splash (invalid session)
     if (guestCount === null || guestCount <= 0) {
       console.log('❗❗❗ - [DATE PICKER] Guest count missing or invalid, redirecting to splash');
-      console.log('🟡🟡🟡 - [DATE PICKER] EventSetup data:', eventSetup ? 'exists' : 'missing');
+      const eventSetupData = (request.session as any)?.eventSetup;
+      console.log('🟡🟡🟡 - [DATE PICKER] EventSetup data:', eventSetupData ? 'exists' : 'missing');
       return reply.redirect('/');
     }
     

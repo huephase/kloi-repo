@@ -192,6 +192,7 @@ export class StripeProcessor implements PaymentProcessor {
         paidAt: paidAt,
         customerEmail: paymentIntent.metadata?.customerEmail,
         metadata: paymentIntent.metadata || {},
+        clientSecret: paymentIntent.client_secret || undefined, // 🟡🟡🟡 - [2025-01-XX] Include client secret for reuse
       };
     } catch (error) {
       console.error('❗❗❗ - [STRIPE PROCESSOR] Error retrieving payment:', error);

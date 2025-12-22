@@ -2,22 +2,13 @@
 // ⚪⚪⚪ Note: In production, source this from DB or a CDN-hosted GeoJSON. This in-memory map is a placeholder.
 
 import { prisma } from '../lib/prisma';
+import { normalizeCoordinatePair } from '../lib/coordinateUtils';
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using coordinateUtils instead of duplicated coordinate normalization logic
 
 export type LatLng = { lat: number; lng: number };
 export type AreaPolygon = { paths: LatLng[] };
 
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Coordinate order configuration from MAP_POLYGON env variable
-// 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [areaPolygonService] SECURITY FIX: Auto-detection removed - coordinate order must be explicitly specified
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Set to 'lng-lat' if DB stores coordinates as [longitude, latitude] (e.g., [54.37, 24.46])
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Set to 'lat-lng' if DB stores coordinates as [latitude, longitude] (e.g., [24.46, 54.37])
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Value comes from MAP_POLYGON env variable - can be changed without code modification
-const POLYGON_COORDINATE_ORDER: 'lng-lat' | 'lat-lng' = 
-  (process.env.MAP_POLYGON === 'lat-lng' || process.env.MAP_POLYGON === 'lng-lat') 
-    ? (process.env.MAP_POLYGON as 'lng-lat' | 'lat-lng')
-    : 'lng-lat'; // Default fallback if env variable not set or invalid
-
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Log coordinate order configuration on module load
-console.log(`🟡🟡🟡 - [areaPolygonService ${new Date().toISOString()}] MAP_POLYGON coordinate order: ${POLYGON_COORDINATE_ORDER} (from env: ${process.env.MAP_POLYGON || 'not set'})`);
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Coordinate order configuration now handled by coordinateUtils module
 
 // 2025-11-11T00:00:00Z 🟡🟡🟡 - [areaPolygonService] In-memory registry keyed by normalized "district||sublocality"
 const registry: Record<string, AreaPolygon> = {
@@ -116,32 +107,15 @@ export async function getAreaPolygonByNames(district?: string, sublocality?: str
       return null;
     }
 
+    // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using normalizeCoordinatePair() from coordinateUtils instead of duplicated logic
     // 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] The stored polygon format is expected as [[lng, lat], ...] or [[lat, lng], ...]
     // 2025-11-12T00:00:00Z 🟡🟡🟡 - [areaPolygonService] Convert to {lat,lng}[], using configured coordinate order
     const paths: LatLng[] = [];
     for (const pair of sub.polygon as Array<any>) {
-      const a = Number(pair?.[0]);
-      const b = Number(pair?.[1]);
-      if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
-      
-      let lat: number, lng: number;
-      
-      // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [areaPolygonService] SECURITY FIX: Auto-detection removed - coordinate order must be explicitly configured
-      if (POLYGON_COORDINATE_ORDER === 'lng-lat') {
-        // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Force [lng, lat] interpretation: first is longitude, second is latitude
-        lng = a;
-        lat = b;
-      } else if (POLYGON_COORDINATE_ORDER === 'lat-lng') {
-        // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [areaPolygonService] Force [lat, lng] interpretation: first is latitude, second is longitude
-        lat = a;
-        lng = b;
-      } else {
-        // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [areaPolygonService] Invalid configuration - coordinate order must be specified
-        console.error(`❗❗❗ - [areaPolygonService ${new Date().toISOString()}] Invalid POLYGON_COORDINATE_ORDER configuration - must be "lng-lat" or "lat-lng"`, { order: POLYGON_COORDINATE_ORDER });
-        continue; // Skip this point
+      const normalized = normalizeCoordinatePair(pair);
+      if (normalized) {
+        paths.push(normalized);
       }
-      
-      paths.push({ lat, lng });
     }
     if (paths.length < 3) {
       console.warn(`⚠️⚠️⚠️ - [areaPolygonService ${new Date().toISOString()}] Polygon conversion yielded insufficient points`, { points: paths.length });

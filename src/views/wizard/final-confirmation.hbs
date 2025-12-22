@@ -1,1 +1,201 @@
-{{! Final confirmation view }}
+{{!-- 🟡🟡🟡 - [2025-01-XX] Final confirmation page after successful payment --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Final confirmation page specific styles (reuse checkout styles) }}
+<link rel="stylesheet" href="/public/global/css/checkout.css">
+
+<div class="{{page_class}} wizard-step final-confirmation">
+  <header class="page-header">
+    <h1>Order Confirmed!</h1>
+    <p>Thank you for your order. Your booking has been confirmed.</p>
+  </header>
+
+  <div class="checkout-container">
+    {{!-- Success Message --}}
+    <section class="checkout-section success-message">
+      <div class="success-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" stroke="#4CAF50" stroke-width="2" fill="none"/>
+          <path d="M8 12l2 2 4-4" stroke="#4CAF50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2>Payment Successful</h2>
+      <p>Your order has been processed and confirmed. You will receive a confirmation email shortly.</p>
+    </section>
+
+    {{!-- Order Summary Section --}}
+    <section class="checkout-section order-summary">
+      <h2>Order Details</h2>
+      
+      {{!-- Order Number --}}
+      <div class="summary-item">
+        <h3>Order Number</h3>
+        <div class="summary-content">
+          <p><strong>#{{order.orderNumber}}</strong></p>
+          <p class="order-id">Order ID: {{order.id}}</p>
+        </div>
+      </div>
+
+      {{!-- Payment Status --}}
+      <div class="summary-item">
+        <h3>Payment Status</h3>
+        <div class="summary-content">
+          <p><strong>Status:</strong> <span class="payment-status {{order.paymentStatus}}">{{order.paymentStatus}}</span></p>
+          {{#if order.paidAt}}
+            <p><strong>Paid At:</strong> {{formatDate order.paidAt}}</p>
+          {{/if}}
+        </div>
+      </div>
+
+      {{!-- Location
+      {{#if locationData}}
+      <div class="summary-item">
+        <h3>Location</h3>
+        <div class="summary-content">
+          {{#if locationData.fullAddress}}
+            <p><strong>Address:</strong> {{locationData.fullAddress}}</p>
+          {{/if}}
+          {{#if locationData.components.sublocality}}
+            <p><strong>Area:</strong> {{locationData.components.sublocality}}</p>
+          {{/if}}
+          {{#if locationData.city}}
+            <p><strong>City:</strong> {{locationData.city}}</p>
+          {{/if}}
+        </div>
+      </div>
+      {{/if}} --}}
+
+      {{!-- Customer Information
+      <div class="summary-item">
+        <h3>Customer Information</h3>
+        <div class="summary-content">
+          <p><strong>Name:</strong> {{order.firstName}} {{order.lastName}}</p>
+          <p><strong>Phone:</strong> {{order.phone}}</p>
+          {{#if order.email}}
+            <p><strong>Email:</strong> {{order.email}}</p>
+          {{/if}}
+        </div>
+      </div> --}}
+
+      {{!-- Event Details
+      {{#if eventDetails}}
+      <div class="summary-item">
+        <h3>Event Details</h3>
+        <div class="summary-content">
+          {{#if eventDetails.eventType}}
+            <p><strong>Event Type:</strong> {{eventDetails.eventType}}</p>
+          {{/if}}
+          {{#if eventDetails.notes}}
+            <p><strong>Notes:</strong> {{eventDetails.notes}}</p>
+          {{/if}}
+        </div>
+      </div>
+      {{/if}} --}}
+
+      {{!-- Price Breakdown --}}
+      <div class="summary-item price-breakdown">
+        <h3>Price Breakdown</h3>
+        <div class="summary-content">
+          <div class="price-row">
+            <span>Subtotal:</span>
+            <span>{{currency}} {{order.subtotalFormatted}}</span>
+          </div>
+          <div class="price-row">
+            <span>Delivery Surcharge:</span>
+            <span>{{currency}} {{order.surchargeFormatted}}</span>
+          </div>
+          <div class="price-row total">
+            <span><strong>Total Paid:</strong></span>
+            <span><strong>{{currency}} {{order.totalAmountFormatted}}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {{!-- Order Date --}}
+      <div class="summary-item">
+        <h3>Order Information</h3>
+        <div class="summary-content">
+          <p><strong>Order Date:</strong> {{formatDate order.createdAt}}</p>
+          <p><strong>Order Status:</strong> {{order.status}}</p>
+        </div>
+      </div>
+    </section>
+
+    {{!-- Next Steps --}}
+    <section class="checkout-section next-steps">
+      <h2>What's Next?</h2>
+      <div class="steps-content">
+        <p>We've received your order and payment. Our team will contact you shortly to confirm the details and finalize your event arrangements.</p>
+        <p>If you have any questions or need to make changes, please contact us with your order number: <strong>#{{order.orderNumber}}</strong></p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+  // 🟡🟡🟡 - [2025-01-XX] Final confirmation page initialization
+  (function() {
+    console.log('✅✅✅ - [FINAL CONFIRMATION] Page loaded successfully');
+    console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Order Number:', '{{order.orderNumber}}');
+    console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Payment Status:', '{{order.paymentStatus}}');
+  })();
+</script>
+
+<style>
+
+.final-confirmation .success-message {
+    text-align: center;
+    padding: 2rem;
+    background: #f0f9f0;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: black;
+}
+
+  .final-confirmation .success-icon {
+    margin-bottom: 1rem;
+  }
+
+  .final-confirmation .success-message h2 {
+    color: #4CAF50;
+    margin: 1rem 0;
+  }
+
+  .final-confirmation .order-id {
+    margin-top: 0.5rem;
+  }
+
+  .final-confirmation .payment-status {
+    text-transform: capitalize;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  .final-confirmation .payment-status.succeeded {
+    background: #4CAF50;
+    color: white;
+  }
+
+  .final-confirmation .payment-status.pending {
+    background: #ff9800;
+    color: white;
+  }
+
+  .final-confirmation .payment-status.failed {
+    background: #f44336;
+    color: white;
+  }
+
+.final-confirmation .next-steps {
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin: 3vh auto 10vh;
+}
+
+  .final-confirmation .steps-content p {
+    margin-bottom: 1rem;
+  }
+</style>

@@ -3,8 +3,10 @@ import fs from 'fs';
 import path from 'path';
 import process from 'process';
 import { prisma } from '../lib/prisma';
+import { normalizeCoordinatePairWithAutoDetect } from '../lib/coordinateUtils';
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using coordinateUtils instead of duplicated coordinate normalization logic
 
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Coordinate order configuration for DB storage from MAP_POLYGON env variable
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Coordinate order configuration now handled by coordinateUtils
 // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Set to 'lng-lat' to store coordinates as [longitude, latitude] in DB (e.g., [54.37, 24.46])
 // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Set to 'lat-lng' to store coordinates as [latitude, longitude] in DB (e.g., [24.46, 54.37])
 // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [importGeoJsonPolygon] IMPORTANT: This should match your existing database format and MAP_POLYGON env variable
@@ -106,43 +108,11 @@ function extractFirstPolygonCoordinates(geojson: GeoJSON): number[][] {
   return [];
 }
 
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using normalizeCoordinatePairWithAutoDetect() from coordinateUtils instead of duplicated logic
 function normalizePolygonPairs(pairs: number[][]): number[][] {
   return pairs
-    .map((pair) => {
-      const first = Number(pair?.[0]);
-      const second = Number(pair?.[1]);
-      if (!Number.isFinite(first) || !Number.isFinite(second)) {
-        return null;
-      }
-
-      // 2025-11-12T00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Normalize to configured DB storage format
-      if (DB_STORAGE_COORDINATE_ORDER === 'lng-lat') {
-        // 2025-11-12T00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Store as [lng, lat] in DB
-        if (Math.abs(first) <= 180 && Math.abs(second) <= 90) {
-          // Already [lng, lat] format
-          return [first, second];
-        }
-        if (Math.abs(first) <= 90 && Math.abs(second) <= 180) {
-          // Convert [lat, lng] -> [lng, lat]
-          return [second, first];
-        }
-        // If both exceed ranges, assume [lng, lat] to avoid data loss
-        return [first, second];
-      } else {
-        // 2025-11-12T00:00:00Z 🟡🟡🟡 - [importGeoJsonPolygon] Store as [lat, lng] in DB
-        if (Math.abs(first) <= 90 && Math.abs(second) <= 180) {
-          // Already [lat, lng] format
-          return [first, second];
-        }
-        if (Math.abs(first) <= 180 && Math.abs(second) <= 90) {
-          // Convert [lng, lat] -> [lat, lng]
-          return [second, first];
-        }
-        // If both exceed ranges, assume [lat, lng] to avoid data loss
-        return [first, second];
-      }
-    })
-    .filter((pair): pair is number[] => Array.isArray(pair) && pair.length === 2);
+    .map((pair) => normalizeCoordinatePairWithAutoDetect(pair, DB_STORAGE_COORDINATE_ORDER))
+    .filter((pair): pair is [number, number] => pair !== null);
 }
 
 async function upsertPolygon({ district, sublocality, file }: CLIOptions) {

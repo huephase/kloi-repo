@@ -59,8 +59,8 @@
     </div>
   </section>
 
-  <div class="actions">
-    <a href="/checkout" class="primary btn btn-primary" id="checkoutBtn">PROCEED TO CHECKOUT</a>
+  <div class="actions checkout">
+    <a href="/checkout" class="button" id="checkoutBtn">PROCEED TO CHECKOUT</a>
   </div>
 </div>
 
@@ -71,6 +71,7 @@
 
 <script src="/public/global/js/kloi_calculator.js"></script>
 <script src="/public/global/js/menu_labels.js"></script>
+<script src="/public/global/js/calculator-state.js"></script>
 <script src="/public/global/js/wizard__progress.js"></script>
 <script>
   // 🟡🟡🟡 - [EVENT SUMMARY VIEW] Initialize client-side handlers
@@ -127,80 +128,34 @@
             calc.setGuestCount(guestCount);
             console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator initialized with guest count:', guestCount);
             
-            // 🟡🟡🟡 - [CALCULATOR STATE] Restore calculator state from session if available
+            // 🟡🟡🟡 - [CALCULATOR STATE] Restore calculator state from session using centralized module
+            // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using KloiCalculatorState.restoreCalculatorState() instead of duplicated logic
             const eventSetupJsonAttr = summaryServerData.getAttribute('data-event-setup');
             if (eventSetupJsonAttr && eventSetupJsonAttr !== 'null') {
               try {
                 const eventSetup = JSON.parse(eventSetupJsonAttr);
                 console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] EventSetup data:', eventSetup);
                 
-                // 🟡🟡🟡 - [RESTORE FROM CALCULATOR STATE] Try to restore from calculator.getState() format first
-                if (eventSetup && eventSetup.calculator) {
-                  const calcState = eventSetup.calculator;
-                  
-                  // 🟡🟡🟡 - [RADIO SELECTIONS] Restore radio selections from calculator state
-                  if (calcState.radios && typeof calcState.radios === 'object') {
-                    Object.entries(calcState.radios).forEach(([groupId, optionKey]) => {
-                      calc.setRadio(groupId, optionKey);
-                      console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored radio:', groupId, '->', optionKey);
-                    });
-                  }
-                  
-                  // 🟡🟡🟡 - [CHECKBOX SELECTIONS] Restore checkbox selections from calculator state
-                  if (calcState.checkboxes && Array.isArray(calcState.checkboxes)) {
-                    calcState.checkboxes.forEach(optionKey => {
-                      calc.setCheckbox(optionKey, true);
-                      console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored checkbox:', optionKey);
-                    });
-                  }
-                  
-                  // 🟡🟡🟡 - [PRODUCT QUANTITIES] Restore product quantities from calculator state
-                  if (calcState.products && typeof calcState.products === 'object') {
-                    Object.entries(calcState.products).forEach(([productKey, qty]) => {
-                      if (productKey !== 'guest-count') { // Guest count already set above
-                        calc.setProductQty(productKey, qty);
-                        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored product:', productKey, '->', qty);
-                      }
-                    });
-                  }
-                }
-                
-                // 🟡🟡🟡 - [RESTORE FROM FORM DATA] Fallback to form data if calculator state not available or incomplete
-                // ⚠️⚠️⚠️ - [FALLBACK] This handles cases where calculator state wasn't saved but form data exists
-                if (eventSetup) {
-                  // 🟡🟡🟡 - [RADIO SELECTIONS] Restore from radioSelections (form data format)
-                  if (eventSetup.radioSelections && typeof eventSetup.radioSelections === 'object') {
-                    Object.entries(eventSetup.radioSelections).forEach(([groupId, optionKey]) => {
-                      // Only set if not already set from calculator state
-                      if (!eventSetup.calculator || !eventSetup.calculator.radios || !eventSetup.calculator.radios[groupId]) {
+                // 🟡🟡🟡 - [CALCULATOR STATE RESTORATION] Use centralized restoration module
+                if (window.KloiCalculatorState && window.KloiCalculatorState.restoreCalculatorState) {
+                  window.KloiCalculatorState.restoreCalculatorState(calc, eventSetup, { skipGuestCount: false, skipProducts: false });
+                } else {
+                  console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY VIEW] Calculator state module not available, falling back to manual restoration');
+                  // Fallback to manual restoration if module not loaded
+                  if (eventSetup.calculator) {
+                    if (eventSetup.calculator.radios) {
+                      Object.entries(eventSetup.calculator.radios).forEach(([groupId, optionKey]) => {
                         calc.setRadio(groupId, optionKey);
-                        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored radio from form data:', groupId, '->', optionKey);
-                      }
-                    });
-                  }
-                  
-                  // 🟡🟡🟡 - [CHECKBOX SELECTIONS] Restore from checkboxSelections (form data format)
-                  if (eventSetup.checkboxSelections && typeof eventSetup.checkboxSelections === 'object') {
-                    Object.entries(eventSetup.checkboxSelections).forEach(([optionKey, value]) => {
-                      // Only set if not already set from calculator state
-                      if (!eventSetup.calculator || !eventSetup.calculator.checkboxes || !eventSetup.calculator.checkboxes.includes(optionKey)) {
-                        calc.setCheckbox(optionKey, true);
-                        console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored checkbox from form data:', optionKey);
-                      }
-                    });
-                  }
-                  
-                  // 🟡🟡🟡 - [PRODUCT QUANTITIES] Restore from productQuantities (form data format)
-                  if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
-                    Object.entries(eventSetup.productQuantities).forEach(([productKey, qty]) => {
-                      if (productKey !== 'guest-count') { // Guest count already set above
-                        // Only set if not already set from calculator state
-                        if (!eventSetup.calculator || !eventSetup.calculator.products || !eventSetup.calculator.products[productKey]) {
-                          calc.setProductQty(productKey, qty);
-                          console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Restored product from form data:', productKey, '->', qty);
-                        }
-                      }
-                    });
+                      });
+                    }
+                    if (eventSetup.calculator.checkboxes) {
+                      eventSetup.calculator.checkboxes.forEach(optionKey => calc.setCheckbox(optionKey, true));
+                    }
+                    if (eventSetup.calculator.products) {
+                      Object.entries(eventSetup.calculator.products).forEach(([productKey, qty]) => {
+                        if (productKey !== 'guest-count') calc.setProductQty(productKey, qty);
+                      });
+                    }
                   }
                 }
                 
@@ -247,9 +202,84 @@
 
     const checkoutBtn = document.getElementById('checkoutBtn');
     if (checkoutBtn) {
-      checkoutBtn.addEventListener('click', function(e) {
+      checkoutBtn.addEventListener('click', async function(e) {
+        e.preventDefault(); // Prevent default navigation
         console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Proceed to checkout clicked');
-        // Navigation handled by href, but we can add analytics or validation here if needed
+        
+        // 🟡🟡🟡 - [CALCULATOR TOTALS] Save calculator totals to session before navigating to checkout
+        // ⚠️⚠️⚠️ - [CALCULATOR TOTALS] This ensures checkout route has access to calculator totals
+        try {
+          const calc = window.__kloiCalc || (window.KloiCalculator && window.KloiCalculator.current);
+          if (calc && typeof calc.getQuote === 'function' && typeof calc.getState === 'function') {
+            const quote = calc.getQuote();
+            const state = calc.getState();
+            
+            if (quote && quote.total > 0) {
+              console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Saving calculator totals before checkout:', quote.total);
+              
+              // 🟡🟡🟡 - [READ SESSION DATA] Get existing eventSetup from session (from server data)
+              const summaryServerData = document.getElementById('summaryServerData');
+              const eventSetupJson = summaryServerData?.dataset.eventSetup;
+              let eventSetupData = null;
+              
+              if (eventSetupJson && eventSetupJson !== 'null') {
+                try {
+                  eventSetupData = JSON.parse(eventSetupJson);
+                } catch (parseError) {
+                  console.error('❗❗❗ - [EVENT SUMMARY VIEW] Error parsing eventSetup JSON:', parseError);
+                }
+              }
+              
+              // 🟡🟡🟡 - [BUILD PAYLOAD] Build event setup payload with calculator totals
+              // Use existing eventSetup data and update/add calculator totals
+              const payload = eventSetupData || {};
+              
+              // 🟡🟡🟡 - [CALCULATOR TOTALS] Add/update calculator totals from current quote
+              payload.calculator = {
+                guestCount: quote.guestCount || state?.guestCount || 0,
+                numberOfDays: quote.numberOfDays || state?.numberOfDays || 1,
+                totals: {
+                  subtotal: quote.subtotal || 0,
+                  total: quote.total || 0,
+                  minimumOrderTotal: quote.minimumOrderTotal || 0
+                },
+                breakdown: quote.breakdown || [],
+                minimumOrderBreakdown: quote.minimumOrderBreakdown || []
+              };
+              
+              // 🟡🟡🟡 - [SAVE TO SESSION] Save calculator totals to session via API
+              const response = await fetch('/api/session/event', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator totals saved to session:', payload.calculator.totals.total);
+                // Navigate to checkout after successful save
+                window.location.href = '/checkout';
+              } else {
+                const errorText = await response.text();
+                console.error('❗❗❗ - [EVENT SUMMARY VIEW] Failed to save calculator totals:', response.status, errorText);
+                // Still navigate to checkout - it will handle missing totals
+                window.location.href = '/checkout';
+              }
+            } else {
+              console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY VIEW] Calculator quote not available or total is 0, proceeding to checkout');
+              window.location.href = '/checkout';
+            }
+          } else {
+            console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY VIEW] Calculator not available, proceeding to checkout');
+            window.location.href = '/checkout';
+          }
+        } catch (error) {
+          console.error('❗❗❗ - [EVENT SUMMARY VIEW] Error saving calculator totals:', error);
+          // Still navigate to checkout - it will handle missing totals
+          window.location.href = '/checkout';
+        }
       });
     }
   });

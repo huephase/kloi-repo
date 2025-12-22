@@ -1,3 +1,37 @@
+div.event-summary {
+    text-align: center;
+}
+
+div.event-summary section{
+    border: 1px solid var(--kloi-text);
+    padding: 1vh;
+    border-radius: 10px;
+    margin: 1vh auto;
+}
+
+div.event-summary section dt{
+    border-bottom: 1px solid var(--kloi-text);
+    margin-top: 1vh;
+    display: inline-block;
+}
+div.event-summary section dd{
+    font-weight: 800;
+}
+div.event-summary section div.actions{
+    margin: 1vh;
+    border-radius: 10px;
+    padding: 1vh;
+}
+
+a.edit-btn {
+    border: 1px solid var(--kloi-text);
+    padding:5px 20px;
+    font-size: 0.7rem;
+    border-radius: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
 div#koi-live-quote-summary {
     border: 4px solid var(--kloi-text);
     padding: 1vh;
@@ -5,9 +39,53 @@ div#koi-live-quote-summary {
     margin: 3vh auto;
 }
 
+div#koi-live-quote-summary h3 {
+    text-transform: uppercase;
+    font-weight: 800;
+    background: var(--kloi-text);
+    display: inline-block;
+    color: var(--kloi-background);
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+}
+
 div#koi-live-quote-summary h4 {
     text-transform: uppercase;
     font-weight: 800;
     margin-bottom: 0;
     line-height: 1.5rem;
+}
+
+.calc-total {
+    background-color: var(--kloi-text);
+    color: var(--kloi-background);
+    padding: 1vh;
+    border-radius: 10px;
+    margin: 1rem auto;
+    max-width: 70vw;
+}
+.calc-total h4{
+    margin:0 auto
+}
+.calc-total p {
+    font-weight: 800;
+    border-bottom: 4px solid var(--kloi-background);
+    display: inline-block;
+}
+
+.actions.checkout {
+    position: sticky;
+    bottom: 0;
+    padding: 0 0 50px;
+    margin: 50px auto 0;
+    z-index: 10;
+}
+
+.actions a.button {
+    padding: 30px 30px;
+    background-color: var(--kloi-accent);
+    color: var(--kloi-text);
+    display: block;
+    max-width: 70vw;
+    margin: 0 auto;
 }

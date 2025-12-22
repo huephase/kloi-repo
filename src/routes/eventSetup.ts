@@ -4,6 +4,7 @@ import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } f
 import { MenuService } from '../services/menuService';
 import { TaxesFeesService, TaxFee } from '../services/taxesFeesService';
 import { prisma } from '../lib/prisma';
+import { extractGuestCountFromSession, calculateNumberOfDaysFromDateInfo } from '../lib/utils';
 
 // 🟡🟡🟡 - [EVENT SETUP ROUTE] Main route handler for event setup page
 export default async function eventSetupRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
@@ -51,43 +52,21 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
 
       console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Session data available:', Object.keys(sessionData).filter(key => (sessionData as any)[key]));
 
-      // 🟡🟡🟡 - [GUEST COUNT] Extract guest count from eventSetup session for calculator visibility
-      let guestCount: number | null = null;
-      const eventSetup = sessionData.eventSetup as any;
-      if (eventSetup) {
-        // 🟡🟡🟡 - [GUEST COUNT EXTRACTION] Try productQuantities first
-        if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
-          const guestCountValue = eventSetup.productQuantities['guest-count'];
-          if (typeof guestCountValue === 'number' && guestCountValue > 0) {
-            guestCount = guestCountValue;
-            console.log('✅✅✅ - [EVENT SETUP ROUTE] Guest count extracted from productQuantities:', guestCount);
-          }
-        }
-        
-        // 🟡🟡🟡 - [GUEST COUNT EXTRACTION] Fallback to calculator.guestCount if not found
-        if (guestCount === null && eventSetup.calculator && typeof eventSetup.calculator === 'object') {
-          const calculatorGuestCount = eventSetup.calculator.guestCount;
-          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
-            guestCount = calculatorGuestCount;
-            console.log('✅✅✅ - [EVENT SETUP ROUTE] Guest count extracted from calculator:', guestCount);
-          }
-        }
-      }
-      
+      // 🟡🟡🟡 - [GUEST COUNT] Extract guest count from session using centralized utility
+      // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using extractGuestCountFromSession() instead of duplicated logic
+      const guestCount = extractGuestCountFromSession(sessionData);
       const hasGuestCount = guestCount !== null && guestCount > 0;
       console.log('🟡🟡🟡 - [EVENT SETUP ROUTE] Guest count available:', hasGuestCount, guestCount);
 
-      // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate number of days from dateInfo.dates array
+      // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate number of days from dateInfo using centralized utility
       // ⚠️⚠️⚠️ - [DATE INFO VALIDATION] Dates are REQUIRED for accurate calculator pricing
-      let numberOfDays = 1; // 🔵🔵🔵 - [DEFAULT] Default to 1 day if dateInfo not available
-      let hasDateInfo = false; // 🟡🟡🟡 - [DATE INFO FLAG] Track if valid dates are available
+      // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using calculateNumberOfDaysFromDateInfo() instead of duplicated logic
       const dateInfo = sessionData.dateInfo as any;
-      if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
-        numberOfDays = dateInfo.dates.length;
-        hasDateInfo = true; // 🟡🟡🟡 - [DATE INFO FLAG] Valid dates found in session
-        console.log('✅✅✅ - [EVENT SETUP ROUTE] Number of days calculated from dateInfo:', numberOfDays);
-      } else {
-        // 🟡🟡🟡 - [FALLBACK] Try to get from database if not in session
+      let numberOfDays = calculateNumberOfDaysFromDateInfo(dateInfo);
+      let hasDateInfo = numberOfDays > 1 || (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0);
+      
+      // 🟡🟡🟡 - [FALLBACK] Try to get from database if not in session
+      if (!hasDateInfo) {
         try {
           const sessionId = request.session.sessionId;
           if (sessionId) {
@@ -136,6 +115,7 @@ export default async function eventSetupRoutes(app: FastifyInstance, _opts: Fast
       }
 
       // 🟡🟡🟡 - [TEMPLATE DATA] Prepare data for template
+      const eventSetup = sessionData.eventSetup as any;
       const templateData = {
         theme: theme,
         menuSections: menuSections,

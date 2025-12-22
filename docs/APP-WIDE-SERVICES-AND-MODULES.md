@@ -233,6 +233,165 @@ Changelog policy note:
 ... Excludes PENDING orders from locking dates ...
 ```
 
+### Session Data Extraction Utilities
+
+- Centralized utilities for extracting common session data to eliminate DRY violations across route handlers.
+- Located in `src/lib/utils.ts` and should be used instead of duplicating extraction logic.
+
+**Available Functions:**
+
+- **`extractGuestCountFromSession(sessionData: any): number | null`**
+  - Extracts guest count from `eventSetup.productQuantities['guest-count']` or `eventSetup.calculator.guestCount`
+  - Returns `null` if not found or invalid
+  - Includes logging: `✅✅✅` for successful extraction, `🟡🟡🟡` for attempts
+
+- **`calculateNumberOfDaysFromDateInfo(dateInfo: any): number`**
+  - Calculates number of days from `dateInfo.dates` array length
+  - Returns `1` as default if dateInfo invalid or dates array empty
+  - Includes logging: `✅✅✅` for successful calculation, `⚠️⚠️⚠️` for warnings
+
+Code reference – session utilities:
+```58:88:src/lib/utils.ts
+// 🟡🟡🟡 - [SESSION UTILITIES] Extract guest count from session data
+export function extractGuestCountFromSession(sessionData: any): number | null {
+  // Extracts from productQuantities or calculator.guestCount
+}
+
+// 🟡🟡🟡 - [SESSION UTILITIES] Calculate number of days from dateInfo session data
+export function calculateNumberOfDaysFromDateInfo(dateInfo: any): number {
+  // Calculates from dateInfo.dates array length
+}
+```
+
+Example usage in route handlers:
+```54:78:src/routes/eventSetup.ts
+// 🟡🟡🟡 - [GUEST COUNT] Extract guest count from session using centralized utility
+const guestCount = extractGuestCountFromSession(sessionData);
+const hasGuestCount = guestCount !== null && guestCount > 0;
+
+// 🟡🟡🟡 - [NUMBER OF DAYS] Calculate number of days from dateInfo using centralized utility
+const dateInfo = sessionData.dateInfo as any;
+let numberOfDays = calculateNumberOfDaysFromDateInfo(dateInfo);
+```
+
+**Required when adding new routes that need guest count or numberOfDays:**
+- Import utilities: `import { extractGuestCountFromSession, calculateNumberOfDaysFromDateInfo } from '../lib/utils'`
+- Use `extractGuestCountFromSession(sessionData)` instead of duplicating extraction logic
+- Use `calculateNumberOfDaysFromDateInfo(dateInfo)` instead of duplicating calculation logic
+
+Changelog source of truth:
+```17:32:docs/CHANGELOG.md
+### December 20, 2025 - DRY Refactoring: Session Utilities and Coordinate Helpers
+... Centralized session data extraction utilities to eliminate DRY violations ...
+```
+
+### Coordinate Normalization Utilities
+
+- Centralized utilities for coordinate normalization shared across services and scripts.
+- Located in `src/lib/coordinateUtils.ts` and respects `MAP_POLYGON` environment variable for coordinate order.
+
+**Available Functions:**
+
+- **`normalizeCoordinatePair(pair, coordinateOrder?): CoordinatePair | null`**
+  - Normalizes coordinate pairs from various formats (array, object with lat/lng, object with latitude/longitude)
+  - Respects `coordinateOrder` parameter (from `MAP_POLYGON` env variable)
+  - Returns `null` if input invalid
+
+- **`normalizePolygonCoordinates(raw, coordinateOrder?): CoordinatePair[] | null`**
+  - Normalizes entire polygon coordinate arrays
+  - Returns `null` if insufficient points (< 3) or invalid format
+  - Uses `normalizeCoordinatePair()` internally
+
+- **`normalizeCoordinatePairWithAutoDetect(pair, targetStorageOrder): [number, number] | null`**
+  - Auto-detects coordinate format based on value ranges (used by import scripts)
+  - Converts to target storage format
+  - **Note:** Only used by import scripts, not by services (security requirement)
+
+Code reference – coordinate utilities:
+```1:50:src/lib/coordinateUtils.ts
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [coordinateUtils] Centralized coordinate normalization utilities
+export function normalizeCoordinatePair(...) { ... }
+export function normalizePolygonCoordinates(...) { ... }
+```
+
+Example usage in services:
+```69:73:src/services/deliveryLocationsService.ts
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using normalizePolygonCoordinates() from coordinateUtils
+function normalizePolygon(raw: unknown): DeliveryLocationPolygonPoint[] | undefined {
+  const normalized = normalizePolygonCoordinates(raw);
+  return normalized || undefined;
+}
+```
+
+**Required when adding new coordinate operations:**
+- Import utilities: `import { normalizeCoordinatePair, normalizePolygonCoordinates } from '../lib/coordinateUtils'`
+- Use utilities instead of duplicating coordinate normalization logic
+- Respect `MAP_POLYGON` environment variable (must be `'lng-lat'` or `'lat-lng'`)
+
+**Environment Variable:**
+- `MAP_POLYGON`: Must be set to `'lng-lat'` or `'lat-lng'` to match database coordinate format
+- All coordinate utilities read from this environment variable for consistency
+- Defaults to `'lng-lat'` if not set or invalid
+
+Changelog source of truth:
+```3761:3884:docs/CHANGELOG.md
+### November 13, 2025 - Security Hardening & Robustness Improvements
+... Centralized coordinate order configuration via MAP_POLYGON environment variable ...
+```
+
+### Calculator State Management (Client-Side)
+
+- Centralized module for calculator state restoration shared across templates.
+- Located in `public/global/js/calculator-state.js` and should be used instead of duplicating restoration logic.
+
+**Available Functions:**
+
+- **`restoreCalculatorState(calculator, eventSetupData, options)`**
+  - Main restoration function with fallback logic
+  - Restores radio selections, checkbox selections, product quantities, and guest count
+  - Handles both `calculator.getState()` format and form data format (fallback)
+  - Options: `{ skipGuestCount: boolean, skipProducts: boolean }` for flexibility
+
+- **`restoreFromCalculatorState(calculator, calcState)`**
+  - Restores from `calculator.getState()` format (radios, checkboxes, products)
+
+- **`restoreFromFormData(calculator, eventSetup)`**
+  - Restores from form data format (radioSelections, checkboxSelections, productQuantities)
+
+Code reference – calculator state module:
+```1:50:public/global/js/calculator-state.js
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [calculator-state] Centralized calculator state restoration utilities
+window.KloiCalculatorState = {
+  restoreCalculatorState: restoreCalculatorState,
+  restoreFromCalculatorState: restoreFromCalculatorState,
+  restoreFromFormData: restoreFromFormData
+};
+```
+
+Example usage in templates:
+```130:220:src/views/wizard/event-summary.hbs
+// 🟡🟡🟡 - [CALCULATOR STATE] Restore calculator state from session using centralized module
+if (window.KloiCalculatorState && window.KloiCalculatorState.restoreCalculatorState) {
+  window.KloiCalculatorState.restoreCalculatorState(calc, eventSetup, { skipGuestCount: false, skipProducts: false });
+}
+```
+
+**Required when adding calculator state restoration:**
+- Include script: `<script src="/public/global/js/calculator-state.js"></script>`
+- Use `window.KloiCalculatorState.restoreCalculatorState()` instead of duplicating restoration logic
+- Use individual functions (`restoreFromCalculatorState`, `restoreFromFormData`) for specific use cases
+
+**When to use which function:**
+- `restoreCalculatorState()`: Use when you have `eventSetup` data and want automatic fallback handling
+- `restoreFromCalculatorState()`: Use when you only have calculator state format
+- `restoreFromFormData()`: Use when you only have form data format
+
+Changelog source of truth:
+```1896:1911:docs/CHANGELOG.md
+### December 10, 2025 - Calculator Requirements Fix, Live Calculator on Event-Summary
+... Calculator state restoration with dual source (calculator state and form data) ...
+```
+
 ### Handlebars Views: Helpers and Partials
 
 - Helpers `eq`, `ne`, `gt`, `lt` are registered in app startup and are available to all views.
@@ -283,6 +442,13 @@ Examples across the codebase show the expected prefixes:
 - Session
   - Ensure step data maps to the right session key, consistent with `stepConfig` on the server.
   - Do not rely on autosave for DB writes; DB persistence happens on normal submits per server rules.
+  - **Use session utilities** (`extractGuestCountFromSession`, `calculateNumberOfDaysFromDateInfo`) instead of duplicating extraction logic.
+- Coordinate Operations
+  - **For coordinate operations, use `coordinateUtils` module** instead of duplicating normalization logic.
+  - Ensure `MAP_POLYGON` environment variable is set correctly (`'lng-lat'` or `'lat-lng'`).
+- Calculator State Restoration
+  - **Include `calculator-state.js`** when restoring calculator state from session data.
+  - Use `window.KloiCalculatorState.restoreCalculatorState()` instead of duplicating restoration logic.
 - Logging
   - Use emoji-prefixed logs; avoid PII; include short timestamps where meaningful.
 - Views
@@ -294,6 +460,9 @@ Examples across the codebase show the expected prefixes:
 - Server API: `src/routes/api/index.ts` (extend `stepConfig`, validation schemas, and per-step DB logic as needed).
 - Theming: `src/lib/themeDetector.ts` (extend for special cases or theme aliases if required).
 - Sessions: `src/lib/session-store.ts` and `src/lib/redis.ts` for backend storage adjustments.
+- **Session utilities: `src/lib/utils.ts`** (extend with new extraction helpers as needed, e.g., `extractGuestCountFromSession`, `calculateNumberOfDaysFromDateInfo`).
+- **Coordinate utilities: `src/lib/coordinateUtils.ts`** (extend for new coordinate operations, e.g., `normalizeCoordinatePair`, `normalizePolygonCoordinates`).
+- **Calculator state: `public/global/js/calculator-state.js`** (extend for new restoration patterns, e.g., `restoreCalculatorState`, `restoreFromCalculatorState`).
 
 Keeping these conventions centralized prevents duplication and ensures consistent UX across the wizard and beyond.
 

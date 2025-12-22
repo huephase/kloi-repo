@@ -1,4 +1,4 @@
-{{!-- 🟡🟡🟡 - [2025-01-XX] Checkout page with Stripe Elements integration --}}
+{{!-- 🟡🟡🟡 - [2025-01-XX] Checkout page with Stripe Payment Element + Appearance API integration --}}
 
 {{! 🟡🟡🟡 - [STYLESHEET] Checkout page specific styles }}
 <link rel="stylesheet" href="/public/global/css/checkout.css">
@@ -71,7 +71,7 @@
             <span>{{currency}} {{order.surchargeFormatted}}</span>
           </div>
           <div class="price-row total">
-            <span><strong>Total:</strong></span>
+            <span><strong>Grand Total:</strong></span>
             <span><strong>{{currency}} {{order.totalAmountFormatted}}</strong></span>
           </div>
         </div>
@@ -87,11 +87,10 @@
       <h2>Payment Information</h2>
       
       <form id="payment-form">
-        {{!-- Stripe Elements Container --}}
+        {{!-- Stripe Payment Element Container --}}
         <div class="form-group">
-          <label for="card-element">Card Details</label>
-          <div id="card-element" class="stripe-element">
-            {{!-- Stripe Elements will mount here --}}
+          <div id="payment-element" class="stripe-element">
+            {{!-- Stripe Payment Element will mount here --}}
           </div>
           <div id="card-errors" class="form-error" role="alert"></div>
         </div>
@@ -119,9 +118,9 @@
 <script src="https://js.stripe.com/v3/"></script>
 
 <script>
-  // 🟡🟡🟡 - [2025-01-XX] Stripe Elements integration
+  // 🟡🟡🟡 - [2025-01-XX] Stripe Payment Element + Appearance API integration
   (function() {
-    console.log('🟡🟡🟡 - [CHECKOUT] Initializing Stripe Elements');
+    console.log('🟡🟡🟡 - [CHECKOUT] Initializing Stripe Payment Element');
 
     // 🟡🟡🟡 - [STRIPE INIT] Initialize Stripe with publishable key
     const stripePublishableKey = '{{stripePublishableKey}}';
@@ -137,29 +136,65 @@
     }
 
     const stripe = Stripe(stripePublishableKey);
-    const elements = stripe.elements();
 
-    // 🟡🟡🟡 - [STRIPE ELEMENTS] Create and mount card element
-    const cardElement = elements.create('card', {
-      style: {
-        base: {
-          fontSize: '16px',
-          color: '#424770',
-          '::placeholder': {
-            color: '#aab7c4',
-          },
+    // 🟡🟡🟡 - [3D SECURE RETURN] Handle return from 3D Secure authentication
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentIntentClientSecret = urlParams.get('payment_intent_client_secret');
+    if (paymentIntentClientSecret) {
+      console.log('🟡🟡🟡 - [CHECKOUT] Detected return from 3D Secure authentication');
+      stripe.retrievePaymentIntent(paymentIntentClientSecret).then(function({ paymentIntent }) {
+        if (paymentIntent && paymentIntent.status === 'succeeded') {
+          console.log('✅✅✅ - [CHECKOUT] Payment succeeded after 3D Secure:', paymentIntent.id);
+          // 🟡🟡🟡 - [SUCCESS] Redirect to confirmation page
+          window.location.href = '/final-confirmation?order=' + orderId;
+        } else {
+          console.error('❗❗❗ - [CHECKOUT] Payment failed after 3D Secure:', paymentIntent?.status);
+          const paymentError = document.getElementById('payment-error');
+          paymentError.textContent = 'Payment authentication failed. Please try again.';
+          paymentError.style.display = 'block';
+        }
+      }).catch(function(error) {
+        console.error('❗❗❗ - [CHECKOUT] Error retrieving payment intent:', error);
+        const paymentError = document.getElementById('payment-error');
+        paymentError.textContent = 'An error occurred while verifying payment. Please contact support.';
+        paymentError.style.display = 'block';
+      });
+      return; // 🟡🟡🟡 - [2025-01-XX] Exit early if handling 3D Secure return
+    }
+
+    // 🟡🟡🟡 - [STRIPE APPEARANCE] Configure appearance API for larger, accessible typography
+    const appearance = {
+      theme: 'stripe',
+      variables: {
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontSizeBase: '18px', // 🟡🟡🟡 - [2025-01-XX] Make everything larger for accessibility
+        colorText: '#1f2933',
+      },
+      rules: {
+        '.Input': {
+          fontSize: '18px',
         },
-        invalid: {
-          color: '#fa755a',
-          iconColor: '#fa755a',
+        '.Label': {
+          fontSize: '16px',
         },
       },
+    };
+
+    // 🟡🟡🟡 - [STRIPE ELEMENTS] Initialize Elements with clientSecret + appearance
+    const elements = stripe.elements({
+      clientSecret: clientSecret,
+      appearance: appearance,
     });
 
-    cardElement.mount('#card-element');
+    // 🟡🟡🟡 - [STRIPE PAYMENT ELEMENT] Create and mount Payment Element
+    const paymentElement = elements.create('payment', {
+      layout: 'tabs', // 🟡🟡🟡 - [2025-01-XX] Use tabs layout (alternatives: 'accordion', 'accordion_preselected')
+    });
 
-    // 🟡🟡🟡 - [STRIPE ELEMENTS] Handle real-time validation errors
-    cardElement.on('change', function(event) {
+    paymentElement.mount('#payment-element');
+
+    // 🟡🟡🟡 - [STRIPE PAYMENT ELEMENT] Handle real-time validation errors
+    paymentElement.on('change', function(event) {
       const displayError = document.getElementById('card-errors');
       if (event.error) {
         displayError.textContent = event.error.message;
@@ -190,15 +225,40 @@
       paymentError.textContent = '';
 
       try {
+        // 🟡🟡🟡 - [STRIPE ELEMENTS] Submit elements first to trigger validation and wallet collection
+        // ⚠️⚠️⚠️ - [2025-01-XX] Must call elements.submit() before confirmPayment() for deferred payments
+        const { error: submitError } = await elements.submit();
+        
+        if (submitError) {
+          // 🟡🟡🟡 - [ERROR HANDLING] Elements validation failed
+          console.error('❗❗❗ - [CHECKOUT] Elements validation error:', submitError);
+          paymentError.textContent = submitError.message || 'Please check your payment details.';
+          paymentError.style.display = 'block';
+          
+          // 🟡🟡🟡 - [UI STATE] Re-enable submit button
+          submitButton.disabled = false;
+          buttonText.style.display = 'inline-block';
+          buttonSpinner.style.display = 'none';
+          return;
+        }
+
         // 🟡🟡🟡 - [STRIPE CONFIRM] Get cardholder name if provided
         const cardholderName = document.getElementById('cardholder-name').value;
 
-        // 🟡🟡🟡 - [STRIPE CONFIRM] Confirm payment with Stripe
-        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-          payment_method: {
-            card: cardElement,
-            billing_details: {
-              name: cardholderName || undefined,
+        // 🟡🟡🟡 - [STRIPE CONFIRM] Build return URL for 3D Secure redirects
+        const returnUrl = window.location.origin + window.location.pathname + '?order=' + orderId;
+
+        // 🟡🟡🟡 - [STRIPE CONFIRM] Confirm payment with Stripe Payment Element
+        const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
+          elements,
+          clientSecret: clientSecret,
+          redirect: 'if_required', // 🟡🟡🟡 - [2025-01-XX] Only redirect if 3D Secure is required
+          confirmParams: {
+            return_url: returnUrl, // 🟡🟡🟡 - [2025-01-XX] Required for 3D Secure redirects
+            payment_method_data: {
+              billing_details: {
+                name: cardholderName || undefined,
+              },
             },
           },
         });
@@ -247,7 +307,7 @@
       }
     });
 
-    console.log('✅✅✅ - [CHECKOUT] Stripe Elements initialized');
+    console.log('✅✅✅ - [CHECKOUT] Stripe Payment Element initialized');
   })();
 </script>
 

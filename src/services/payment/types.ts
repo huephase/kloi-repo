@@ -62,6 +62,7 @@ export interface PaymentDetails {
   paidAt?: Date;
   customerEmail?: string;
   metadata?: Record<string, string>;
+  clientSecret?: string; // 🟡🟡🟡 - [2025-01-XX] Add client secret for reuse
 }
 
 // 🟡🟡🟡 - [PAYMENT TYPES] Webhook event structure

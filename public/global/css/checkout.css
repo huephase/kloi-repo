@@ -1,4 +1,49 @@
-/* 🟡🟡🟡 - [2025-01-XX] Checkout page specific styles */
+.page-header {
+  text-align: center;
+  margin: 0 auto 2vh;
+}
+
+section.checkout-section.order-summary {
+  border: 1px solid var(--kloi-text);
+  border-radius: 10px;
+  padding: 1vh;
+}
+
+.summary-content, .summary-content .price-row, .order-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.summary-content p {
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+}
+
+section.checkout-section.payment-form {
+  margin-bottom: 20vh;
+}
+
+.stripe-element {
+  padding: 12px;
+  border: 1px solid var(--kloi-text);
+  border-radius: 4px;
+  background: var(--kloi-text);
+  margin: 3vh auto;
+}
+
+.price-row.total {
+  font-size: 1.5rem;
+  margin: 2vh auto;
+}
+
+button#submit-button {
+  width: 100%;
+  padding: 4vh 0;
+}
+
+/* 🟡🟡🟡 - [2025-01-XX] Checkout page specific styles
 
 .checkout-container {
   display: grid;
@@ -54,14 +99,10 @@
   font-size: 1.2rem;
 }
 
-.stripe-element {
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fff;
-}
+
 
 .form-error {
+
   color: #fa755a;
   font-size: 0.875rem;
   margin-top: 0.5rem;
@@ -87,4 +128,4 @@
     grid-template-columns: 1fr;
   }
 }
-
+ */

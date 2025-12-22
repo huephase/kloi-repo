@@ -60,48 +60,108 @@ export default async function checkoutRoutes(app: FastifyInstance, _opts: Fastif
 
       console.log('✅✅✅ - [CHECKOUT] Order found:', order.id, 'Order number:', order.orderNumber);
 
-      // 🟡🟡🟡 - [CALCULATION] Calculate final total (server-side, never trust client)
-      const subtotal = eventSetup?.calculator?.totals?.subtotal || 
-                       eventSetup?.calculator?.totals?.total || 
+      // 🟡🟡🟡 - [DATA SOURCE] Use order's persisted data instead of session data (more reliable)
+      // ⚠️⚠️⚠️ - [DATA SOURCE] Order's eventSetup and location are the source of truth, session may be stale
+      const orderEventSetup = (order.eventSetup as any) || null;
+      const orderLocation = (order.location as any) || null;
+      
+      // 🟡🟡🟡 - [CALCULATION] Calculate final total from order's persisted data (server-side, never trust client)
+      // ⚠️⚠️⚠️ - [DATA SOURCE] Only use order's eventSetup if it has calculator totals, otherwise use session's eventSetup
+      // Order's eventSetup might only contain date/time info (from date step), not calculator totals (from event step)
+      const orderHasCalculatorTotals = orderEventSetup?.calculator?.totals?.total || orderEventSetup?.calculator?.totals?.subtotal;
+      const eventSetupForCalculation = (orderHasCalculatorTotals && orderEventSetup) ? orderEventSetup : eventSetup;
+      const locationForCalculation = orderLocation || locationData;
+      
+      console.log('🟡🟡🟡 - [CHECKOUT] Data source selection:', {
+        orderHasCalculatorTotals: !!orderHasCalculatorTotals,
+        usingOrderEventSetup: orderHasCalculatorTotals && !!orderEventSetup,
+        usingSessionEventSetup: !orderHasCalculatorTotals || !orderEventSetup,
+        orderEventSetupKeys: orderEventSetup ? Object.keys(orderEventSetup) : [],
+        sessionEventSetupHasCalculator: !!(eventSetup?.calculator?.totals)
+      });
+      
+      // 🟡🟡🟡 - [SUBTOTAL] Extract subtotal from calculator totals (check both total and subtotal fields)
+      const subtotal = eventSetupForCalculation?.calculator?.totals?.total || 
+                       eventSetupForCalculation?.calculator?.totals?.subtotal || 
                        0;
-      const surchargeStr = locationData?.components?.surcharge || 
-                           locationData?.surcharge || 
+      
+      // 🟡🟡🟡 - [SURCHARGE] Extract surcharge from location data (check components first, then top-level)
+      const surchargeStr = locationForCalculation?.components?.surcharge || 
+                           locationForCalculation?.surcharge || 
                            '0';
       const surcharge = typeof surchargeStr === 'string' ? parseFloat(surchargeStr) : 
                         (typeof surchargeStr === 'number' ? surchargeStr : 0);
-      const total = subtotal + surcharge;
+      
+      // 🟡🟡🟡 - [TOTAL] Calculate final total (subtotal + surcharge)
+      // ⚠️⚠️⚠️ - [TOTAL] If order.totalAmount exists and is valid, prefer it over calculated total
+      let total = subtotal + surcharge;
+      if (order.totalAmount && typeof order.totalAmount === 'object' && 'toNumber' in order.totalAmount) {
+        const orderTotalAmount = (order.totalAmount as any).toNumber();
+        if (orderTotalAmount > 0 && isFinite(orderTotalAmount)) {
+          console.log('🟡🟡🟡 - [CHECKOUT] Using order.totalAmount from database:', orderTotalAmount);
+          total = orderTotalAmount;
+        }
+      } else if (order.totalAmount && typeof order.totalAmount === 'number' && order.totalAmount > 0) {
+        console.log('🟡🟡🟡 - [CHECKOUT] Using order.totalAmount from database:', order.totalAmount);
+        total = order.totalAmount;
+      }
 
-      console.log('🟡🟡🟡 - [CHECKOUT] Amount breakdown:', { subtotal, surcharge, total });
+      console.log('🟡🟡🟡 - [CHECKOUT] Amount breakdown:', { 
+        subtotal, 
+        surcharge, 
+        total,
+        orderTotalAmount: order.totalAmount,
+        usingOrderData: !!orderEventSetup,
+        calculatorTotals: eventSetupForCalculation?.calculator?.totals
+      });
+
+      // ⚠️⚠️⚠️ - [VALIDATION] Ensure total is greater than 0 before proceeding
+      if (!total || total <= 0 || !isFinite(total)) {
+        console.error('❌❌❌ - [CHECKOUT] Invalid total amount calculated:', total);
+        console.error('❌❌❌ - [CHECKOUT] Order eventSetup:', JSON.stringify(orderEventSetup, null, 2));
+        console.error('❌❌❌ - [CHECKOUT] Order location:', JSON.stringify(orderLocation, null, 2));
+        console.error('❌❌❌ - [CHECKOUT] Session eventSetup calculator totals:', eventSetup?.calculator?.totals);
+        console.error('❌❌❌ - [CHECKOUT] EventSetup used for calculation:', eventSetupForCalculation === orderEventSetup ? 'ORDER' : 'SESSION');
+        console.error('❌❌❌ - [CHECKOUT] Subtotal calculated:', subtotal, 'Surcharge:', surcharge);
+        
+        // 🟡🟡🟡 - [FALLBACK] If calculator totals are missing, redirect to event-summary to recalculate
+        // The event-summary page has the calculator and will recalculate and save totals properly
+        console.log('🟡🟡🟡 - [CHECKOUT] Calculator totals missing, redirecting to event-summary to recalculate');
+        return reply.redirect('/event-summary?recalculate=true');
+      }
 
       // 🟡🟡🟡 - [PAYMENT INTENT] Create payment intent if not already created
       let clientSecret: string | null = null;
       let paymentIntentId: string | null = null;
 
       if (order.paymentIntentId) {
-        // 🟡🟡🟡 - [PAYMENT INTENT] Payment intent already exists, retrieve client secret
+        // 🟡🟡🟡 - [PAYMENT INTENT] Payment intent already exists, try to reuse it
         console.log('🟡🟡🟡 - [CHECKOUT] Payment intent already exists:', order.paymentIntentId);
         try {
           const paymentDetails = await paymentService.retrievePaymentStatus(order.id);
-          // For Stripe, we need to get the client secret from the payment intent
-          // Since we don't store it, we'll need to create a new one if needed
-          // For now, create a new payment intent if the existing one is not in a valid state
+          
+          // 🟡🟡🟡 - [PAYMENT INTENT] Check if payment intent is in a terminal state
           if (paymentDetails.status === 'succeeded' || paymentDetails.status === 'canceled') {
             console.log('🟡🟡🟡 - [CHECKOUT] Existing payment intent is completed/canceled, creating new one');
             const result = await paymentService.createPaymentIntent(order.id, {
-              eventSetup,
-              locationData,
-              eventDetails
+              eventSetup: eventSetupForCalculation,
+              locationData: locationForCalculation,
+              eventDetails: (order.eventDetails as any) || eventDetails
             });
             clientSecret = result.clientSecret;
             paymentIntentId = result.paymentIntentId;
+          } else if (paymentDetails.clientSecret) {
+            // 🟡🟡🟡 - [PAYMENT INTENT] Payment intent exists and is in a valid state, reuse it
+            console.log('✅✅✅ - [CHECKOUT] Reusing existing payment intent:', order.paymentIntentId, 'Status:', paymentDetails.status);
+            clientSecret = paymentDetails.clientSecret;
+            paymentIntentId = order.paymentIntentId;
           } else {
-            // Payment intent exists and is pending, but we need client secret
-            // We'll create a new one for simplicity (in production, store client secret)
-            console.log('🟡🟡🟡 - [CHECKOUT] Creating new payment intent for pending order');
+            // 🟡🟡🟡 - [PAYMENT INTENT] Payment intent exists but no client secret, create new one
+            console.log('⚠️⚠️⚠️ - [CHECKOUT] Payment intent exists but no client secret available, creating new one');
             const result = await paymentService.createPaymentIntent(order.id, {
-              eventSetup,
-              locationData,
-              eventDetails
+              eventSetup: eventSetupForCalculation,
+              locationData: locationForCalculation,
+              eventDetails: (order.eventDetails as any) || eventDetails
             });
             clientSecret = result.clientSecret;
             paymentIntentId = result.paymentIntentId;
@@ -109,9 +169,9 @@ export default async function checkoutRoutes(app: FastifyInstance, _opts: Fastif
         } catch (error) {
           console.error('❗❗❗ - [CHECKOUT] Error retrieving payment status, creating new intent:', error);
           const result = await paymentService.createPaymentIntent(order.id, {
-            eventSetup,
-            locationData,
-            eventDetails
+            eventSetup: eventSetupForCalculation,
+            locationData: locationForCalculation,
+            eventDetails: (order.eventDetails as any) || eventDetails
           });
           clientSecret = result.clientSecret;
           paymentIntentId = result.paymentIntentId;
@@ -120,9 +180,9 @@ export default async function checkoutRoutes(app: FastifyInstance, _opts: Fastif
         // 🟡🟡🟡 - [PAYMENT INTENT] Create new payment intent
         console.log('🟡🟡🟡 - [CHECKOUT] Creating new payment intent');
         const result = await paymentService.createPaymentIntent(order.id, {
-          eventSetup,
-          locationData,
-          eventDetails
+          eventSetup: eventSetupForCalculation,
+          locationData: locationForCalculation,
+          eventDetails: (order.eventDetails as any) || eventDetails
         });
         clientSecret = result.clientSecret;
         paymentIntentId = result.paymentIntentId;
@@ -140,19 +200,47 @@ export default async function checkoutRoutes(app: FastifyInstance, _opts: Fastif
         return reply.status(500).send('Payment system not configured. Please contact support.');
       }
 
-      // 🟡🟡🟡 - [FORMAT] Format amounts for display (2 decimal places)
+      // 🟡🟡🟡 - [FORMAT] Format amounts for display with thousand separators and 2 decimal places
+      // ⚠️⚠️⚠️ - [FORMAT] Uses toLocaleString to add comma separators for thousands (e.g., 80945.55 → "80,945.55")
       const formatAmount = (amount: number): string => {
-        return amount.toFixed(2);
+        return amount.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
       };
 
+      // 🟡🟡🟡 - [EVENT DETAILS] Merge order's top-level customer fields with eventDetails JSONB
+      // ⚠️⚠️⚠️ - [EVENT DETAILS] Customer info (firstName, lastName, phone, email) is stored as top-level fields on order,
+      // not in order.eventDetails JSONB. We need to merge them for the template.
+      const orderEventDetailsJson = (order.eventDetails as any) || {};
+      const mergedEventDetails = {
+        ...orderEventDetailsJson, // Property-related info (propertyType, buildingName, etc.)
+        // 🟡🟡🟡 - [CUSTOMER INFO] Add customer info from order's top-level fields
+        firstName: order.firstName || orderEventDetailsJson.firstName || (eventDetails as any)?.firstName || '',
+        lastName: order.lastName || orderEventDetailsJson.lastName || (eventDetails as any)?.lastName || '',
+        phone: order.phone || orderEventDetailsJson.phone || (eventDetails as any)?.phone || '',
+        email: order.email || orderEventDetailsJson.email || (eventDetails as any)?.email || null,
+      };
+      
+      console.log('🟡🟡🟡 - [CHECKOUT] Merged eventDetails for template:', {
+        hasFirstName: !!mergedEventDetails.firstName,
+        hasLastName: !!mergedEventDetails.lastName,
+        hasPhone: !!mergedEventDetails.phone,
+        hasEmail: !!mergedEventDetails.email,
+        orderFirstName: order.firstName,
+        orderLastName: order.lastName,
+        orderPhone: order.phone,
+      });
+
       // 🟡🟡🟡 - [RENDER] Render checkout page template
+      // ⚠️⚠️⚠️ - [TEMPLATE DATA] Use order's persisted data for display (more reliable than session)
       return reply.view(templatePath, {
         theme,
         page_class,
-        locationData,
-        eventDetails,
-        dateInfo,
-        eventSetup,
+        locationData: locationForCalculation || locationData, // Use order's location, fallback to session
+        eventDetails: mergedEventDetails, // Use merged eventDetails with customer info from order's top-level fields
+        dateInfo, // Keep dateInfo from session (not stored in order)
+        eventSetup: eventSetupForCalculation || eventSetup, // Use order's eventSetup, fallback to session
         order: {
           id: order.id,
           orderNumber: order.orderNumber,

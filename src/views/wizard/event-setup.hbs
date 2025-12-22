@@ -256,6 +256,7 @@
 
 {{! 🟡🟡🟡 - [JAVASCRIPT] Event setup functionality }}
 <script src="/public/global/js/kloi_calculator.js"></script>
+<script src="/public/global/js/calculator-state.js"></script>
 <script src="/public/global/js/menu_labels.js"></script>
 <script src="/public/global/js/wizard__progress.js"></script>
 <script>
@@ -497,25 +498,48 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('✅✅✅ - [EVENT SETUP JS] Guest count set in deferred calculator:', guestCountValue);
                 }
                 
-                // 🟡🟡🟡 - [FORM VALUES] Read pre-filled form values and set in calculator
-                // Radios
-                const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
-                selectedRadios.forEach(r => calc.setRadio(r.name, r.value));
-                
-                // Checkboxes
-                const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
-                selectedCheckboxes.forEach(cb => calc.setCheckbox(cb.value, true));
-                
-                // Products (including addon items)
-                const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
-                productInputs.forEach(pi => {
-                    const qty = parseInt(pi.value) || 0;
-                    if (qty > 0 || pi.name === 'guest-count') {
-                        calc.setProductQty(pi.name, qty);
+                // 🟡🟡🟡 - [CALCULATOR STATE] Restore calculator state from eventSetup data if available, otherwise read from form
+                // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using calculator-state module when eventSetup data is available
+                const eventSetupJsonAttr = serverDataDiv?.getAttribute('data-event-setup');
+                if (eventSetupJsonAttr && eventSetupJsonAttr !== 'null' && window.KloiCalculatorState && window.KloiCalculatorState.restoreCalculatorState) {
+                    try {
+                        const eventSetup = JSON.parse(eventSetupJsonAttr);
+                        console.log('🟡🟡🟡 - [EVENT SETUP JS] Restoring calculator state from eventSetup data in deferred init');
+                        window.KloiCalculatorState.restoreCalculatorState(calc, eventSetup, { skipGuestCount: false, skipProducts: false });
+                        calc.setNumberOfDays(currentNumberOfDays);
+                        calc.recalc();
+                        console.log('✅✅✅ - [EVENT SETUP JS] Calculator state restored from eventSetup data in deferred init');
+                    } catch (e) {
+                        console.error('❗❗❗ - [EVENT SETUP JS] Error restoring calculator state from eventSetup in deferred init:', e);
+                        // Fallback to reading from form
+                        restoreCalculatorFromFormInDeferredInit();
                     }
-                });
+                } else {
+                    // 🟡🟡🟡 - [FORM VALUES] Read pre-filled form values and set in calculator (fallback)
+                    restoreCalculatorFromFormInDeferredInit();
+                }
                 
-                calc.recalc();
+                function restoreCalculatorFromFormInDeferredInit() {
+                    // Radios
+                    const selectedRadios = document.querySelectorAll('input[type="radio"]:checked');
+                    selectedRadios.forEach(r => calc.setRadio(r.name, r.value));
+                    
+                    // Checkboxes
+                    const selectedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+                    selectedCheckboxes.forEach(cb => calc.setCheckbox(cb.value, true));
+                    
+                    // Products (including addon items)
+                    const productInputs = document.querySelectorAll('.product-group .quantity-input, .addon-group .quantity-input');
+                    productInputs.forEach(pi => {
+                        const qty = parseInt(pi.value) || 0;
+                        if (qty > 0 || pi.name === 'guest-count') {
+                            calc.setProductQty(pi.name, qty);
+                        }
+                    });
+                    
+                    calc.setNumberOfDays(currentNumberOfDays);
+                    calc.recalc();
+                }
                 
                 try { window.__kloiCalc = calc; } catch(_e) {}
                 delete window.__pendingCalculatorInit;
@@ -1136,9 +1160,31 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('✅✅✅ - [EVENT SETUP JS] Form pre-filled from session data');
             
             // 🟡🟡🟡 - [CALCULATOR UPDATE] Update calculator with pre-filled values if calculator is already initialized
+            // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using calculator-state module when eventSetup data is available
             if (calc) {
                 console.log('🟡🟡🟡 - [EVENT SETUP JS] Updating calculator with pre-filled form values');
                 
+                // 🟡🟡🟡 - [CALCULATOR STATE] Try to restore from eventSetup data first, otherwise read from form
+                const eventSetupJsonAttr = serverDataDiv.getAttribute('data-event-setup');
+                if (eventSetupJsonAttr && eventSetupJsonAttr !== 'null' && window.KloiCalculatorState && window.KloiCalculatorState.restoreCalculatorState) {
+                    try {
+                        const eventSetup = JSON.parse(eventSetupJsonAttr);
+                        console.log('🟡🟡🟡 - [EVENT SETUP JS] Restoring calculator state from eventSetup data');
+                        window.KloiCalculatorState.restoreCalculatorState(calc, eventSetup, { skipGuestCount: false, skipProducts: false });
+                        calc.recalc();
+                        console.log('✅✅✅ - [EVENT SETUP JS] Calculator state restored from eventSetup data');
+                    } catch (e) {
+                        console.error('❗❗❗ - [EVENT SETUP JS] Error restoring calculator state from eventSetup:', e);
+                        // Fallback to reading from form
+                        updateCalculatorFromForm();
+                    }
+                } else {
+                    // 🟡🟡🟡 - [FORM VALUES] Read from pre-filled form inputs (fallback)
+                    updateCalculatorFromForm();
+                }
+            }
+            
+            function updateCalculatorFromForm() {
                 // 🟡🟡🟡 - [GUEST COUNT] Update guest count in calculator
                 const guestInput = document.querySelector('#guest-counter-container .quantity-input[name="guest-count"]');
                 if (guestInput) {

@@ -14,6 +14,1483 @@
 
 ---
 
+### December 23, 2025 @ 00:05 - Stripe Payment Integration: Migration to Payment Element + Appearance API
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Migrated checkout page from legacy Stripe Card Element to modern Payment Element with Appearance API integration. This upgrade provides improved accessibility, better user experience with larger fonts, support for multiple payment methods (Apple Pay, Google Pay, etc.), and proper handling of deferred payments and 3D Secure authentication. Fixed critical payment flow errors including missing `return_url`, missing `elements.submit()` call, and added comprehensive 3D Secure return handling.
+
+#### Major Changes
+
+- **Stripe Payment Element Migration** (`src/views/wizard/checkout.hbs`):
+  - **HTML Structure Updates** (Lines 90-96):
+    - **Changed mount point** from `card-element` to `payment-element`:
+      ```html
+      <!-- Before -->
+      <div id="card-element" class="stripe-element">
+      
+      <!-- After -->
+      <div id="payment-element" class="stripe-element">
+      ```
+    - **Removed unnecessary label** (Line 92):
+      - Removed `<label for="payment-element">Payment Details</label>` as Payment Element handles its own internal labeling and accessibility
+      - The `for` attribute was non-functional since it pointed to a `div` element, not a form control
+      - Section heading `<h2>Payment Information</h2>` provides sufficient context
+    - **Impact**: Cleaner HTML structure, Payment Element manages its own labels and accessibility features
+
+  - **Stripe Elements Initialization** (Lines 165-187):
+    - **Added Appearance API Configuration** (Lines 165-181):
+      - Configured larger, accessible typography (18px base font, 16px labels)
+      - Set system font family for better cross-platform consistency
+      - **Code Added**:
+        ```javascript
+        const appearance = {
+          theme: 'stripe',
+          variables: {
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontSizeBase: '18px', // Make everything larger for accessibility
+            colorText: '#1f2933',
+          },
+          rules: {
+            '.Input': {
+              fontSize: '18px',
+            },
+            '.Label': {
+              fontSize: '16px',
+            },
+          },
+        };
+        ```
+      - **Impact**: Improved accessibility with larger fonts, better readability for all users
+
+    - **Updated Elements Initialization** (Lines 183-187):
+      - Changed from `stripe.elements()` to `stripe.elements({ clientSecret, appearance })`
+      - Payment Element requires `clientSecret` during initialization (unlike Card Element)
+      - **Code Changed**:
+        ```javascript
+        // Before
+        const elements = stripe.elements();
+        const cardElement = elements.create('card', { style: {...} });
+        
+        // After
+        const elements = stripe.elements({
+          clientSecret: clientSecret,
+          appearance: appearance,
+        });
+        const paymentElement = elements.create('payment', {
+          layout: 'tabs', // or 'accordion', 'accordion_preselected'
+        });
+        ```
+      - **Impact**: Modern Payment Element supports multiple payment methods (cards, Apple Pay, Google Pay, etc.) and better UX
+
+  - **Payment Confirmation API Update** (Lines 251-264):
+    - **Changed from `confirmCardPayment` to `confirmPayment`**:
+      - **Before** (Lines 197-204):
+        ```javascript
+        const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: {
+            card: cardElement,
+            billing_details: { name: cardholderName || undefined },
+          },
+        });
+        ```
+      - **After** (Lines 251-264):
+        ```javascript
+        const { error, paymentIntent } = await stripe.confirmPayment({
+          elements,
+          clientSecret: clientSecret,
+          redirect: 'if_required',
+          confirmParams: {
+            return_url: returnUrl,
+            payment_method_data: {
+              billing_details: { name: cardholderName || undefined },
+            },
+          },
+        });
+        ```
+      - **Impact**: Uses modern Payment Element API, supports deferred payments, handles 3D Secure properly
+
+  - **3D Secure Return Handling** (Lines 140-163):
+    - **Added detection and handling of 3D Secure redirects**:
+      - Detects return from 3D Secure authentication via URL parameters
+      - Retrieves payment intent status using `stripe.retrievePaymentIntent()`
+      - Redirects to confirmation page on success, shows error on failure
+      - **Code Added**:
+        ```javascript
+        const urlParams = new URLSearchParams(window.location.search);
+        const paymentIntentClientSecret = urlParams.get('payment_intent_client_secret');
+        if (paymentIntentClientSecret) {
+          stripe.retrievePaymentIntent(paymentIntentClientSecret).then(function({ paymentIntent }) {
+            if (paymentIntent && paymentIntent.status === 'succeeded') {
+              window.location.href = '/final-confirmation?order=' + orderId;
+            } else {
+              // Show error message
+            }
+          });
+          return; // Exit early if handling 3D Secure return
+        }
+        ```
+      - **Impact**: Properly handles 3D Secure authentication flow, users are redirected back correctly after authentication
+
+  - **Deferred Payment Support** (Lines 228-243):
+    - **Added `elements.submit()` call before `confirmPayment()`**:
+      - Required by Stripe for deferred payment integration
+      - Triggers form validation and wallet collection (Apple Pay, Google Pay, etc.)
+      - Must be called before any asynchronous work
+      - **Code Added**:
+        ```javascript
+        // Submit elements first to trigger validation and wallet collection
+        const { error: submitError } = await elements.submit();
+        
+        if (submitError) {
+          // Handle validation errors
+          paymentError.textContent = submitError.message || 'Please check your payment details.';
+          paymentError.style.display = 'block';
+          submitButton.disabled = false;
+          return;
+        }
+        
+        // Then proceed with confirmPayment()
+        const { error, paymentIntent } = await stripe.confirmPayment({...});
+        ```
+      - **Impact**: Fixes IntegrationError, enables proper deferred payment handling, supports wallet payment methods
+
+  - **Payment Confirmation Parameters** (Lines 248-263):
+    - **Added `redirect: 'if_required'`** (Line 255):
+      - Only redirects if 3D Secure authentication is required
+      - Otherwise completes payment on the same page
+      - **Impact**: Better UX - no unnecessary redirects for simple card payments
+
+    - **Added `return_url` to `confirmParams`** (Line 257):
+      - Required by Stripe for 3D Secure redirects
+      - Points back to checkout page with order ID for proper return handling
+      - **Code Added**:
+        ```javascript
+        const returnUrl = window.location.origin + window.location.pathname + '?order=' + orderId;
+        confirmParams: {
+          return_url: returnUrl,
+          // ...
+        }
+        ```
+      - **Impact**: Fixes IntegrationError about missing `return_url`, enables 3D Secure flow
+
+  - **UI Improvements** (Line 74):
+    - **Changed "Total" to "Grand Total"** in price breakdown section:
+      - More descriptive label for final payment amount
+      - **Code Changed**:
+        ```html
+        <!-- Before -->
+        <span><strong>Total:</strong></span>
+        
+        <!-- After -->
+        <span><strong>Grand Total:</strong></span>
+        ```
+      - **Impact**: Clearer labeling for users
+
+#### Files Modified
+
+- `src/views/wizard/checkout.hbs`:
+  - **Lines 1**: Updated comment to reflect Payment Element + Appearance API
+  - **Lines 90-96**: Changed HTML mount point, removed unnecessary label
+  - **Lines 74**: Changed "Total" to "Grand Total"
+  - **Lines 121**: Updated script comment
+  - **Lines 123**: Updated initialization log message
+  - **Lines 140-163**: Added 3D Secure return handling
+  - **Lines 165-181**: Added Appearance API configuration
+  - **Lines 183-187**: Updated Elements initialization with clientSecret and appearance
+  - **Lines 189-194**: Changed from cardElement to paymentElement with tabs layout
+  - **Lines 196-206**: Updated change event handler for paymentElement
+  - **Lines 228-243**: Added elements.submit() call with error handling
+  - **Lines 245-264**: Updated confirmPayment API call with redirect and return_url
+  - **Lines 310**: Updated success log message
+
+#### Error Fixes
+
+1. **IntegrationError: `confirmParams.return_url` required**:
+   - **Error**: `stripe.confirmPayment(): the confirmParams.return_url argument is required unless passing redirect: 'if_required'`
+   - **Fix**: Added both `redirect: 'if_required'` and `return_url` to confirmParams
+   - **Lines**: 255, 257
+
+2. **IntegrationError: `elements.submit()` must be called**:
+   - **Error**: `elements.submit() must be called before stripe.confirmPayment(). Call elements.submit() as soon as your customer presses pay, prior to any asynchronous work.`
+   - **Fix**: Added `await elements.submit()` call before `confirmPayment()` with proper error handling
+   - **Lines**: 228-243
+
+#### Technical Details
+
+- **Payment Element Benefits**:
+  - Supports multiple payment methods (cards, digital wallets)
+  - Better accessibility with larger fonts
+  - Improved mobile experience
+  - Automatic validation and error handling
+  - Better 3D Secure integration
+
+- **Appearance API Benefits**:
+  - Customizable typography (18px base font for accessibility)
+  - Consistent styling across platforms
+  - Better user experience with larger, readable text
+
+- **Deferred Payment Pattern**:
+  - `elements.submit()` collects payment method and validates form
+  - `confirmPayment()` processes the payment
+  - Proper error handling at each step
+
+- **3D Secure Flow**:
+  - User submits payment → `elements.submit()` → `confirmPayment()`
+  - If 3D Secure required → redirect to Stripe hosted page
+  - User authenticates → redirect back to `return_url`
+  - Check payment status → redirect to confirmation page
+
+#### Migration Notes
+
+- **Breaking Changes**: None - this is a drop-in replacement
+- **Backward Compatibility**: Fully compatible with existing payment flow
+- **Testing Required**: 
+  - Test standard card payments
+  - Test 3D Secure authentication flow
+  - Test wallet payments (if enabled)
+  - Test error handling scenarios
+
+#### References
+
+- Stripe Payment Element Documentation: https://stripe.com/docs/payments/payment-element
+- Stripe Appearance API: https://stripe.com/docs/elements/appearance-api
+- Stripe Deferred Payments: https://stripe.com/docs/payments/accept-a-payment-deferred
+
+---
+
+### December 22, 2025 @ 19:31 - Checkout Route Fix: Order Data Source Priority and Calculator Totals Persistence
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical issue where checkout route was sending zero amounts to Stripe payment processor, causing "minimum charge amount" errors. The checkout route now prioritizes order's persisted data over session data, intelligently falls back to session data when order's eventSetup lacks calculator totals, and ensures calculator totals are saved to session before navigating from event-summary to checkout. This ensures accurate payment amounts are calculated and sent to Stripe, preventing payment failures.
+
+#### Major Changes
+
+- **Checkout Route Data Source Priority** (`src/routes/checkout.ts`):
+  - **Order Data as Primary Source** (Lines 63-73):
+    - Changed checkout route to use order's persisted `eventSetup` and `location` JSON fields as primary data source
+    - Order's data is more reliable than session data which may be stale or incomplete
+    - **Code Added**:
+      ```typescript
+      // 🟡🟡🟡 - [DATA SOURCE] Use order's persisted data instead of session data (more reliable)
+      // ⚠️⚠️⚠️ - [DATA SOURCE] Order's eventSetup and location are the source of truth, session may be stale
+      const orderEventSetup = (order.eventSetup as any) || null;
+      const orderLocation = (order.location as any) || null;
+      ```
+    - **Impact**: Checkout route now uses persisted order data instead of potentially stale session data
+
+  - **Smart Calculator Totals Detection** (Lines 71-73):
+    - Added logic to check if order's `eventSetup` contains calculator totals
+    - Falls back to session's `eventSetup` if order's doesn't have calculator totals
+    - Handles case where order's `eventSetup` only contains date/time info (from date step), not calculator totals (from event step)
+    - **Code Added**:
+      ```typescript
+      // ⚠️⚠️⚠️ - [DATA SOURCE] Only use order's eventSetup if it has calculator totals, otherwise use session's eventSetup
+      // Order's eventSetup might only contain date/time info (from date step), not calculator totals (from event step)
+      const orderHasCalculatorTotals = orderEventSetup?.calculator?.totals?.total || orderEventSetup?.calculator?.totals?.subtotal;
+      const eventSetupForCalculation = (orderHasCalculatorTotals && orderEventSetup) ? orderEventSetup : eventSetup;
+      const locationForCalculation = orderLocation || locationData;
+      ```
+    - **Impact**: Checkout route correctly identifies which data source has calculator totals and uses it
+
+  - **Enhanced Logging for Data Source Selection** (Lines 75-81):
+    - Added comprehensive logging to show which data source is being used (order vs session)
+    - Logs whether calculator totals are found in order or session
+    - **Code Added**:
+      ```typescript
+      console.log('🟡🟡🟡 - [CHECKOUT] Data source selection:', {
+        orderHasCalculatorTotals: !!orderHasCalculatorTotals,
+        usingOrderEventSetup: orderHasCalculatorTotals && !!orderEventSetup,
+        usingSessionEventSetup: !orderHasCalculatorTotals || !orderEventSetup,
+        orderEventSetupKeys: orderEventSetup ? Object.keys(orderEventSetup) : [],
+        sessionEventSetupHasCalculator: !!(eventSetup?.calculator?.totals)
+      });
+      ```
+    - **Impact**: Better debugging visibility into data source selection logic
+
+  - **Order TotalAmount Fallback** (Lines 95-107):
+    - Added logic to use order's `totalAmount` field if it exists and is valid
+    - Handles both Prisma Decimal type (with `toNumber()` method) and number type
+    - **Code Added**:
+      ```typescript
+      // 🟡🟡🟡 - [TOTAL] Calculate final total (subtotal + surcharge)
+      // ⚠️⚠️⚠️ - [TOTAL] If order.totalAmount exists and is valid, prefer it over calculated total
+      let total = subtotal + surcharge;
+      if (order.totalAmount && typeof order.totalAmount === 'object' && 'toNumber' in order.totalAmount) {
+        const orderTotalAmount = (order.totalAmount as any).toNumber();
+        if (orderTotalAmount > 0 && isFinite(orderTotalAmount)) {
+          console.log('🟡🟡🟡 - [CHECKOUT] Using order.totalAmount from database:', orderTotalAmount);
+          total = orderTotalAmount;
+        }
+      } else if (order.totalAmount && typeof order.totalAmount === 'number' && order.totalAmount > 0) {
+        console.log('🟡🟡🟡 - [CHECKOUT] Using order.totalAmount from database:', order.totalAmount);
+        total = order.totalAmount;
+      }
+      ```
+    - **Impact**: Provides additional fallback to use stored total amount if available
+
+  - **Enhanced Error Logging** (Lines 118-131):
+    - Added comprehensive error logging when total is invalid (0 or missing)
+    - Logs both order and session eventSetup data for debugging
+    - Redirects to event-summary if totals are missing (allows calculator to recalculate)
+    - **Code Added**:
+      ```typescript
+      // ⚠️⚠️⚠️ - [VALIDATION] Ensure total is greater than 0 before proceeding
+      if (!total || total <= 0 || !isFinite(total)) {
+        console.error('❌❌❌ - [CHECKOUT] Invalid total amount calculated:', total);
+        console.error('❌❌❌ - [CHECKOUT] Order eventSetup:', JSON.stringify(orderEventSetup, null, 2));
+        console.error('❌❌❌ - [CHECKOUT] Order location:', JSON.stringify(orderLocation, null, 2));
+        console.error('❌❌❌ - [CHECKOUT] Session eventSetup calculator totals:', eventSetup?.calculator?.totals);
+        console.error('❌❌❌ - [CHECKOUT] EventSetup used for calculation:', eventSetupForCalculation === orderEventSetup ? 'ORDER' : 'SESSION');
+        console.error('❌❌❌ - [CHECKOUT] Subtotal calculated:', subtotal, 'Surcharge:', surcharge);
+        
+        // 🟡🟡🟡 - [FALLBACK] If calculator totals are missing, redirect to event-summary to recalculate
+        console.log('🟡🟡🟡 - [CHECKOUT] Calculator totals missing, redirecting to event-summary to recalculate');
+        return reply.redirect('/event-summary?recalculate=true');
+      }
+      ```
+    - **Impact**: Better error visibility and graceful fallback when totals are missing
+
+  - **Payment Intent Creation Updates** (Lines 146-189):
+    - Updated all payment intent creation calls to use `eventSetupForCalculation` and `locationForCalculation` instead of session data
+    - Ensures payment intents are created with correct data source
+    - **Code Updated**:
+      ```typescript
+      // BEFORE: eventSetup, locationData, eventDetails (from session)
+      // AFTER:
+      eventSetup: eventSetupForCalculation,
+      locationData: locationForCalculation,
+      eventDetails: (order.eventDetails as any) || eventDetails
+      ```
+    - **Impact**: Payment intents are created with correct amounts from the right data source
+
+  - **Template Data Updates** (Lines 208-231):
+    - Updated template data to prefer order's persisted data over session data
+    - Falls back to session data if order data is unavailable
+    - **Code Updated**:
+      ```typescript
+      locationData: locationForCalculation || locationData, // Use order's location, fallback to session
+      eventDetails: (order.eventDetails as any) || eventDetails, // Use order's eventDetails, fallback to session
+      eventSetup: eventSetupForCalculation || eventSetup, // Use order's eventSetup, fallback to session
+      ```
+    - **Impact**: Template displays data from the most reliable source
+
+- **Event-Summary Checkout Button Enhancement** (`src/views/wizard/event-summary.hbs`):
+  - **Calculator Totals Persistence** (Lines 203-284):
+    - Modified checkout button to save calculator totals to session before navigating to checkout
+    - Prevents default link navigation and handles it programmatically
+    - **Code Added**:
+      ```javascript
+      const checkoutBtn = document.getElementById('checkoutBtn');
+      if (checkoutBtn) {
+        checkoutBtn.addEventListener('click', async function(e) {
+          e.preventDefault(); // Prevent default navigation
+          console.log('🟡🟡🟡 - [EVENT SUMMARY VIEW] Proceed to checkout clicked');
+          
+          // 🟡🟡🟡 - [CALCULATOR TOTALS] Save calculator totals to session before navigating to checkout
+          // ⚠️⚠️⚠️ - [CALCULATOR TOTALS] This ensures checkout route has access to calculator totals
+          try {
+            const calc = window.__kloiCalc || (window.KloiCalculator && window.KloiCalculator.current);
+            if (calc && typeof calc.getQuote === 'function' && typeof calc.getState === 'function') {
+              const quote = calc.getQuote();
+              const state = calc.getState();
+              
+              if (quote && quote.total > 0) {
+                // ... save logic
+              }
+            }
+          } catch (error) {
+            // Error handling
+          }
+        });
+      }
+      ```
+    - **Impact**: Calculator totals are saved to session before checkout navigation, ensuring checkout route has access to them
+
+  - **Calculator Quote Collection** (Lines 212-248):
+    - Gets calculator quote using `calc.getQuote()` and state using `calc.getState()`
+    - Reads existing eventSetup from server data attribute
+    - Builds payload with calculator totals (subtotal, total, minimumOrderTotal, breakdown)
+    - **Code Added**:
+      ```javascript
+      const quote = calc.getQuote();
+      const state = calc.getState();
+      
+      // Read existing eventSetup from session
+      const summaryServerData = document.getElementById('summaryServerData');
+      const eventSetupJson = summaryServerData?.dataset.eventSetup;
+      let eventSetupData = null;
+      
+      if (eventSetupJson && eventSetupJson !== 'null') {
+        eventSetupData = JSON.parse(eventSetupJson);
+      }
+      
+      // Build payload with calculator totals
+      const payload = eventSetupData || {};
+      payload.calculator = {
+        guestCount: quote.guestCount || state?.guestCount || 0,
+        numberOfDays: quote.numberOfDays || state?.numberOfDays || 1,
+        totals: {
+          subtotal: quote.subtotal || 0,
+          total: quote.total || 0,
+          minimumOrderTotal: quote.minimumOrderTotal || 0
+        },
+        breakdown: quote.breakdown || [],
+        minimumOrderBreakdown: quote.minimumOrderBreakdown || []
+      };
+      ```
+    - **Impact**: Calculator totals are properly collected and structured for saving
+
+  - **Session Save via API** (Lines 250-269):
+    - Saves calculator totals to session via `/api/session/event` endpoint
+    - Navigates to checkout only after successful save
+    - Handles errors gracefully (still navigates if save fails)
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [SAVE TO SESSION] Save calculator totals to session via API
+      const response = await fetch('/api/session/event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (response.ok) {
+        console.log('✅✅✅ - [EVENT SUMMARY VIEW] Calculator totals saved to session:', payload.calculator.totals.total);
+        window.location.href = '/checkout';
+      } else {
+        // Error handling - still navigate
+        window.location.href = '/checkout';
+      }
+      ```
+    - **Impact**: Calculator totals are persisted to session before checkout, ensuring checkout route can access them
+
+#### Files Modified
+
+1. **`src/routes/checkout.ts`** (MODIFIED):
+   - Lines 63-73: Added order data extraction and smart data source selection logic
+   - Lines 75-81: Added comprehensive logging for data source selection
+   - Lines 83-107: Updated subtotal, surcharge, and total calculation with order data priority and fallback logic
+   - Lines 109-116: Enhanced amount breakdown logging
+   - Lines 118-131: Added validation and redirect logic for missing totals
+   - Lines 146-189: Updated all payment intent creation calls to use correct data sources
+   - Lines 208-231: Updated template data to prefer order's persisted data
+   - Total: ~130 lines modified, ~50 lines added
+
+2. **`src/views/wizard/event-summary.hbs`** (MODIFIED):
+   - Lines 203-284: Replaced simple checkout button handler with async handler that saves calculator totals
+   - Lines 205-207: Added preventDefault() and async function
+   - Lines 209-211: Added calculator totals save logic comments
+   - Lines 212-248: Added calculator quote/state collection and payload building
+   - Lines 250-269: Added session save via API call
+   - Lines 270-282: Added error handling with graceful fallback
+   - Total: ~80 lines modified, ~75 lines added
+
+#### Technical Details
+
+- **Data Source Priority**:
+  1. Order's `eventSetup` (if it has calculator totals) → Most reliable (persisted in database)
+  2. Session's `eventSetup` (if order's doesn't have calculator totals) → Fallback
+  3. Order's `totalAmount` field (if available and valid) → Additional fallback
+  4. Calculated from subtotal + surcharge → Final fallback
+
+- **Calculator Totals Structure**:
+  - `calculator.totals.total`: Final total including all modifiers
+  - `calculator.totals.subtotal`: Base subtotal before modifiers
+  - `calculator.totals.minimumOrderTotal`: Minimum order requirement
+  - Checkout route checks both `total` and `subtotal` fields for maximum compatibility
+
+- **Order EventSetup vs Session EventSetup**:
+  - Order's `eventSetup` may only contain date/time info (saved from date step)
+  - Calculator totals are saved separately (from event-setup step)
+  - Checkout route intelligently detects which source has calculator totals
+
+- **Error Handling Flow**:
+  1. If total is 0 or invalid → Log comprehensive error details
+  2. Redirect to `/event-summary?recalculate=true` → Allows calculator to recalculate
+  3. Event-summary calculator recalculates → Shows correct total
+  4. User clicks checkout → Totals are saved before navigation
+  5. Checkout route reads saved totals → Creates payment intent with correct amount
+
+- **Payment Intent Creation**:
+  - All payment intent creation calls now use `eventSetupForCalculation` and `locationForCalculation`
+  - Ensures payment intents are created with correct amounts from the right data source
+  - Handles both new payment intent creation and existing payment intent reuse
+
+#### Impact
+
+- **User Experience**:
+  - Users can now complete checkout without "minimum charge amount" errors
+  - Payment amounts are correctly calculated and sent to Stripe
+  - Graceful fallback if totals are missing (redirects to event-summary to recalculate)
+  - Calculator totals are automatically saved when proceeding to checkout
+
+- **Payment Processing**:
+  - Stripe payment intents are created with correct amounts (not zero)
+  - Prevents "amount must be greater than or equal to minimum charge amount" errors
+  - Payment processing works correctly for all order sizes
+
+- **Data Integrity**:
+  - Checkout route prioritizes persisted order data over session data
+  - Calculator totals are saved to session before checkout navigation
+  - Multiple fallback mechanisms ensure totals are always available
+
+- **Code Quality**:
+  - Enhanced logging for better debugging visibility
+  - Clear data source selection logic with fallbacks
+  - Comprehensive error handling with graceful degradation
+
+- **Bug Fixes**:
+  - **FIXED**: Checkout route sending zero amounts to Stripe
+  - **FIXED**: Calculator totals not being saved before checkout navigation
+  - **FIXED**: Checkout route using stale session data instead of persisted order data
+  - **FIXED**: Payment intent creation with incorrect amounts
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a code logic fix only, no schema changes
+- **No API Changes Required**: Existing API endpoints remain the same, only internal logic changed
+- **No Session Changes Required**: Session structure remains unchanged, calculator totals are saved to existing `eventSetup` structure
+- **Backward Compatible**: Fully backward compatible - existing orders and sessions work correctly
+- **Immediate Effect**: Changes take effect immediately - checkout route now correctly calculates and sends payment amounts
+- **Testing**: Verify checkout flow works correctly when:
+  1. Order's eventSetup has calculator totals → Uses order's data
+  2. Order's eventSetup doesn't have calculator totals → Falls back to session's data
+  3. Calculator totals are missing → Redirects to event-summary, then saves totals before checkout
+  4. Payment intent is created with correct amount (not zero)
+  5. Stripe payment processing succeeds without minimum charge errors
+
+---
+
+### December 21, 2025 @ 22:31 - DRY Refactoring: Session Utilities, Coordinate Helpers, and Calculator State Module
+
+**Type**: 🟠 MAJOR CHANGE | 🟢 DIRECTION CHANGE
+
+**Summary**: Comprehensive DRY (Don't Repeat Yourself) refactoring to eliminate code duplication across route handlers, services, and templates. Created centralized utilities for session data extraction (guest count, numberOfDays), coordinate normalization, and calculator state restoration. All route handlers, services, and templates now use these shared utilities instead of duplicated logic, improving maintainability and ensuring consistent behavior across the application.
+
+#### Major Changes
+
+- **Session Data Extraction Utilities** (`src/lib/utils.ts`):
+  - **New Function: `extractGuestCountFromSession()`** (Lines 59-90):
+    - Centralized guest count extraction from session data
+    - Checks `eventSetup.productQuantities['guest-count']` first, falls back to `eventSetup.calculator.guestCount`
+    - Returns `null` if not found or invalid
+    - Includes comprehensive logging with emoji prefixes (`✅✅✅` for success, `🟡🟡🟡` for attempts)
+    - **Code Added**:
+      ```typescript
+      export function extractGuestCountFromSession(sessionData: any): number | null {
+        const eventSetup = sessionData?.eventSetup;
+        if (!eventSetup) return null;
+        
+        // Try productQuantities first
+        if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+          const guestCountValue = eventSetup.productQuantities['guest-count'];
+          if (typeof guestCountValue === 'number' && guestCountValue > 0) {
+            return guestCountValue;
+          }
+        }
+        
+        // Fallback to calculator.guestCount
+        if (eventSetup.calculator && typeof eventSetup.calculator === 'object') {
+          const calculatorGuestCount = eventSetup.calculator.guestCount;
+          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
+            return calculatorGuestCount;
+          }
+        }
+        
+        return null;
+      }
+      ```
+    - **Impact**: Eliminates duplicated guest count extraction logic across 3 route handlers
+
+  - **New Function: `calculateNumberOfDaysFromDateInfo()`** (Lines 92-105):
+    - Centralized numberOfDays calculation from dateInfo session data
+    - Calculates from `dateInfo.dates` array length
+    - Returns `1` as default if dateInfo invalid or dates array empty
+    - Includes logging with warnings for invalid data
+    - **Code Added**:
+      ```typescript
+      export function calculateNumberOfDaysFromDateInfo(dateInfo: any): number {
+        if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+          const numberOfDays = dateInfo.dates.length;
+          return numberOfDays;
+        }
+        return 1; // Default to 1 day if dateInfo invalid or dates array empty
+      }
+      ```
+    - **Impact**: Eliminates duplicated numberOfDays calculation logic across multiple route handlers
+
+- **Coordinate Normalization Utilities** (`src/lib/coordinateUtils.ts` - New File):
+  - **New Module** (Lines 1-160):
+    - Centralized coordinate normalization utilities shared across services and scripts
+    - Respects `MAP_POLYGON` environment variable for coordinate order configuration
+    - **Type Definition**: `CoordinatePair = { lat: number; lng: number }`
+    - **Code Added**:
+      ```typescript
+      export type CoordinatePair = { lat: number; lng: number };
+      
+      export function normalizeCoordinatePair(
+        pair: number[] | { lat: number; lng: number } | { latitude: number; longitude: number },
+        coordinateOrder?: 'lng-lat' | 'lat-lng'
+      ): CoordinatePair | null {
+        // Normalizes coordinate pairs from various formats
+        // Handles array format [lng, lat] or [lat, lng]
+        // Handles object format {lat, lng} or {latitude, longitude}
+      }
+      
+      export function normalizePolygonCoordinates(
+        raw: unknown,
+        coordinateOrder?: 'lng-lat' | 'lat-lng'
+      ): CoordinatePair[] | null {
+        // Normalizes entire polygon coordinate arrays
+        // Returns null if insufficient points (< 3) or invalid format
+      }
+      
+      export function normalizeCoordinatePairWithAutoDetect(
+        pair: number[],
+        targetStorageOrder: 'lng-lat' | 'lat-lng'
+      ): [number, number] | null {
+        // Auto-detects coordinate format based on value ranges (for import scripts)
+        // Converts to target storage format
+      }
+      
+      export function coordinateToArray(
+        coord: CoordinatePair,
+        storageOrder: 'lng-lat' | 'lat-lng'
+      ): [number, number] {
+        // Converts normalized coordinate to array format in specified storage order
+      }
+      ```
+    - **Impact**: Eliminates duplicated coordinate normalization logic across 3 services and 1 import script
+
+- **Calculator State Restoration Module** (`public/global/js/calculator-state.js` - New File):
+  - **New Client-Side Module** (Lines 1-188):
+    - Centralized calculator state restoration utilities shared across templates
+    - Handles both `calculator.getState()` format and form data format (fallback)
+    - Exported as `window.KloiCalculatorState` for global access
+    - **Code Added**:
+      ```javascript
+      window.KloiCalculatorState = {
+        restoreCalculatorState: function(calculator, eventSetupData, options) {
+          // Main restoration function with fallback logic
+          // Restores radios, checkboxes, products, and guest count
+          // Options: { skipGuestCount: boolean, skipProducts: boolean }
+        },
+        restoreFromCalculatorState: function(calculator, calcState) {
+          // Restores from calculator.getState() format
+        },
+        restoreFromFormData: function(calculator, eventSetup) {
+          // Restores from form data format
+        }
+      };
+      ```
+    - **Impact**: Eliminates duplicated calculator state restoration logic across 2 templates
+
+- **Route Handler Refactoring**:
+  - **`src/routes/eventSetup.ts`** (Modified):
+    - **Import Addition** (Line 7):
+      - Added `extractGuestCountFromSession` and `calculateNumberOfDaysFromDateInfo` imports
+      - **Code Added**:
+        ```typescript
+        import { extractGuestCountFromSession, calculateNumberOfDaysFromDateInfo } from '../lib/utils';
+        ```
+    - **Guest Count Extraction Refactoring** (Lines 54-78):
+      - Replaced 20+ lines of duplicated extraction logic with single utility call
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: 20+ lines of extraction logic
+        let guestCount: number | null = null;
+        const eventSetup = sessionData.eventSetup as any;
+        if (eventSetup) {
+          if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+            const guestCountValue = eventSetup.productQuantities['guest-count'];
+            // ... more logic
+          }
+          // ... fallback logic
+        }
+        
+        // AFTER: Single utility call
+        const guestCount = extractGuestCountFromSession(sessionData);
+        const hasGuestCount = guestCount !== null && guestCount > 0;
+        ```
+    - **Number of Days Calculation Refactoring** (Lines 80-116):
+      - Replaced 30+ lines of calculation logic with utility call (kept database fallback)
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: 30+ lines of calculation logic
+        let numberOfDays = 1;
+        let hasDateInfo = false;
+        const dateInfo = sessionData.dateInfo as any;
+        if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+          numberOfDays = dateInfo.dates.length;
+          hasDateInfo = true;
+          // ... more logic
+        }
+        
+        // AFTER: Utility call with database fallback
+        const dateInfo = sessionData.dateInfo as any;
+        let numberOfDays = calculateNumberOfDaysFromDateInfo(dateInfo);
+        let hasDateInfo = numberOfDays > 1 || (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0);
+        // Database fallback logic retained
+        ```
+    - **Impact**: Reduced code duplication, improved maintainability
+
+  - **`src/routes/datePicker.ts`** (Modified):
+    - **Import Addition** (Line 5):
+      - Added `extractGuestCountFromSession` import
+      - **Code Added**:
+        ```typescript
+        import { extractGuestCountFromSession } from '../lib/utils';
+        ```
+    - **Guest Count Extraction Refactoring** (Lines 47-57):
+      - Replaced 20+ lines of duplicated extraction logic with utility call
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: 20+ lines of extraction logic
+        const eventSetup = (request.session as any)?.eventSetup;
+        let guestCount: number | null = null;
+        if (eventSetup) {
+          if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+            // ... extraction logic
+          }
+          // ... fallback logic
+        }
+        
+        // AFTER: Single utility call
+        const sessionData = { eventSetup: (request.session as any)?.eventSetup };
+        const guestCount = extractGuestCountFromSession(sessionData);
+        ```
+    - **Impact**: Eliminated code duplication, consistent extraction logic
+
+  - **`src/routes/eventSummary.ts`** (Modified):
+    - **Import Addition** (Line 6):
+      - Added `extractGuestCountFromSession` and `calculateNumberOfDaysFromDateInfo` imports
+      - **Code Added**:
+        ```typescript
+        import { extractGuestCountFromSession, calculateNumberOfDaysFromDateInfo } from '../lib/utils';
+        ```
+    - **Guest Count and Number of Days Refactoring** (Lines 40-68):
+      - Replaced 30+ lines of duplicated logic with utility calls
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: 30+ lines of extraction and calculation logic
+        let guestCount: number | null = null;
+        let numberOfDays = 1;
+        if (eventSetup) {
+          if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
+            // ... extraction logic
+          }
+          // ... fallback logic
+        }
+        if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
+          numberOfDays = dateInfo.dates.length;
+          // ... more logic
+        }
+        
+        // AFTER: Utility calls
+        const sessionData = { eventSetup, dateInfo };
+        const guestCount = extractGuestCountFromSession(sessionData);
+        const numberOfDays = calculateNumberOfDaysFromDateInfo(dateInfo);
+        ```
+    - **Impact**: Significant code reduction, improved consistency
+
+  - **`src/routes/finalConfirmation.ts`** (Modified):
+    - **Type Assertion Fix** (Lines 93-95):
+      - Added type assertions for Prisma JsonObject types to fix TypeScript compilation errors
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: Type errors with JsonObject
+        const locationData = order.location && typeof order.location === 'object' ? order.location : null;
+        const eventSetup = order.eventSetup && typeof order.eventSetup === 'object' ? order.eventSetup : null;
+        
+        // AFTER: Type assertions added
+        const locationData = order.location && typeof order.location === 'object' ? order.location as any : null;
+        const eventSetup = order.eventSetup && typeof order.eventSetup === 'object' ? order.eventSetup as any : null;
+        ```
+    - **Impact**: Fixed TypeScript compilation errors, maintains functionality
+
+- **Service Refactoring**:
+  - **`src/services/deliveryLocationsService.ts`** (Modified):
+    - **Import Addition** (Line 3):
+      - Added `normalizePolygonCoordinates` import
+      - **Code Added**:
+        ```typescript
+        import { normalizePolygonCoordinates } from '../lib/coordinateUtils';
+        ```
+    - **Removed Coordinate Order Constant** (Lines 4-15):
+      - Removed `POLYGON_COORDINATE_ORDER` constant (now handled by coordinateUtils)
+      - Removed coordinate order logging (now in coordinateUtils)
+    - **Normalize Polygon Function Refactoring** (Lines 69-73):
+      - Replaced 45+ lines of coordinate normalization logic with utility call
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: 45+ lines of normalization logic
+        function normalizePolygon(raw: unknown): DeliveryLocationPolygonPoint[] | undefined {
+          if (!Array.isArray(raw)) return undefined;
+          const points: DeliveryLocationPolygonPoint[] = [];
+          raw.forEach((pair, _index) => {
+            if (Array.isArray(pair)) {
+              const first = Number(pair[0]);
+              const second = Number(pair[1]);
+              if (Number.isFinite(first) && Number.isFinite(second)) {
+                let lat: number, lng: number;
+                if (POLYGON_COORDINATE_ORDER === 'lng-lat') {
+                  lng = first;
+                  lat = second;
+                  points.push({ lat, lng });
+                } else if (POLYGON_COORDINATE_ORDER === 'lat-lng') {
+                  lat = first;
+                  lng = second;
+                  points.push({ lat, lng });
+                }
+                // ... more logic
+              }
+            } else if (pair && typeof pair === 'object') {
+              // ... object format handling
+            }
+          });
+          return points.length >= 3 ? points : undefined;
+        }
+        
+        // AFTER: Single utility call
+        function normalizePolygon(raw: unknown): DeliveryLocationPolygonPoint[] | undefined {
+          const normalized = normalizePolygonCoordinates(raw);
+          return normalized || undefined;
+        }
+        ```
+    - **Impact**: Eliminated 45+ lines of duplicated coordinate normalization logic
+
+  - **`src/services/areaPolygonService.ts`** (Modified):
+    - **Import Addition** (Line 5):
+      - Added `normalizeCoordinatePair` import
+      - **Code Added**:
+        ```typescript
+        import { normalizeCoordinatePair } from '../lib/coordinateUtils';
+        ```
+    - **Removed Coordinate Order Constant** (Lines 9-20):
+      - Removed `POLYGON_COORDINATE_ORDER` constant and logging (now in coordinateUtils)
+    - **Polygon Path Conversion Refactoring** (Lines 119-145):
+      - Replaced 25+ lines of coordinate normalization logic with utility call
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: 25+ lines of normalization logic
+        const paths: LatLng[] = [];
+        for (const pair of sub.polygon as Array<any>) {
+          const a = Number(pair?.[0]);
+          const b = Number(pair?.[1]);
+          if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+          
+          let lat: number, lng: number;
+          if (POLYGON_COORDINATE_ORDER === 'lng-lat') {
+            lng = a;
+            lat = b;
+          } else if (POLYGON_COORDINATE_ORDER === 'lat-lng') {
+            lat = a;
+            lng = b;
+          } else {
+            console.error('Invalid POLYGON_COORDINATE_ORDER configuration');
+            continue;
+          }
+          paths.push({ lat, lng });
+        }
+        
+        // AFTER: Utility call
+        const paths: LatLng[] = [];
+        for (const pair of sub.polygon as Array<any>) {
+          const normalized = normalizeCoordinatePair(pair);
+          if (normalized) {
+            paths.push(normalized);
+          }
+        }
+        ```
+    - **Impact**: Eliminated duplicated coordinate normalization logic
+
+  - **`src/scripts/importGeoJsonPolygon.ts`** (Modified):
+    - **Import Addition** (Line 6):
+      - Added `normalizeCoordinatePairWithAutoDetect` import
+      - **Code Added**:
+        ```typescript
+        import { normalizeCoordinatePairWithAutoDetect } from '../lib/coordinateUtils';
+        ```
+    - **Removed Coordinate Order Constant Comments** (Lines 7-15):
+      - Updated comments to reference coordinateUtils module
+    - **Normalize Polygon Pairs Function Refactoring** (Lines 109-146):
+      - Replaced 35+ lines of coordinate normalization and auto-detection logic with utility call
+      - **Code Changed**:
+        ```typescript
+        // BEFORE: 35+ lines of normalization and auto-detection logic
+        function normalizePolygonPairs(pairs: number[][]): number[][] {
+          return pairs
+            .map((pair) => {
+              const first = Number(pair?.[0]);
+              const second = Number(pair?.[1]);
+              if (!Number.isFinite(first) || !Number.isFinite(second)) {
+                return null;
+              }
+              if (DB_STORAGE_COORDINATE_ORDER === 'lng-lat') {
+                if (Math.abs(first) <= 180 && Math.abs(second) <= 90) {
+                  return [first, second];
+                }
+                if (Math.abs(first) <= 90 && Math.abs(second) <= 180) {
+                  return [second, first];
+                }
+                return [first, second];
+              } else {
+                // ... more logic
+              }
+            })
+            .filter((pair): pair is number[] => Array.isArray(pair) && pair.length === 2);
+        }
+        
+        // AFTER: Single utility call
+        function normalizePolygonPairs(pairs: number[][]): number[][] {
+          return pairs
+            .map((pair) => normalizeCoordinatePairWithAutoDetect(pair, DB_STORAGE_COORDINATE_ORDER))
+            .filter((pair): pair is [number, number] => pair !== null);
+        }
+        ```
+    - **Impact**: Eliminated duplicated coordinate normalization logic with auto-detection
+
+- **Template Refactoring**:
+  - **`src/views/wizard/event-summary.hbs`** (Modified):
+    - **Script Include Addition** (Line 73):
+      - Added calculator-state.js script include
+      - **Code Added**:
+        ```handlebars
+        <script src="/public/global/js/calculator-state.js"></script>
+        ```
+    - **Calculator State Restoration Refactoring** (Lines 130-220):
+      - Replaced 90+ lines of duplicated restoration logic with module call
+      - **Code Changed**:
+        ```javascript
+        // BEFORE: 90+ lines of restoration logic
+        if (eventSetup && eventSetup.calculator) {
+          const calcState = eventSetup.calculator;
+          if (calcState.radios && typeof calcState.radios === 'object') {
+            Object.entries(calcState.radios).forEach(([groupId, optionKey]) => {
+              calc.setRadio(groupId, optionKey);
+              // ... logging
+            });
+          }
+          if (calcState.checkboxes && Array.isArray(calcState.checkboxes)) {
+            calcState.checkboxes.forEach(optionKey => {
+              calc.setCheckbox(optionKey, true);
+              // ... logging
+            });
+          }
+          if (calcState.products && typeof calcState.products === 'object') {
+            Object.entries(calcState.products).forEach(([productKey, qty]) => {
+              if (productKey !== 'guest-count') {
+                calc.setProductQty(productKey, qty);
+                // ... logging
+              }
+            });
+          }
+        }
+        // ... 50+ more lines of fallback logic
+        
+        // AFTER: Module call
+        if (window.KloiCalculatorState && window.KloiCalculatorState.restoreCalculatorState) {
+          window.KloiCalculatorState.restoreCalculatorState(calc, eventSetup, { skipGuestCount: false, skipProducts: false });
+        }
+        calc.setNumberOfDays(numberOfDays);
+        calc.recalc();
+        ```
+    - **Impact**: Eliminated 90+ lines of duplicated calculator state restoration logic
+
+  - **`src/views/wizard/event-setup.hbs`** (Modified):
+    - **Script Include Addition** (Line 259):
+      - Added calculator-state.js script include
+      - **Code Added**:
+        ```handlebars
+        <script src="/public/global/js/calculator-state.js"></script>
+        ```
+    - **Deferred Calculator Initialization Refactoring** (Lines 501-520):
+      - Added calculator state restoration using module when eventSetup data available
+      - Falls back to reading from form inputs if module unavailable
+      - **Code Added**:
+        ```javascript
+        // 🟡🟡🟡 - [CALCULATOR STATE] Restore calculator state from eventSetup data if available
+        const eventSetupJsonAttr = serverDataDiv?.getAttribute('data-event-setup');
+        if (eventSetupJsonAttr && eventSetupJsonAttr !== 'null' && window.KloiCalculatorState && window.KloiCalculatorState.restoreCalculatorState) {
+          try {
+            const eventSetup = JSON.parse(eventSetupJsonAttr);
+            window.KloiCalculatorState.restoreCalculatorState(calc, eventSetup, { skipGuestCount: false, skipProducts: false });
+            calc.setNumberOfDays(currentNumberOfDays);
+            calc.recalc();
+          } catch (e) {
+            // Fallback to reading from form
+            restoreCalculatorFromFormInDeferredInit();
+          }
+        } else {
+          restoreCalculatorFromFormInDeferredInit();
+        }
+        ```
+    - **Calculator Update After Pre-Fill Refactoring** (Lines 1138-1183):
+      - Added calculator state restoration using module when eventSetup data available
+      - Falls back to reading from form inputs
+      - **Code Added**:
+        ```javascript
+        // 🟡🟡🟡 - [CALCULATOR STATE] Try to restore from eventSetup data first
+        const eventSetupJsonAttr = serverDataDiv.getAttribute('data-event-setup');
+        if (eventSetupJsonAttr && eventSetupJsonAttr !== 'null' && window.KloiCalculatorState && window.KloiCalculatorState.restoreCalculatorState) {
+          try {
+            const eventSetup = JSON.parse(eventSetupJsonAttr);
+            window.KloiCalculatorState.restoreCalculatorState(calc, eventSetup, { skipGuestCount: false, skipProducts: false });
+            calc.recalc();
+          } catch (e) {
+            // Fallback to reading from form
+            updateCalculatorFromForm();
+          }
+        } else {
+          updateCalculatorFromForm();
+        }
+        ```
+    - **Impact**: Improved calculator state restoration consistency, reduced code duplication
+
+- **Documentation Updates** (`docs/APP-WIDE-SERVICES-AND-MODULES.md`):
+  - **New Section: "Session Data Extraction Utilities"** (After line 235):
+    - Documents `extractGuestCountFromSession()` and `calculateNumberOfDaysFromDateInfo()` functions
+    - Includes code examples showing usage in route handlers
+    - Notes that these should be used instead of duplicating extraction logic
+    - **Code Added**:
+      ```markdown
+      ### Session Data Extraction Utilities
+      
+      - Centralized utilities for extracting common session data to eliminate DRY violations
+      - Located in `src/lib/utils.ts`
+      - **Available Functions:**
+        - `extractGuestCountFromSession(sessionData: any): number | null`
+        - `calculateNumberOfDaysFromDateInfo(dateInfo: any): number`
+      - Example usage and code references included
+      ```
+
+  - **New Section: "Coordinate Normalization Utilities"** (After Session Data Extraction Utilities):
+    - Documents `coordinateUtils.ts` module
+    - Explains `MAP_POLYGON` environment variable usage
+    - Includes examples for services and scripts
+    - **Code Added**:
+      ```markdown
+      ### Coordinate Normalization Utilities
+      
+      - Centralized utilities for coordinate normalization shared across services and scripts
+      - Located in `src/lib/coordinateUtils.ts`
+      - Respects `MAP_POLYGON` environment variable for coordinate order
+      - **Available Functions:**
+        - `normalizeCoordinatePair(pair, coordinateOrder?): CoordinatePair | null`
+        - `normalizePolygonCoordinates(raw, coordinateOrder?): CoordinatePair[] | null`
+        - `normalizeCoordinatePairWithAutoDetect(pair, targetStorageOrder): [number, number] | null`
+      - Example usage and code references included
+      ```
+
+  - **New Section: "Calculator State Management (Client-Side)"** (After Coordinate Normalization Utilities):
+    - Documents `calculator-state.js` module
+    - Includes usage examples for templates
+    - Notes when to use `restoreCalculatorState()` vs individual restore functions
+    - **Code Added**:
+      ```markdown
+      ### Calculator State Management (Client-Side)
+      
+      - Centralized module for calculator state restoration shared across templates
+      - Located in `public/global/js/calculator-state.js`
+      - **Available Functions:**
+        - `restoreCalculatorState(calculator, eventSetupData, options)`
+        - `restoreFromCalculatorState(calculator, calcState)`
+        - `restoreFromFormData(calculator, eventSetup)`
+      - Example usage and code references included
+      ```
+
+  - **Updated "Checklist for New Pages/Routes"** (Lines 275-289):
+    - Added item: "Use session utilities (`extractGuestCountFromSession`, `calculateNumberOfDaysFromDateInfo`) instead of duplicating extraction logic"
+    - Added item: "For coordinate operations, use `coordinateUtils` module"
+    - Added item: "Include `calculator-state.js` when restoring calculator state from session data"
+    - **Code Added**:
+      ```markdown
+      - Session
+        - **Use session utilities** (`extractGuestCountFromSession`, `calculateNumberOfDaysFromDateInfo`) instead of duplicating extraction logic.
+      - Coordinate Operations
+        - **For coordinate operations, use `coordinateUtils` module** instead of duplicating normalization logic.
+        - Ensure `MAP_POLYGON` environment variable is set correctly (`'lng-lat'` or `'lat-lng'`).
+      - Calculator State Restoration
+        - **Include `calculator-state.js`** when restoring calculator state from session data.
+        - Use `window.KloiCalculatorState.restoreCalculatorState()` instead of duplicating restoration logic.
+      ```
+
+  - **Updated "Where to Extend and Reuse"** (Lines 291-297):
+    - Added: "Session utilities: `src/lib/utils.ts` (extend with new extraction helpers as needed)"
+    - Added: "Coordinate utilities: `src/lib/coordinateUtils.ts` (extend for new coordinate operations)"
+    - Added: "Calculator state: `public/global/js/calculator-state.js` (extend for new restoration patterns)"
+    - **Code Added**:
+      ```markdown
+      - **Session utilities: `src/lib/utils.ts`** (extend with new extraction helpers as needed, e.g., `extractGuestCountFromSession`, `calculateNumberOfDaysFromDateInfo`).
+      - **Coordinate utilities: `src/lib/coordinateUtils.ts`** (extend for new coordinate operations, e.g., `normalizeCoordinatePair`, `normalizePolygonCoordinates`).
+      - **Calculator state: `public/global/js/calculator-state.js`** (extend for new restoration patterns, e.g., `restoreCalculatorState`, `restoreFromCalculatorState`).
+      ```
+
+#### Files Modified
+
+1. **`src/lib/utils.ts`** (MODIFIED):
+   - Lines 59-90: Added `extractGuestCountFromSession()` function
+   - Lines 92-105: Added `calculateNumberOfDaysFromDateInfo()` function
+   - Total: 2 new utility functions, ~50 lines added
+
+2. **`src/lib/coordinateUtils.ts`** (CREATED):
+   - Complete new file with 4 exported functions
+   - Lines 1-160: Complete coordinate normalization module
+   - Functions: `normalizeCoordinatePair()`, `normalizePolygonCoordinates()`, `normalizeCoordinatePairWithAutoDetect()`, `coordinateToArray()`
+   - Total: ~160 lines
+
+3. **`public/global/js/calculator-state.js`** (CREATED):
+   - Complete new client-side module
+   - Lines 1-188: Complete calculator state restoration module
+   - Functions: `restoreCalculatorState()`, `restoreFromCalculatorState()`, `restoreFromFormData()`
+   - Total: ~188 lines
+
+4. **`src/routes/eventSetup.ts`** (MODIFIED):
+   - Line 7: Added imports for session utilities
+   - Lines 54-78: Refactored guest count extraction (replaced 20+ lines with utility call)
+   - Lines 80-116: Refactored numberOfDays calculation (replaced 30+ lines with utility call, kept database fallback)
+   - Line 123: Fixed eventSetup variable reference for template data
+   - Total: ~50 lines removed, 3 lines added
+
+5. **`src/routes/datePicker.ts`** (MODIFIED):
+   - Line 5: Added import for session utilities
+   - Lines 47-57: Refactored guest count extraction (replaced 20+ lines with utility call)
+   - Line 57: Fixed eventSetup variable reference in logging
+   - Total: ~20 lines removed, 2 lines added
+
+6. **`src/routes/eventSummary.ts`** (MODIFIED):
+   - Line 6: Added imports for session utilities
+   - Lines 40-68: Refactored guest count and numberOfDays extraction/calculation (replaced 30+ lines with utility calls)
+   - Total: ~30 lines removed, 2 lines added
+
+7. **`src/routes/finalConfirmation.ts`** (MODIFIED):
+   - Lines 93-95: Added type assertions (`as any`) for Prisma JsonObject types to fix TypeScript compilation errors
+   - Total: 3 lines modified
+
+8. **`src/services/deliveryLocationsService.ts`** (MODIFIED):
+   - Line 3: Added import for coordinate utilities
+   - Lines 4-15: Removed `POLYGON_COORDINATE_ORDER` constant and logging (now in coordinateUtils)
+   - Lines 69-73: Refactored `normalizePolygon()` function (replaced 45+ lines with utility call)
+   - Total: ~50 lines removed, 1 line added
+
+9. **`src/services/areaPolygonService.ts`** (MODIFIED):
+   - Line 5: Added import for coordinate utilities
+   - Lines 9-20: Removed `POLYGON_COORDINATE_ORDER` constant and logging (now in coordinateUtils)
+   - Lines 119-145: Refactored polygon path conversion (replaced 25+ lines with utility call)
+   - Total: ~30 lines removed, 1 line added
+
+10. **`src/scripts/importGeoJsonPolygon.ts`** (MODIFIED):
+    - Line 6: Added import for coordinate utilities
+    - Lines 7-15: Updated comments to reference coordinateUtils module
+    - Lines 109-146: Refactored `normalizePolygonPairs()` function (replaced 35+ lines with utility call)
+    - Total: ~40 lines removed, 1 line added
+
+11. **`src/views/wizard/event-summary.hbs`** (MODIFIED):
+    - Line 73: Added script include for calculator-state.js
+    - Lines 130-220: Refactored calculator state restoration (replaced 90+ lines with module call)
+    - Total: ~90 lines removed, 1 line added
+
+12. **`src/views/wizard/event-setup.hbs`** (MODIFIED):
+    - Line 259: Added script include for calculator-state.js
+    - Lines 501-520: Added calculator state restoration using module in deferred initialization
+    - Lines 1138-1183: Added calculator state restoration using module after form pre-fill
+    - Total: ~50 lines added (module integration), form reading logic retained as fallback
+
+13. **`docs/APP-WIDE-SERVICES-AND-MODULES.md`** (MODIFIED):
+    - Added "Session Data Extraction Utilities" section with code examples
+    - Added "Coordinate Normalization Utilities" section with code examples
+    - Added "Calculator State Management (Client-Side)" section with code examples
+    - Updated "Checklist for New Pages/Routes" with new requirements
+    - Updated "Where to Extend and Reuse" section with new utilities
+    - Total: ~150 lines added
+
+#### Technical Details
+
+- **Code Reduction**: Eliminated ~400+ lines of duplicated code across the codebase
+- **Consistency**: All route handlers, services, and templates now use the same extraction/calculation logic
+- **Maintainability**: Changes to extraction logic only need to be made in one place
+- **Backward Compatibility**: All utilities handle edge cases gracefully, maintaining existing behavior
+- **Type Safety**: TypeScript types maintained throughout refactoring
+- **Logging**: All utilities follow existing logging conventions (emoji-prefixed logs)
+
+- **Session Utilities**:
+  - Guest count extraction: Checks `productQuantities['guest-count']` first, falls back to `calculator.guestCount`
+  - Number of days calculation: Calculates from `dateInfo.dates` array length, defaults to 1
+  - Both utilities include comprehensive logging for debugging
+
+- **Coordinate Utilities**:
+  - Respects `MAP_POLYGON` environment variable (`'lng-lat'` or `'lat-lng'`)
+  - Supports multiple input formats: arrays `[lng, lat]` or `[lat, lng]`, objects `{lat, lng}` or `{latitude, longitude}`
+  - Auto-detection function available for import scripts (not used by services for security)
+  - Returns `null` for invalid inputs, requires minimum 3 points for polygons
+
+- **Calculator State Module**:
+  - Handles both calculator state format (`calculator.getState()`) and form data format (fallback)
+  - Restores radios, checkboxes, products, and guest count
+  - Options allow skipping guest count or products if needed
+  - Includes comprehensive logging for debugging
+
+#### Dependencies
+
+- **Session Utilities**: No new dependencies, uses existing TypeScript and logging infrastructure
+- **Coordinate Utilities**: No new dependencies, uses existing TypeScript infrastructure
+- **Calculator State Module**: No new dependencies, uses existing JavaScript and calculator API
+
+#### Testing Considerations
+
+- Verify guest count extraction works correctly in all route handlers
+- Verify numberOfDays calculation works correctly in all route handlers
+- Test coordinate normalization with various input formats
+- Test coordinate normalization with different `MAP_POLYGON` values
+- Verify calculator state restoration works on event-summary page
+- Verify calculator state restoration works on event-setup page (both immediate and deferred initialization)
+- Test fallback logic when calculator state module unavailable
+- Verify backward compatibility with existing session data structures
+
+#### Impact
+
+- **Code Quality**: 
+  - Eliminated ~400+ lines of duplicated code
+  - Improved maintainability - changes only need to be made in one place
+  - Consistent behavior across all route handlers and services
+  - Better error handling and logging
+
+- **Developer Experience**:
+  - Easier to add new route handlers - just import and use utilities
+  - Clear documentation in `APP-WIDE-SERVICES-AND-MODULES.md`
+  - Consistent patterns across codebase
+
+- **Performance**:
+  - No performance impact - utilities are lightweight functions
+  - Same execution time, just centralized
+
+- **Backward Compatibility**:
+  - Fully backward compatible - all utilities handle edge cases
+  - Existing session data structures work without changes
+  - Existing coordinate formats supported
+
+#### Migration Notes
+
+- **No Database Changes Required**: This is a code refactoring only
+- **No API Changes Required**: All API endpoints remain unchanged
+- **No Session Changes Required**: Session structure remains the same
+- **Environment Variable**: Ensure `MAP_POLYGON` is set correctly (`'lng-lat'` or `'lat-lng'`) for coordinate utilities
+- **Backward Compatible**: Fully backward compatible - existing code continues to work
+- **Immediate Effect**: Changes take effect immediately after deployment
+
+---
+
+### December 20, 2025 @ 17:18 - Final Confirmation Route Implementation
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented the missing `/final-confirmation` route handler and view template to resolve 404 errors after successful payment completion. The implementation includes a complete route handler that retrieves order details, validates payment status, formats data for display, and renders a comprehensive confirmation page. Additionally, added a `formatDate` Handlebars helper for consistent date formatting across templates. This fixes the issue where users were redirected to `/final-confirmation?order=<orderId>` after successful payment but encountered a "Route not found" error.
+
+#### Major Changes
+
+- **New Final Confirmation Route Handler** (`src/routes/finalConfirmation.ts` - New File):
+  - **Route Implementation** (Lines 1-153):
+    - Created complete route handler for `GET /final-confirmation` endpoint
+    - Extracts `order` query parameter from request URL
+    - Validates order ID presence and format
+    - Retrieves order from database using Prisma with comprehensive field selection
+    - Validates order exists and optionally verifies session ownership for security
+    - Retrieves latest payment status from payment service provider
+    - Formats amounts (subtotal, surcharge, total) for display with 2 decimal places
+    - Parses JSON fields (location, eventDetails, eventSetup) from order data
+    - Calculates price breakdown from event setup and location data
+    - Formats dates for proper display in templates
+    - Renders final confirmation view with all order details
+    - **Code Added**:
+      ```typescript
+      app.get('/final-confirmation', async (request: FastifyRequest, reply: FastifyReply) => {
+        // Validates order ID from query parameter
+        // Retrieves order from database
+        // Gets payment status from payment service
+        // Formats and renders confirmation page
+      });
+      ```
+    - **Error Handling**: Comprehensive error handling with logging for missing order ID, order not found, payment retrieval failures, and rendering errors
+    - **Security**: Validates order belongs to session (with warning log, allows access for valid order IDs)
+    - **Impact**: Resolves 404 error after payment completion, provides users with order confirmation page
+
+- **Route Registration** (`src/routes/index.ts`):
+  - **Import Statement** (Line 13):
+    - Added import for `finalConfirmationRoutes` module
+    - **Code Added**:
+      ```typescript
+      import finalConfirmationRoutes from './finalConfirmation';
+      ```
+    - **Impact**: Makes final confirmation route available to application
+  
+  - **Route Registration** (Line 39):
+    - Registered `finalConfirmationRoutes` in protected wizard routes section
+    - Positioned after `checkoutRoutes` registration
+    - **Code Added**:
+      ```typescript
+      await _app.register(finalConfirmationRoutes);
+      ```
+    - **Impact**: Final confirmation route is now accessible and protected by session validation hooks
+
+- **Final Confirmation View Template** (`src/views/wizard/final-confirmation.hbs` - New File):
+  - **Template Structure** (Lines 1-200):
+    - Created comprehensive Handlebars template for order confirmation display
+    - Reuses checkout CSS styles for consistent design
+    - **Success Message Section** (Lines 7-20):
+      - Displays success icon (SVG checkmark)
+      - Shows "Payment Successful" heading
+      - Provides confirmation message about email notification
+      - **Code Added**:
+        ```handlebars
+        <section class="checkout-section success-message">
+          <div class="success-icon">...</div>
+          <h2>Payment Successful</h2>
+          <p>Your order has been processed and confirmed...</p>
+        </section>
+        ```
+    
+    - **Order Details Section** (Lines 22-120):
+      - Displays order number and order ID
+      - Shows payment status with color-coded badges (succeeded/pending/failed)
+      - Displays paid timestamp if available
+      - Shows location information (address, area, city)
+      - Displays customer information (name, phone, email)
+      - Shows event details (event type, notes)
+      - Displays price breakdown (subtotal, surcharge, total paid)
+      - Shows order date and order status
+      - **Code Added**:
+        ```handlebars
+        <section class="checkout-section order-summary">
+          <h2>Order Details</h2>
+          <!-- Order number, payment status, location, customer, event, pricing -->
+        </section>
+        ```
+    
+    - **Next Steps Section** (Lines 122-131):
+      - Provides information about what happens next
+      - Includes contact instructions with order number
+      - **Code Added**:
+        ```handlebars
+        <section class="checkout-section next-steps">
+          <h2>What's Next?</h2>
+          <p>We've received your order and payment...</p>
+        </section>
+        ```
+    
+    - **Client-Side Scripting** (Lines 133-140):
+      - Initializes page with console logging for debugging
+      - Logs order number and payment status
+      - **Code Added**:
+        ```javascript
+        console.log('✅✅✅ - [FINAL CONFIRMATION] Page loaded successfully');
+        ```
+    
+    - **Custom Styles** (Lines 142-200):
+      - Success message styling with green background
+      - Payment status badge styling (succeeded: green, pending: orange, failed: red)
+      - Next steps section styling with gray background
+      - Responsive design matching checkout page
+      - **Code Added**:
+        ```css
+        .final-confirmation .success-message { ... }
+        .final-confirmation .payment-status.succeeded { ... }
+        ```
+    - **Impact**: Provides professional, user-friendly confirmation page with all order details
+
+- **Date Formatting Helper** (`src/app.ts`):
+  - **Handlebars Helper Registration** (Lines 60-75):
+    - Added `formatDate` helper for consistent date formatting across templates
+    - Handles Date objects, date strings, and null/undefined values
+    - Formats dates as: "Month Day, Year, HH:MM AM/PM" (e.g., "December 20, 2025, 05:17 PM")
+    - Returns "N/A" for null/undefined, "Invalid Date" for invalid dates
+    - **Code Added**:
+      ```typescript
+      handlebars.registerHelper('formatDate', function(date: any) {
+        if (!date) return 'N/A';
+        try {
+          const dateObj = date instanceof Date ? date : new Date(date);
+          if (isNaN(dateObj.getTime())) return 'Invalid Date';
+          return dateObj.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+        } catch (error) {
+          return 'Invalid Date';
+        }
+      });
+      ```
+    - **Usage in Templates**: Used in final-confirmation.hbs for `order.paidAt` and `order.createdAt` display
+    - **Impact**: Provides consistent, readable date formatting across all templates
+
+#### Files Modified
+
+1. **`src/routes/finalConfirmation.ts`** (New File, 153 lines):
+   - Complete route handler implementation
+   - Order retrieval and validation logic
+   - Payment status retrieval
+   - Data formatting and template rendering
+
+2. **`src/routes/index.ts`** (Modified, 2 changes):
+   - Added import for `finalConfirmationRoutes` (Line 13)
+   - Registered route in protected wizard routes section (Line 39)
+
+3. **`src/views/wizard/final-confirmation.hbs`** (New File, 200 lines):
+   - Complete Handlebars template for confirmation page
+   - Success message, order details, and next steps sections
+   - Custom CSS styling
+   - Client-side JavaScript initialization
+
+4. **`src/app.ts`** (Modified, 1 addition):
+   - Added `formatDate` Handlebars helper registration (Lines 60-75)
+
+#### Technical Details
+
+- **Route Path**: `GET /final-confirmation?order=<orderId>`
+- **Query Parameter**: `order` (required) - UUID of the order
+- **Session Validation**: Route is protected by wizard session validation hooks
+- **Payment Status**: Retrieves latest status from payment service provider (Stripe)
+- **Error Responses**:
+  - `400`: Missing or invalid order ID
+  - `404`: Order not found
+  - `500`: Server error during processing
+- **Data Flow**:
+  1. Extract order ID from query parameter
+  2. Validate order ID format
+  3. Retrieve order from database
+  4. Verify order exists
+  5. Optionally validate session ownership
+  6. Retrieve payment status from payment service
+  7. Format amounts and dates
+  8. Parse JSON fields
+  9. Render confirmation template with all data
+
+#### Dependencies
+
+- Uses existing `paymentService` for payment status retrieval
+- Uses existing `prisma` client for database operations
+- Uses existing `generatePageClass` utility for page class generation
+- Integrates with existing session validation hooks
+- Reuses checkout CSS styles for consistent design
+
+#### Testing Considerations
+
+- Test with valid order ID after successful payment
+- Test with invalid/missing order ID
+- Test with order ID from different session (should still work but log warning)
+- Test with orders that have different payment statuses
+- Verify date formatting displays correctly
+- Verify all order details render properly
+- Test responsive design on different screen sizes
+
+---
+
 ### December 19, 2025 @ 17:20 - Database-Driven Taxes and Fees System Implementation
 
 **Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED

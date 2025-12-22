@@ -40,7 +40,6 @@ body {
     padding: 0; 
     background: var(--kloi-background);
     color: var(--kloi-text);
-    height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -228,34 +227,6 @@ input.invalid-email {
 }
 /* END FORM */
 
-/* event summary */
-div.event-summary {
-    text-align: center;
-}
-
-div.event-summary section{
-    border: 1px solid var(--kloi-text);
-    padding: 1vh;
-    border-radius: 10px;
-    margin: 1vh auto;
-}
-
-div.event-summary section dt{
-    border-bottom: 1px solid var(--kloi-text);
-    margin-top: 1vh;
-    display: inline-block;
-}
-div.event-summary section dd{
-    font-weight: 800;
-}
-div.event-summary section div.actions{
-    margin: 1vh;
-    border: 1px solid var(--kloi-text);
-    border-radius: 10px;
-    padding: 1vh;
-}
-
-
 .wizard-step.event-details .location-summary {
     display: flex;
     flex-direction: column;
@@ -265,8 +236,9 @@ div.event-summary section div.actions{
 }
 
 footer {
-    position: sticky;
-    width: 100vw;
+    position: fixed;
+    width: 100%;
+    padding: 20px 0;
     bottom: 0;
     font-size: 0.7rem;
     text-align: center;

@@ -3,6 +3,7 @@ import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } f
 import { generatePageClass } from '../lib/pageClass';
 import { MenuService } from '../services/menuService';
 import { TaxesFeesService, TaxFee } from '../services/taxesFeesService';
+import { extractGuestCountFromSession, calculateNumberOfDaysFromDateInfo } from '../lib/utils';
 
 export default async function eventSummaryRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // 👍👍👍👍👍👍 - 2025-11-04 - EVENT SUMMARY PAGE ROUTE (Root path)
@@ -37,35 +38,11 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
       const dateInfo = sessionAny.dateInfo || null;
       const eventSetup = sessionAny.eventSetup || null;
       
-      // 🟡🟡🟡 - [CALCULATOR DATA] Extract data needed for calculator initialization
-      let guestCount: number | null = null;
-      let numberOfDays = 1;
-      
-      // 🟡🟡🟡 - [GUEST COUNT] Extract guest count from eventSetup
-      if (eventSetup) {
-        if (eventSetup.productQuantities && typeof eventSetup.productQuantities === 'object') {
-          const guestCountValue = eventSetup.productQuantities['guest-count'];
-          if (typeof guestCountValue === 'number' && guestCountValue > 0) {
-            guestCount = guestCountValue;
-            console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Guest count extracted:', guestCount);
-          }
-        }
-        if (guestCount === null && eventSetup.calculator && typeof eventSetup.calculator === 'object') {
-          const calculatorGuestCount = eventSetup.calculator.guestCount;
-          if (typeof calculatorGuestCount === 'number' && calculatorGuestCount > 0) {
-            guestCount = calculatorGuestCount;
-            console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Guest count extracted from calculator:', guestCount);
-          }
-        }
-      }
-      
-      // 🟡🟡🟡 - [NUMBER OF DAYS] Calculate from dateInfo
-      if (dateInfo && dateInfo.dates && Array.isArray(dateInfo.dates) && dateInfo.dates.length > 0) {
-        numberOfDays = dateInfo.dates.length;
-        console.log('✅✅✅ - [EVENT SUMMARY ROUTE] Number of days calculated:', numberOfDays, 'from dates:', dateInfo.dates);
-      } else {
-        console.warn('⚠️⚠️⚠️ - [EVENT SUMMARY ROUTE] No valid dates found in dateInfo, using default numberOfDays:', numberOfDays);
-      }
+      // 🟡🟡🟡 - [CALCULATOR DATA] Extract data needed for calculator initialization using centralized utilities
+      // 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using extractGuestCountFromSession() and calculateNumberOfDaysFromDateInfo() instead of duplicated logic
+      const sessionData = { eventSetup, dateInfo };
+      const guestCount = extractGuestCountFromSession(sessionData);
+      const numberOfDays = calculateNumberOfDaysFromDateInfo(dateInfo);
       
       const canShowCalculator = guestCount !== null && guestCount > 0 && numberOfDays > 0 && menuSections !== null;
       console.log('🟡🟡🟡 - [EVENT SUMMARY ROUTE] Calculator can be shown:', canShowCalculator, { guestCount, numberOfDays, hasMenu: !!menuSections });
@@ -192,7 +169,7 @@ export default async function eventSummaryRoutes(app: FastifyInstance, _opts: Fa
                   return `<li><strong>${escapeHtml(displayLabel)}:</strong> ${escapeHtml(String(qty))}</li>`;
                 })
                 .join('');
-              if (quantityItems) items.push(`<dt>Addons & Upgrades</dt><dd><ul class="selection-list">${quantityItems}</ul></dd>`);
+              if (quantityItems) items.push(`<dt>Extras</dt><dd><ul class="selection-list">${quantityItems}</ul></dd>`);
             }
             // 🟡🟡🟡 - [CALCULATOR TOTALS] Skip displaying subtotal/total here - live calculator shows them
             // ⚠️⚠️⚠️ - [CALCULATOR TOTALS] Subtotal and Total are displayed in the live calculator section below

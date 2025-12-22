@@ -1,18 +1,7 @@
 // 2025-11-06 🟡🟡🟡 Service to read delivery districts and sublocalities
 import { prisma } from '../lib/prisma';
-
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Coordinate order configuration from MAP_POLYGON env variable
-// 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [deliveryLocationsService] SECURITY FIX: Auto-detection removed - coordinate order must be explicitly specified
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Set to 'lng-lat' if DB stores coordinates as [longitude, latitude] (e.g., [54.37, 24.46])
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Set to 'lat-lng' if DB stores coordinates as [latitude, longitude] (e.g., [24.46, 54.37])
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Value comes from MAP_POLYGON env variable - can be changed without code modification
-const POLYGON_COORDINATE_ORDER: 'lng-lat' | 'lat-lng' = 
-  (process.env.MAP_POLYGON === 'lat-lng' || process.env.MAP_POLYGON === 'lng-lat') 
-    ? (process.env.MAP_POLYGON as 'lng-lat' | 'lat-lng')
-    : 'lng-lat'; // Default fallback if env variable not set or invalid
-
-// 2025-12-XXT00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Log coordinate order configuration on module load
-console.log(`🟡🟡🟡 - [deliveryLocationsService ${new Date().toISOString()}] MAP_POLYGON coordinate order: ${POLYGON_COORDINATE_ORDER} (from env: ${process.env.MAP_POLYGON || 'not set'})`);
+import { normalizePolygonCoordinates } from '../lib/coordinateUtils';
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using coordinateUtils instead of duplicated coordinate normalization logic
 
 // 2025-11-07T00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Normalized sublocality shape for downstream consumption
 export type DeliveryLocationPolygonPoint = {
@@ -66,50 +55,10 @@ type DeliveryLocationRow = {
 // };
 
 // 2025-11-07T00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Normalize raw JSONB payload into typed sublocalities
+// 2025-12-20T00:00:00Z 🟡🟡🟡 - [DRY REFACTOR] Using normalizePolygonCoordinates() from coordinateUtils instead of duplicated logic
 function normalizePolygon(raw: unknown): DeliveryLocationPolygonPoint[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-
-  const points: DeliveryLocationPolygonPoint[] = [];
-  raw.forEach((pair, _index) => {
-    if (Array.isArray(pair)) {
-      const first = Number(pair[0]);
-      const second = Number(pair[1]);
-      if (Number.isFinite(first) && Number.isFinite(second)) {
-        // 2025-11-12T00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Normalize coordinate order based on configuration
-        let lat: number, lng: number;
-        
-        // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [deliveryLocationsService] SECURITY FIX: Auto-detection removed - coordinate order must be explicitly configured
-        if (POLYGON_COORDINATE_ORDER === 'lng-lat') {
-          // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Force [lng, lat] interpretation: first is longitude, second is latitude
-          lng = first;
-          lat = second;
-          points.push({ lat, lng });
-        } else if (POLYGON_COORDINATE_ORDER === 'lat-lng') {
-          // 2025-12-XXT00:00:00Z 🟡🟡🟡 - [deliveryLocationsService] Force [lat, lng] interpretation: first is latitude, second is longitude
-          lat = first;
-          lng = second;
-          points.push({ lat, lng });
-        } else {
-          // 2025-12-XXT00:00:00Z ⚠️⚠️⚠️ - [deliveryLocationsService] Invalid configuration - coordinate order must be specified
-          // Skip this point
-        }
-      } else {
-        // logWarn('Skipped polygon pair with invalid numbers', { index });
-      }
-    } else if (pair && typeof pair === 'object') {
-      const lat = Number((pair as any).lat);
-      const lng = Number((pair as any).lng);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        points.push({ lat, lng });
-      } else {
-        // logWarn('Skipped polygon entry with invalid lat/lng properties', { index });
-      }
-    } else {
-      // logWarn('Unsupported polygon pair format', { index });
-    }
-  });
-
-  return points.length >= 3 ? points : undefined;
+  const normalized = normalizePolygonCoordinates(raw);
+  return normalized || undefined;
 }
 
 function ensureArray(value: unknown, _context: { district: string; city: string }): any[] {
