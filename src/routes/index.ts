@@ -12,11 +12,18 @@ import eventSummaryRoutes from './eventSummary';
 import checkoutRoutes from './checkout';
 // healthCheckRoutes removed - now registered directly in app.ts to avoid session validation hooks
 import apiRoutes from './api';
+// 🟡🟡🟡 Import admin routes
+import adminRoutes from './admin';
 // 🟡🟡🟡 Import session validation hooks
 import { validateWizardSession } from '../hooks/sessionHooks';
 
 export default async function routes(_app: FastifyInstance, _opts: FastifyPluginOptions) {
   console.log('🟡🟡🟡 - [routes/index] Registering all route modules with session protection');
+  
+  // 🟡🟡🟡 Register admin routes BEFORE wizard session validation hook
+  // Admin routes have their own authentication and should bypass wizard session validation
+  console.log('🟡🟡🟡 - [routes/index] Registering admin routes (before wizard session hook)');
+  await _app.register(adminRoutes);
   
   // 🟡🟡🟡 Register session validation hook as preHandler for wizard routes
   console.log('🟡🟡🟡 - [routes/index] Registering wizard session validation hook');

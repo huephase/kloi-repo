@@ -46,7 +46,7 @@ model Session {
 model Menus {
   id        String @id @default(uuid())
   name      String
-  theme     String
+  theme     String @unique
   menuItems Json
 }
 
@@ -93,6 +93,21 @@ model deliveryLocations {
 
   @@index([sublocalities], map: "delivery_locations_sublocalities_gin", type: Gin)
   @@map("deliveryLocations")
+}
+
+model Admins {
+  id        String   @id @default(uuid())
+  username  String   @unique @db.VarChar(100)
+  password  String   @db.VarChar(255)
+  theme     String   @db.VarChar(50)
+  email     String?  @db.VarChar(100)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([theme])
+  @@index([username])
+  @@map("Admins")
 }
 
 enum OrderStatus {

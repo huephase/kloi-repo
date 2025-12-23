@@ -1,0 +1,57 @@
+{{!-- 🟡🟡🟡 - [ADMIN LOGIN] Admin login page --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-login-container">
+  <div class="admin-login-card">
+    <header class="admin-login-header">
+      <h1>Admin Login</h1>
+      <p class="admin-theme-badge">Theme: <strong>{{theme}}</strong></p>
+    </header>
+
+    {{#if error}}
+      <div class="admin-error-message">
+        <p>{{error}}</p>
+      </div>
+    {{/if}}
+
+    <form method="POST" action="/admin/login" class="admin-login-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          required 
+          autocomplete="username"
+          placeholder="Enter your username"
+          autofocus
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          required 
+          autocomplete="current-password"
+          placeholder="Enter your password"
+        />
+      </div>
+
+      <input type="hidden" name="theme" value="{{theme}}" />
+
+      <button type="submit" class="admin-login-button">
+        Sign In
+      </button>
+    </form>
+
+    <footer class="admin-login-footer">
+      <p>Admin access is restricted to authorized personnel only.</p>
+    </footer>
+  </div>
+</div>
+

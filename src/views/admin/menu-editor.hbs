@@ -1,0 +1,61 @@
+{{!-- 🟡🟡🟡 - [ADMIN MENU EDITOR] Menu editor page for editing menu JSON --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+{{! 🟡🟡🟡 - [JSON EDITOR] JSON Editor library from CDN }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.css">
+
+<div class="admin-container">
+  <header class="admin-header">
+    <div class="admin-header-content">
+      <h1>Menu Editor</h1>
+      <div class="admin-header-info">
+        <span class="admin-theme-badge">Theme: <strong>{{theme}}</strong></span>
+        <span class="admin-username">Logged in as: <strong>{{adminUsername}}</strong></span>
+      </div>
+    </div>
+    <form method="POST" action="/admin/logout" class="admin-logout-form">
+      <button type="submit" class="admin-logout-button">Logout</button>
+    </form>
+  </header>
+
+  <div class="admin-menu-editor-wrapper">
+    <div class="admin-menu-info">
+      {{#if menu}}
+        <p class="admin-menu-name">Editing: <strong>{{menu.name}}</strong></p>
+        <p class="admin-menu-id">Menu ID: <code>{{menu.id}}</code></p>
+      {{else}}
+        <p class="admin-menu-name">No menu found for this theme. Create a new menu below.</p>
+      {{/if}}
+    </div>
+
+    <div id="jsoneditor" class="admin-json-editor"></div>
+
+    <div class="admin-menu-actions">
+      <button id="save-menu-button" class="admin-save-button">
+        Save Menu
+      </button>
+      <button id="reset-menu-button" class="admin-reset-button">
+        Reset to Original
+      </button>
+    </div>
+
+    <div id="admin-message" class="admin-message" style="display: none;"></div>
+  </div>
+</div>
+
+{{! 🟡🟡🟡 - [JSON EDITOR] JSON Editor library from CDN }}
+<script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.js"></script>
+{{! 🟡🟡🟡 - [ADMIN JS] Admin menu editor JavaScript }}
+<script src="/public/global/js/admin-menu-editor.js"></script>
+
+<script>
+  // 🟡🟡🟡 - [MENU DATA] Pass menu data to JavaScript
+  window.__adminMenuData = {
+    menu: {{#if menu}}{{json menu.menuItems}}{{else}}null{{/if}},
+    menuName: {{#if menu}}"{{menu.name}}"{{else}}null{{/if}},
+    theme: "{{theme}}"
+  };
+  console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data loaded:', window.__adminMenuData);
+</script>
+

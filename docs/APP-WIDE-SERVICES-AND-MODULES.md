@@ -180,6 +180,70 @@ Developer requirements when adding new wizard steps/routes:
 - Verify `request.session` exists and read/write via the mapped keys in API `stepConfig`.
 - Do not write PII to logs; follow existing patterns for partial IDs or structural hints.
 
+### Admin Interface Authentication and Theme-Scoped Access
+
+- Admin routes are protected by authentication middleware and theme-scoped to match subdomain theming.
+- Admin sessions are stored in Redis-backed session store (same as wizard sessions).
+- Admin authentication uses bcrypt password hashing (10 salt rounds).
+- Each admin account is scoped to a specific theme subdomain.
+
+Code reference – admin authentication hook:
+```13:52:src/hooks/adminHooks.ts
+export const validateAdminSession = async (request: FastifyRequest, reply: FastifyReply) => {
+  // Check for admin session
+  // Verify admin exists, is active, and has access to current theme
+  // Redirect to /admin/login if not authenticated
+```
+
+Code reference – admin service:
+```30:75:src/services/adminService.ts
+export class AdminService {
+  static async hashPassword(password: string): Promise<string>
+  static async verifyPassword(password: string, hash: string): Promise<boolean>
+  static async authenticateAdmin(username: string, password: string, theme: string): Promise<Admin | null>
+  // ... other methods
+```
+
+Code reference – admin routes registration:
+```18:26:src/routes/index.ts
+  // Register admin routes BEFORE wizard session validation hook
+  // Admin routes have their own authentication and should bypass wizard session validation
+  await _app.register(adminRoutes);
+  
+  // Register session validation hook as preHandler for wizard routes
+  _app.addHook('preHandler', validateWizardSession);
+```
+
+Required when adding admin routes:
+- Admin routes must be registered BEFORE wizard session validation hook in `src/routes/index.ts`.
+- Admin routes use `validateAdminSession` hook for authentication (applied via `app.addHook('preHandler', validateAdminSession)`).
+- Public admin routes (`/admin/login`, `/admin/logout`) bypass authentication.
+- Protected admin routes require `request.session.adminId` and `request.session.adminTheme` to match `request.theme`.
+- Admin session stores: `adminId` and `adminTheme` in session.
+- Theme isolation: Admin can only access routes for their assigned theme.
+
+Example admin route implementation:
+```106:133:src/routes/admin/index.ts
+  // GET /admin/menu-editor - Render menu editor page
+  app.get('/admin/menu-editor', async (request: FastifyRequest, reply: FastifyReply) => {
+    const theme = (request as any).theme || 'default';
+    const admin = (request as any).admin; // Set by validateAdminSession hook
+    // ... render menu editor
+```
+
+Admin authentication flow:
+1. Admin accesses `/admin/login` (public route, no auth required).
+2. Admin submits credentials via POST `/admin/login`.
+3. Server validates credentials using `AdminService.authenticateAdmin()`.
+4. On success: Set `session.adminId` and `session.adminTheme`, redirect to `/admin/menu-editor`.
+5. On failure: Show error message, increment rate limit counter.
+6. Protected routes check `validateAdminSession` hook before processing.
+
+Rate limiting:
+- Admin login endpoint has rate limiting: 5 failed attempts per IP per 15 minutes.
+- Rate limit is stored in-memory Map (similar to `/api/geo/reverse` pattern).
+- Returns HTTP 429 with `retryAfter` header when limit exceeded.
+
 ### Wizard Session API (`/api/session/:step`)
 
 Contract:
@@ -276,13 +340,19 @@ Examples across the codebase show the expected prefixes:
 
 - Theming
   - Read `request.theme` and pass `theme` to `reply.view(...)`.
-- Wizard Progress
+- Wizard Progress (for wizard pages only)
   - Include `public/global/js/wizard__progress.js` in the view.
   - For any link/button that navigates: call `attachSaveBeforeNavigate(...)` with correct `step` and payload builder.
   - For forms: enable `enableAutoSaveOnChange(...)` with a payload builder.
 - Session
   - Ensure step data maps to the right session key, consistent with `stepConfig` on the server.
   - Do not rely on autosave for DB writes; DB persistence happens on normal submits per server rules.
+- Admin Routes (for admin pages only)
+  - Register admin routes BEFORE wizard session validation hook in `src/routes/index.ts`.
+  - Use `validateAdminSession` hook for protected admin routes.
+  - Public admin routes (`/admin/login`, `/admin/logout`) bypass authentication.
+  - Ensure admin theme matches `request.theme` before allowing access.
+  - Use `AdminService` for all admin-related database operations.
 - Logging
   - Use emoji-prefixed logs; avoid PII; include short timestamps where meaningful.
 - Views
@@ -292,6 +362,9 @@ Examples across the codebase show the expected prefixes:
 
 - Client wizard utilities: `public/global/js/wizard__progress.js` (extend with new collectors per step).
 - Server API: `src/routes/api/index.ts` (extend `stepConfig`, validation schemas, and per-step DB logic as needed).
+- Admin authentication: `src/services/adminService.ts` (extend with additional admin management methods as needed).
+- Admin routes: `src/routes/admin/index.ts` (extend with additional admin endpoints as needed).
+- Admin hooks: `src/hooks/adminHooks.ts` (extend with additional admin validation logic as needed).
 - Theming: `src/lib/themeDetector.ts` (extend for special cases or theme aliases if required).
 - Sessions: `src/lib/session-store.ts` and `src/lib/redis.ts` for backend storage adjustments.
 

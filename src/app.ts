@@ -57,6 +57,11 @@ handlebars.registerHelper('get', function(obj: any, key: string) {
   return obj && obj[key];
 });
 
+// 🟡🟡🟡 - [HANDLEBARS JSON HELPER] Helper to stringify JSON objects for JavaScript
+handlebars.registerHelper('json', function(context: any) {
+  return JSON.stringify(context);
+});
+
 // console.log('✅✅✅ - [app.ts] Custom Handlebars helpers registered successfully');
 
 app.register(fastifyView, {
