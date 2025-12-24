@@ -29,25 +29,6 @@ Session-based authentication
 Theme isolation (admins can only access their theme)
 Follows app-wide conventions (theming, logging, session management)
 
-**Files created/modified**
-    - **New files**:
-        - src/services/adminService.ts
-        - src/hooks/adminHooks.ts
-        - src/routes/admin/index.ts
-        - src/schemas/admin.schemas.ts
-        - src/views/admin/login.hbs
-        - src/views/admin/menu-editor.hbs
-        - public/global/css/admin.css
-        - public/global/js/admin-menu-editor.js
-        - src/scripts/seedAdmin.ts
-        - docs/CHANGELOG_ADMIN_BRANCH.md
-    - **Modified files**:
-        - prisma/schema.prisma — Added Admins model, unique constraint on Menus.theme
-        - package.json — Added bcrypt dependencies and admin:seed script
-        - src/routes/index.ts — Registered admin routes
-        - src/app.ts — Added JSON Handlebars helper
-        - docs/APP-WIDE-SERVICES-AND-MODULES.md — Added admin interface conventions
-
 #### Major Changes
 
 - **Database Migration** (`prisma/schema.prisma`):
