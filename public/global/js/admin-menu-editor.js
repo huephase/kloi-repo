@@ -2,21 +2,87 @@
 (function initAdminMenuEditor() {
   'use strict';
 
-  console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Initializing admin menu editor');
+  // 🟡🟡🟡 - [INITIALIZATION] Read menu data from DOM data attributes
+  function readMenuDataFromDOM() {
+    // 🟡🟡🟡 - [DOM DATA] Get menu data from jsoneditor div data attributes
+    const container = document.getElementById('jsoneditor');
+    if (!container) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] JSON editor container not found');
+      const messageEl = document.getElementById('admin-message');
+      if (messageEl) {
+        messageEl.textContent = 'JSON editor container not found. Please refresh the page.';
+        messageEl.className = 'admin-message error';
+        messageEl.style.display = 'block';
+      }
+      return null;
+    }
 
-  // 🟡🟡🟡 - [MENU DATA] Get menu data from window
-  const menuData = window.__adminMenuData;
-  if (!menuData) {
-    console.error('❗❗❗ - [ADMIN MENU EDITOR] Menu data not found');
-    return;
+    try {
+      // 🟡🟡🟡 - [DATA ATTRIBUTES] Read data from data attributes
+      const menuItemsAttr = container.getAttribute('data-menu-items');
+      const menuNameAttr = container.getAttribute('data-menu-name');
+      const themeAttr = container.getAttribute('data-theme');
+
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Reading menu data from DOM attributes');
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu items attr:', menuItemsAttr ? 'present' : 'missing');
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu name attr:', menuNameAttr);
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Theme attr:', themeAttr);
+
+      // 🟡🟡🟡 - [PARSE DATA] Parse menu items JSON
+      let menuItems = null;
+      if (menuItemsAttr && menuItemsAttr !== 'null' && menuItemsAttr !== '') {
+        try {
+          menuItems = JSON.parse(menuItemsAttr);
+        } catch (parseErr) {
+          console.error('❗❗❗ - [ADMIN MENU EDITOR] Error parsing menu items JSON:', parseErr);
+          console.error('❗❗❗ - [ADMIN MENU EDITOR] Raw menu items:', menuItemsAttr);
+        }
+      }
+
+      const menuData = {
+        menu: menuItems,
+        menuName: menuNameAttr && menuNameAttr !== 'null' ? menuNameAttr : null,
+        theme: themeAttr || 'default'
+      };
+
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data parsed successfully:', {
+        hasMenu: menuData.menu !== null,
+        menuName: menuData.menuName,
+        theme: menuData.theme
+      });
+
+      return menuData;
+    } catch (err) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Error reading menu data from DOM:', err);
+      const messageEl = document.getElementById('admin-message');
+      if (messageEl) {
+        messageEl.textContent = 'Error reading menu data. Please refresh the page.';
+        messageEl.className = 'admin-message error';
+        messageEl.style.display = 'block';
+      }
+      return null;
+    }
   }
 
-  const { menu, menuName, theme } = menuData;
-  let jsonEditor = null;
-  let originalMenuData = null;
+  // 🟡🟡🟡 - [INITIALIZATION] Initialize editor with menu data
+  function initializeEditor(menuData) {
+    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Initializing admin menu editor');
 
-  // 🟡🟡🟡 - [JSON EDITOR] Initialize JSON Editor
-  function initializeJsonEditor() {
+    // 🟡🟡🟡 - [MENU DATA] Extract menu data with defaults
+    const { menu, menuName, theme } = menuData;
+    
+    // 🟡🟡🟡 - [MENU DATA] Log menu data for debugging
+    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data extracted:', { 
+      hasMenu: menu !== null && menu !== undefined, 
+      menuName, 
+      theme 
+    });
+    
+    let jsonEditor = null;
+    let originalMenuData = null;
+
+    // 🟡🟡🟡 - [JSON EDITOR] Initialize JSON Editor
+    function initializeJsonEditor() {
     const container = document.getElementById('jsoneditor');
     if (!container) {
       console.error('❗❗❗ - [ADMIN MENU EDITOR] JSON editor container not found');
@@ -39,6 +105,18 @@
         console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Editor mode changed to:', newMode);
       }
     };
+
+    // 🟡🟡🟡 - [JSON EDITOR] Check if JSONEditor library is loaded
+    if (typeof JSONEditor === 'undefined') {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] JSONEditor library not loaded. Check CDN connection.');
+      const messageEl = document.getElementById('admin-message');
+      if (messageEl) {
+        messageEl.textContent = 'JSON Editor library failed to load. Please refresh the page.';
+        messageEl.className = 'admin-message error';
+        messageEl.style.display = 'block';
+      }
+      return;
+    }
 
     try {
       // 🟡🟡🟡 - [INITIALIZE] Create JSON Editor instance
@@ -156,28 +234,50 @@
     }
   }
 
-  // 🟡🟡🟡 - [INITIALIZE] Initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeJsonEditor);
-  } else {
-    initializeJsonEditor();
+    // 🟡🟡🟡 - [INITIALIZE] Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeJsonEditor);
+    } else {
+      initializeJsonEditor();
+    }
+
+    // 🟡🟡🟡 - [EVENT LISTENERS] Attach event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      const saveButton = document.getElementById('save-menu-button');
+      const resetButton = document.getElementById('reset-menu-button');
+
+      if (saveButton) {
+        saveButton.addEventListener('click', saveMenu);
+      }
+
+      if (resetButton) {
+        resetButton.addEventListener('click', resetMenu);
+      }
+
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Event listeners attached');
+    });
   }
 
-  // 🟡🟡🟡 - [EVENT LISTENERS] Attach event listeners
-  document.addEventListener('DOMContentLoaded', function() {
-    const saveButton = document.getElementById('save-menu-button');
-    const resetButton = document.getElementById('reset-menu-button');
-
-    if (saveButton) {
-      saveButton.addEventListener('click', saveMenu);
+  // 🟡🟡🟡 - [START] Initialize when DOM is ready
+  // ⚠️⚠️⚠️ - [INITIALIZATION] Wait for DOMContentLoaded to ensure DOM is ready
+  function startInitialization() {
+    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Starting initialization');
+    const menuData = readMenuDataFromDOM();
+    if (menuData) {
+      initializeEditor(menuData);
     }
+  }
 
-    if (resetButton) {
-      resetButton.addEventListener('click', resetMenu);
-    }
-
-    console.log('✅✅✅ - [ADMIN MENU EDITOR] Event listeners attached');
-  });
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] DOMContentLoaded fired, reading menu data');
+      startInitialization();
+    });
+  } else {
+    // 🟡🟡🟡 - [INITIALIZATION] DOM already ready, start immediately
+    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] DOM already ready, reading menu data');
+    startInitialization();
+  }
 
 })();
 

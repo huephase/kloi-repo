@@ -14,6 +14,268 @@
 
 ---
 
+### December 24, 2025 @ 21:38 - Admin Menu Editor Data Loading Fix: Migration from Window Variables to DOM Data Attributes
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical issue where admin menu editor failed to load menu data from server. The problem was caused by unreliable script execution order when using window variables for data passing. Migrated to DOM data attributes pattern (consistent with app-wide conventions) for more reliable data transfer from server to client JavaScript. This ensures menu data is always available when JavaScript initializes, regardless of script loading order or timing issues.
+
+**Problem**: 
+- Admin menu editor JavaScript was unable to access menu data because `window.__adminMenuData` was undefined
+- Inline script that set window variable was not executing reliably or was executing after the external script
+- Script execution order dependencies caused race conditions
+- Error: "Menu data not found. window.__adminMenuData is undefined"
+
+**Solution**:
+- Migrated from window variable approach to DOM data attributes pattern
+- Data attributes are set by Handlebars during template rendering (always available)
+- JavaScript reads data from DOM attributes when DOM is ready
+- Follows same pattern used in `event-setup.hbs` and other templates throughout codebase
+- Eliminates script execution order dependencies
+
+#### Major Changes
+
+- **Menu Editor Template** (`src/views/admin/menu-editor.hbs`):
+  - **Removed Inline Script**:
+    - Removed entire inline `<script>` block that attempted to set `window.__adminMenuData`
+    - Removed script execution order dependency
+    - **Code Removed**:
+      ```handlebars
+      <script>
+        (function() {
+          window.__adminMenuData = {
+            menu: {{#if menu}}{{json menu.menuItems}}{{else}}null{{/if}},
+            menuName: {{#if menu}}"{{menu.name}}"{{else}}null{{/if}},
+            theme: "{{theme}}"
+          };
+        })();
+      </script>
+      ```
+    - **Impact**: Eliminates unreliable window variable initialization
+
+  - **Added Data Attributes to JSON Editor Container**:
+    - Added `data-menu-items` attribute containing menu JSON
+    - Added `data-menu-name` attribute containing menu name
+    - Added `data-theme` attribute containing theme
+    - **Code Added**:
+      ```handlebars
+      <div id="jsoneditor" 
+           class="admin-json-editor"
+           data-menu-items="{{#if menu}}{{json menu.menuItems}}{{else}}null{{/if}}"
+           data-menu-name="{{#if menu}}{{menu.name}}{{else}}null{{/if}}"
+           data-theme="{{theme}}"></div>
+      ```
+    - **Impact**: Menu data is embedded in DOM during template rendering, always available to JavaScript
+
+  - **Simplified Script Loading**:
+    - Removed script order comments and complexity
+    - Scripts now load in natural order without dependencies
+    - **Code Changed**:
+      ```handlebars
+      {{! Before: Complex inline script with error handling }}
+      {{! After: Simple script tags, no order dependency }}
+      <script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.js"></script>
+      <script src="/public/global/js/admin-menu-editor.js"></script>
+      ```
+    - **Impact**: Cleaner template, no script execution order issues
+
+- **Admin Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js`):
+  - **Removed Window Variable Check**:
+    - Removed `waitForMenuData()` function that checked for `window.__adminMenuData`
+    - Removed retry mechanism and timing-dependent checks
+    - **Code Removed**:
+      ```javascript
+      function waitForMenuData() {
+        const menuData = window.__adminMenuData;
+        if (menuData !== undefined) {
+          initializeEditor(menuData);
+          return;
+        }
+        // Error handling...
+      }
+      ```
+    - **Impact**: Eliminates unreliable window variable dependency
+
+  - **Added DOM Data Attribute Reader**:
+    - New `readMenuDataFromDOM()` function reads data from DOM attributes
+    - Reads `data-menu-items`, `data-menu-name`, and `data-theme` attributes
+    - Parses JSON with proper error handling
+    - Handles null/empty values correctly
+    - **Code Added**:
+      ```javascript
+      function readMenuDataFromDOM() {
+        const container = document.getElementById('jsoneditor');
+        if (!container) {
+          console.error('❗❗❗ - [ADMIN MENU EDITOR] JSON editor container not found');
+          return null;
+        }
+
+        try {
+          const menuItemsAttr = container.getAttribute('data-menu-items');
+          const menuNameAttr = container.getAttribute('data-menu-name');
+          const themeAttr = container.getAttribute('data-theme');
+
+          let menuItems = null;
+          if (menuItemsAttr && menuItemsAttr !== 'null' && menuItemsAttr !== '') {
+            try {
+              menuItems = JSON.parse(menuItemsAttr);
+            } catch (parseErr) {
+              console.error('❗❗❗ - [ADMIN MENU EDITOR] Error parsing menu items JSON:', parseErr);
+            }
+          }
+
+          return {
+            menu: menuItems,
+            menuName: menuNameAttr && menuNameAttr !== 'null' ? menuNameAttr : null,
+            theme: themeAttr || 'default'
+          };
+        } catch (err) {
+          console.error('❗❗❗ - [ADMIN MENU EDITOR] Error reading menu data from DOM:', err);
+          return null;
+        }
+      }
+      ```
+    - **Impact**: Reliable data access from DOM, no timing dependencies
+
+  - **Updated Initialization Flow**:
+    - Changed from checking window variable to reading DOM attributes
+    - Initialization now happens after DOM is ready
+    - **Code Changed**:
+      ```javascript
+      // Before: waitForMenuData() checked window.__adminMenuData
+      // After: readMenuDataFromDOM() reads from DOM attributes
+      function startInitialization() {
+        const menuData = readMenuDataFromDOM();
+        if (menuData) {
+          initializeEditor(menuData);
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startInitialization);
+      } else {
+        startInitialization();
+      }
+      ```
+    - **Impact**: More reliable initialization, data always available when DOM is ready
+
+  - **Enhanced Error Handling**:
+    - Added error messages displayed to user via `admin-message` element
+    - Added detailed console logging for debugging
+    - Handles JSON parsing errors gracefully
+    - **Code Added**:
+      ```javascript
+      if (!container) {
+        const messageEl = document.getElementById('admin-message');
+        if (messageEl) {
+          messageEl.textContent = 'JSON editor container not found. Please refresh the page.';
+          messageEl.className = 'admin-message error';
+          messageEl.style.display = 'block';
+        }
+        return null;
+      }
+      ```
+    - **Impact**: Better user experience with clear error messages
+
+  - **Enhanced Logging**:
+    - Added detailed console logs for data reading process
+    - Logs attribute presence, menu name, theme
+    - Logs parsed data structure for debugging
+    - **Code Added**:
+      ```javascript
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Reading menu data from DOM attributes');
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu items attr:', menuItemsAttr ? 'present' : 'missing');
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu name attr:', menuNameAttr);
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Theme attr:', themeAttr);
+      ```
+    - **Impact**: Easier debugging and monitoring of data flow
+
+- **Admin Routes** (`src/routes/admin/index.ts`):
+  - **Enhanced Logging**:
+    - Added detailed logging for menu data loading
+    - Logs menu existence, ID, name, and menuItems type
+    - **Code Added**:
+      ```typescript
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data loaded for theme:', theme);
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu exists:', menu !== null);
+      if (menuData) {
+        console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu ID:', menuData.id);
+        console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu name:', menuData.name);
+        console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu items type:', typeof menuData.menuItems);
+      }
+      ```
+    - **Impact**: Better server-side debugging and monitoring
+
+#### Technical Details
+
+**Data Flow (Before)**:
+1. Server renders template with inline script
+2. Inline script attempts to set `window.__adminMenuData`
+3. External script loads and immediately checks `window.__adminMenuData`
+4. **Problem**: Race condition - external script may execute before inline script
+5. Result: `window.__adminMenuData` is undefined
+
+**Data Flow (After)**:
+1. Server renders template with data attributes on DOM element
+2. Data attributes are set during Handlebars rendering (synchronous)
+3. External script loads and waits for DOM to be ready
+4. JavaScript reads data from DOM attributes when DOM is ready
+5. **Solution**: Data is always in DOM, no timing dependencies
+6. Result: Menu data successfully loaded and parsed
+
+**Pattern Consistency**:
+- Follows same pattern used in `src/views/wizard/event-setup.hbs`:
+  - Uses `data-menu-sections`, `data-event-setup`, `data-taxes-fees` attributes
+  - JavaScript reads from `serverData` div data attributes
+- Follows app-wide convention for server-to-client data transfer
+- Eliminates script execution order dependencies
+
+#### Benefits
+
+- **Reliability**: Data attributes are set during template rendering, always available
+- **Consistency**: Follows established codebase patterns
+- **No Timing Issues**: No script execution order dependencies
+- **Better Error Handling**: Clear error messages for users
+- **Enhanced Debugging**: Detailed logging for troubleshooting
+- **Maintainability**: Simpler code without complex retry mechanisms
+
+#### Breaking Changes
+
+None - This is a bug fix that maintains the same API and functionality.
+
+#### Files Affected
+
+**Modified Files**:
+- `src/views/admin/menu-editor.hbs` - Removed inline script, added data attributes to jsoneditor div
+- `public/global/js/admin-menu-editor.js` - Replaced window variable check with DOM data attribute reading
+- `src/routes/admin/index.ts` - Added enhanced logging for menu data loading
+
+**No New Files Created**
+
+#### Testing Recommendations
+
+1. **Verify Menu Loading**:
+   - Login to admin interface
+   - Navigate to `/admin/menu-editor`
+   - Verify menu data loads correctly in JSON editor
+   - Check browser console for successful data loading logs
+
+2. **Test Edge Cases**:
+   - Test with no menu in database (should show empty editor)
+   - Test with null menuItems (should handle gracefully)
+   - Test with invalid JSON in menuItems (should show error message)
+
+3. **Verify Error Handling**:
+   - Check that error messages display correctly
+   - Verify console logs provide useful debugging information
+
+#### Related Documentation
+
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for data attribute pattern usage
+- See `src/views/wizard/event-setup.hbs` for similar data attribute implementation
+
+---
+
 ### December 23, 2025 @ 19:06 - Admin Interface Implementation: Theme-Scoped Menu Editor
 
 **Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED

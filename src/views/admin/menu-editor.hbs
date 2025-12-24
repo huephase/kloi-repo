@@ -29,7 +29,12 @@
       {{/if}}
     </div>
 
-    <div id="jsoneditor" class="admin-json-editor"></div>
+    {{! 🟡🟡🟡 - [MENU DATA] Store menu data in data attribute for JavaScript access }}
+    <div id="jsoneditor" 
+         class="admin-json-editor"
+         data-menu-items="{{#if menu}}{{json menu.menuItems}}{{else}}null{{/if}}"
+         data-menu-name="{{#if menu}}{{menu.name}}{{else}}null{{/if}}"
+         data-theme="{{theme}}"></div>
 
     <div class="admin-menu-actions">
       <button id="save-menu-button" class="admin-save-button">
@@ -48,14 +53,4 @@
 <script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.js"></script>
 {{! 🟡🟡🟡 - [ADMIN JS] Admin menu editor JavaScript }}
 <script src="/public/global/js/admin-menu-editor.js"></script>
-
-<script>
-  // 🟡🟡🟡 - [MENU DATA] Pass menu data to JavaScript
-  window.__adminMenuData = {
-    menu: {{#if menu}}{{json menu.menuItems}}{{else}}null{{/if}},
-    menuName: {{#if menu}}"{{menu.name}}"{{else}}null{{/if}},
-    theme: "{{theme}}"
-  };
-  console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data loaded:', window.__adminMenuData);
-</script>
 

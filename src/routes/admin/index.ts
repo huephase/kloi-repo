@@ -175,6 +175,12 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       } : null;
 
       console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data loaded for theme:', theme);
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu exists:', menu !== null);
+      if (menuData) {
+        console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu ID:', menuData.id);
+        console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu name:', menuData.name);
+        console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu items type:', typeof menuData.menuItems);
+      }
 
       const templatePath = 'admin/menu-editor';
       const page_class = generatePageClass(templatePath);
