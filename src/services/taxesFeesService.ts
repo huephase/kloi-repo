@@ -64,7 +64,7 @@ export class TaxesFeesService {
       console.log('✅✅✅ - [TAXES FEES SERVICE] Found', taxesFees.length, 'active taxes/fees for country:', countryCode);
       
       // Convert Prisma Decimal to number for rate_value and ensure proper types
-      return taxesFees.map(tf => ({
+      return taxesFees.map((tf: any) => ({
         ...tf,
         rate_value: Number(tf.rate_value),
         type: tf.type as TaxFeeType,

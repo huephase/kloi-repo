@@ -62,6 +62,40 @@ handlebars.registerHelper('json', function(context: any) {
   return JSON.stringify(context);
 });
 
+// 🟡🟡🟡 - [HANDLEBARS FORMATDATE HELPER] Helper to format dates for display
+// ⚠️⚠️⚠️ 2025-01-XX - Format dates consistently across templates
+handlebars.registerHelper('formatDate', function(date: any) {
+  if (!date) {
+    return '';
+  }
+  
+  try {
+    // Handle Date objects, strings, and timestamps
+    const dateObj = date instanceof Date ? date : new Date(date);
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+      console.warn('⚠️⚠️⚠️ - [HANDLEBARS formatDate HELPER] Invalid date:', date);
+      return '';
+    }
+    
+    // Format as: "January 1, 2025 at 12:00 PM"
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    };
+    
+    return dateObj.toLocaleDateString('en-US', options);
+  } catch (error) {
+    console.error('❗❗❗ - [HANDLEBARS formatDate HELPER] Error formatting date:', error);
+    return '';
+  }
+});
+
 // console.log('✅✅✅ - [app.ts] Custom Handlebars helpers registered successfully');
 
 app.register(fastifyView, {
