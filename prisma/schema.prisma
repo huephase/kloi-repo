@@ -95,6 +95,29 @@ model deliveryLocations {
   @@map("deliveryLocations")
 }
 
+model TaxesFees {
+  id              String    @id @default(uuid())
+  code            String    @unique @db.VarChar(50)
+  name            String    @db.VarChar(100)
+  type            String    @db.VarChar(20)
+  category        String    @db.VarChar(50)
+  country_code    String    @db.VarChar(10)
+  applies_to      String    @db.VarChar(50)
+  calculation_type String   @db.VarChar(20)
+  rate_value      Decimal   @db.Decimal(10, 2)
+  currency        String    @db.VarChar(10)
+  active          Boolean   @default(true)
+  startDate       DateTime? @db.Timestamptz(3)
+  endDate         DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([country_code], map: "taxesFees_country_code_idx")
+  @@index([active], map: "taxesFees_active_idx")
+  @@index([startDate, endDate], map: "taxesFees_dates_idx")
+  @@map("taxesFees")
+}
+
 model Admins {
   id        String   @id @default(uuid())
   username  String   @unique @db.VarChar(100)
