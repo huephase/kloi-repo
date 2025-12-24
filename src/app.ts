@@ -57,23 +57,9 @@ handlebars.registerHelper('get', function(obj: any, key: string) {
   return obj && obj[key];
 });
 
-// 🟡🟡🟡 - [HANDLEBARS FORMATDATE HELPER] Helper to format dates for display
-handlebars.registerHelper('formatDate', function(date: any) {
-  if (!date) return 'N/A';
-  try {
-    const dateObj = date instanceof Date ? date : new Date(date);
-    if (isNaN(dateObj.getTime())) return 'Invalid Date';
-    return dateObj.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  } catch (error) {
-    return 'Invalid Date';
-  }
+// 🟡🟡🟡 - [HANDLEBARS JSON HELPER] Helper to stringify JSON objects for JavaScript
+handlebars.registerHelper('json', function(context: any) {
+  return JSON.stringify(context);
 });
 
 // console.log('✅✅✅ - [app.ts] Custom Handlebars helpers registered successfully');
