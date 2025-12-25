@@ -2,8 +2,6 @@
 
 {{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
 <link rel="stylesheet" href="/public/global/css/admin.css">
-{{! 🟡🟡🟡 - [JSON EDITOR] JSON Editor library from CDN }}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.css">
 
 <div class="admin-container">
   <header class="admin-header">
@@ -30,11 +28,16 @@
     </div>
 
     {{! 🟡🟡🟡 - [MENU DATA] Store menu data in data attribute for JavaScript access }}
-    <div id="jsoneditor" 
-         class="admin-json-editor"
+    <div id="menu-editor-container" 
+         class="admin-menu-editor-container"
          data-menu-items="{{#if menu}}{{json menu.menuItems}}{{else}}null{{/if}}"
          data-menu-name="{{#if menu}}{{menu.name}}{{else}}null{{/if}}"
-         data-theme="{{theme}}"></div>
+         data-theme="{{theme}}">
+      <div class="admin-editor-toolbar">
+        <button id="add-section-button" class="admin-add-section-button">+ Add Section</button>
+      </div>
+      <div id="sections-list" class="admin-sections-list"></div>
+    </div>
 
     <div class="admin-menu-actions">
       <button id="save-menu-button" class="admin-save-button">
@@ -49,8 +52,8 @@
   </div>
 </div>
 
-{{! 🟡🟡🟡 - [JSON EDITOR] JSON Editor library from CDN }}
-<script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.js"></script>
+{{! 🟡🟡🟡 - [SORTABLEJS] SortableJS library for drag-and-drop functionality }}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 {{! 🟡🟡🟡 - [ADMIN JS] Admin menu editor JavaScript }}
 <script src="/public/global/js/admin-menu-editor.js"></script>
 

@@ -1,16 +1,23 @@
-// 🟡🟡🟡 - [ADMIN MENU EDITOR] Admin menu editor JavaScript module
+// 2025-12-25T21:21:00Z 🟡🟡🟡 - [ADMIN MENU EDITOR] Custom drag-and-drop menu editor
+// ⚠️⚠️⚠️ - [ADMIN MENU EDITOR] REFACTORED: Replaced JSONEditor with custom visual editor using SortableJS
 (function initAdminMenuEditor() {
   'use strict';
 
+  // 🟡🟡🟡 - [STATE] Editor state management
+  let menuData = null;
+  let originalMenuData = null;
+  let sortableInstance = null;
+  let currentMenuState = {}; // Current state of menu sections
+
   // 🟡🟡🟡 - [INITIALIZATION] Read menu data from DOM data attributes
   function readMenuDataFromDOM() {
-    // 🟡🟡🟡 - [DOM DATA] Get menu data from jsoneditor div data attributes
-    const container = document.getElementById('jsoneditor');
+    // 🟡🟡🟡 - [DOM DATA] Get menu data from menu-editor-container div data attributes
+    const container = document.getElementById('menu-editor-container');
     if (!container) {
-      console.error('❗❗❗ - [ADMIN MENU EDITOR] JSON editor container not found');
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Menu editor container not found');
       const messageEl = document.getElementById('admin-message');
       if (messageEl) {
-        messageEl.textContent = 'JSON editor container not found. Please refresh the page.';
+        messageEl.textContent = 'Menu editor container not found. Please refresh the page.';
         messageEl.className = 'admin-message error';
         messageEl.style.display = 'block';
       }
@@ -39,19 +46,19 @@
         }
       }
 
-      const menuData = {
+      const data = {
         menu: menuItems,
         menuName: menuNameAttr && menuNameAttr !== 'null' ? menuNameAttr : null,
         theme: themeAttr || 'default'
       };
 
       console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data parsed successfully:', {
-        hasMenu: menuData.menu !== null,
-        menuName: menuData.menuName,
-        theme: menuData.theme
+        hasMenu: data.menu !== null,
+        menuName: data.menuName,
+        theme: data.theme
       });
 
-      return menuData;
+      return data;
     } catch (err) {
       console.error('❗❗❗ - [ADMIN MENU EDITOR] Error reading menu data from DOM:', err);
       const messageEl = document.getElementById('admin-message');
@@ -64,94 +71,981 @@
     }
   }
 
-  // 🟡🟡🟡 - [INITIALIZATION] Initialize editor with menu data
-  function initializeEditor(menuData) {
-    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Initializing admin menu editor');
-
-    // 🟡🟡🟡 - [MENU DATA] Extract menu data with defaults
-    const { menu, menuName, theme } = menuData;
+  // 🟡🟡🟡 - [SECTION RENDERING] Get next available section key
+  function getNextSectionKey() {
+    const keys = Object.keys(currentMenuState);
+    if (keys.length === 0) return 'section1';
     
-    // 🟡🟡🟡 - [MENU DATA] Log menu data for debugging
-    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu data extracted:', { 
-      hasMenu: menu !== null && menu !== undefined, 
-      menuName, 
-      theme 
+    const numbers = keys
+      .map(key => {
+        const match = key.match(/^section(\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => num > 0);
+    
+    const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+    return `section${maxNum + 1}`;
+  }
+
+  // 🟡🟡🟡 - [SECTION RENDERING] Get preview text for section
+  function getSectionPreview(section) {
+    const htmlType = section['html-type'] || 'unknown';
+    
+    if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+      const content = section.content;
+      if (typeof content === 'string') {
+        return content.length > 50 ? content.substring(0, 50) + '...' : content;
+      }
+      return 'Text content';
+    }
+    
+    if (htmlType === 'image') {
+      return section.src ? `Image: ${section.src}` : 'Image (no source)';
+    }
+    
+    if (htmlType === 'radio-group') {
+      const content = section.content || {};
+      const count = Object.keys(content).length;
+      return `Radio Group (${count} options)`;
+    }
+    
+    if (htmlType === 'checkbox-group') {
+      const content = section.content || {};
+      const count = Object.keys(content).length;
+      return `Checkbox Group (${count} items)`;
+    }
+    
+    if (htmlType === 'div-group') {
+      const content = section.content || {};
+      const count = Object.keys(content).length;
+      return `Div Group (${count} items)`;
+    }
+    
+    if (htmlType === 'unordered-list') {
+      const content = section.content;
+      if (Array.isArray(content)) {
+        return `List (${content.length} items)`;
+      }
+      return 'List';
+    }
+    
+    return 'Section';
+  }
+
+  // 🟡🟡🟡 - [SECTION RENDERING] Render section card
+  function renderSectionCard(sectionKey, section) {
+    const htmlType = section['html-type'] || 'unknown';
+    const order = section.order || 0;
+    const preview = getSectionPreview(section);
+    const hasNested = htmlType === 'radio-group' || htmlType === 'checkbox-group' || 
+                      htmlType === 'div-group' || section['addon-items'] || 
+                      (htmlType === 'radio-group' && section.content && 
+                       Object.values(section.content).some(r => r.popup));
+
+    const card = document.createElement('div');
+    card.className = 'admin-section-card';
+    card.dataset.sectionKey = sectionKey;
+    
+    card.innerHTML = `
+      <div class="admin-section-header">
+        <div class="admin-section-header-left">
+          <span class="admin-section-drag-handle" title="Drag to reorder">☰</span>
+          <span class="admin-section-order">#${order}</span>
+          <span class="admin-section-type-badge admin-section-type-${htmlType}">${htmlType}</span>
+          <span class="admin-section-key">${sectionKey}</span>
+        </div>
+        <div class="admin-section-header-right">
+          ${hasNested ? '<button class="admin-expand-toggle" data-section-key="' + sectionKey + '">▼</button>' : ''}
+          <button class="admin-section-edit" data-section-key="${sectionKey}" title="Edit section">✏️</button>
+          <button class="admin-section-delete" data-section-key="${sectionKey}" title="Delete section">🗑️</button>
+        </div>
+      </div>
+      <div class="admin-section-content">
+        <div class="admin-section-preview">${escapeHtml(preview)}</div>
+        ${hasNested ? '<div class="admin-nested-content" data-section-key="' + sectionKey + '" style="display: none;"></div>' : ''}
+      </div>
+    `;
+
+    // 🟡🟡🟡 - [NESTED CONTENT] Render nested content if applicable
+    if (hasNested) {
+      const nestedContainer = card.querySelector('.admin-nested-content');
+      if (nestedContainer) {
+        renderNestedContent(nestedContainer, sectionKey, section);
+      }
+    }
+
+    // 🟡🟡🟡 - [EVENT LISTENERS] Attach event listeners
+    const editBtn = card.querySelector('.admin-section-edit');
+    const deleteBtn = card.querySelector('.admin-section-delete');
+    const expandBtn = card.querySelector('.admin-expand-toggle');
+
+    if (editBtn) {
+      editBtn.addEventListener('click', () => editSection(sectionKey));
+    }
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => deleteSection(sectionKey));
+    }
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => toggleNestedContent(sectionKey));
+    }
+
+    return card;
+  }
+
+  // 🟡🟡🟡 - [NESTED CONTENT] Render nested content (radio options, checkboxes, addons, popups)
+  function renderNestedContent(container, sectionKey, section) {
+    const htmlType = section['html-type'] || '';
+    
+    if (htmlType === 'radio-group' && section.content) {
+      const content = section.content;
+      Object.keys(content).forEach(radioKey => {
+        const radio = content[radioKey];
+        const hasPopup = radio.popup && Object.keys(radio.popup).length > 0;
+        const item = document.createElement('div');
+        item.className = 'admin-nested-item admin-radio-item';
+        item.innerHTML = `
+          <div class="admin-nested-item-header">
+            <strong>${escapeHtml(radio.label || radioKey)}</strong>
+            <span class="admin-nested-item-price">$${radio.price || 0} ${radio['price-basis'] || ''}</span>
+            ${hasPopup ? '<button class="admin-expand-toggle-nested" data-section-key="' + sectionKey + '" data-radio-key="' + radioKey + '">▼</button>' : ''}
+            <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-radio-key="${radioKey}">✏️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-radio-key="${radioKey}">🗑️</button>
+          </div>
+          ${radio.description ? '<div class="admin-nested-item-description">' + escapeHtml(radio.description) + '</div>' : ''}
+          ${hasPopup ? '<div class="admin-popup-content" data-section-key="' + sectionKey + '" data-radio-key="' + radioKey + '" style="display: none;"></div>' : ''}
+        `;
+        
+        if (hasPopup) {
+          const popupContainer = item.querySelector('.admin-popup-content');
+          if (popupContainer) {
+            renderPopupContent(popupContainer, radio.popup);
+          }
+          const popupToggle = item.querySelector('.admin-expand-toggle-nested');
+          if (popupToggle) {
+            popupToggle.addEventListener('click', () => togglePopupContent(sectionKey, radioKey));
+          }
+        }
+        
+        const editBtn = item.querySelector('.admin-nested-item-edit');
+        const deleteBtn = item.querySelector('.admin-nested-item-delete');
+        if (editBtn) {
+          editBtn.addEventListener('click', () => editRadioOption(sectionKey, radioKey));
+        }
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => deleteRadioOption(sectionKey, radioKey));
+        }
+        
+        container.appendChild(item);
+      });
+    } else if (htmlType === 'checkbox-group' && section.content) {
+      const content = section.content;
+      Object.keys(content).forEach(checkboxKey => {
+        const checkbox = content[checkboxKey];
+        const item = document.createElement('div');
+        item.className = 'admin-nested-item admin-checkbox-item';
+        item.innerHTML = `
+          <div class="admin-nested-item-header">
+            <strong>${escapeHtml(checkbox.label || checkboxKey)}</strong>
+            <span class="admin-nested-item-price">$${checkbox.price || 0} ${checkbox['price-basis'] || ''}</span>
+            <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">✏️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">🗑️</button>
+          </div>
+        `;
+        
+        const editBtn = item.querySelector('.admin-nested-item-edit');
+        const deleteBtn = item.querySelector('.admin-nested-item-delete');
+        if (editBtn) {
+          editBtn.addEventListener('click', () => editCheckboxItem(sectionKey, checkboxKey));
+        }
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => deleteCheckboxItem(sectionKey, checkboxKey));
+        }
+        
+        container.appendChild(item);
+      });
+    } else if (htmlType === 'div-group' && section.content) {
+      const content = section.content;
+      Object.keys(content).forEach(divKey => {
+        const div = content[divKey];
+        const item = document.createElement('div');
+        item.className = 'admin-nested-item admin-div-item';
+        item.innerHTML = `
+          <div class="admin-nested-item-header">
+            <strong>${escapeHtml(div.label || divKey)}</strong>
+            <span class="admin-nested-item-price">$${div.price || 0} ${div['price-basis'] || ''}</span>
+            <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-div-key="${divKey}">✏️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-div-key="${divKey}">🗑️</button>
+          </div>
+        `;
+        
+        const editBtn = item.querySelector('.admin-nested-item-edit');
+        const deleteBtn = item.querySelector('.admin-nested-item-delete');
+        if (editBtn) {
+          editBtn.addEventListener('click', () => editDivItem(sectionKey, divKey));
+        }
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => deleteDivItem(sectionKey, divKey));
+        }
+        
+        container.appendChild(item);
+      });
+    } else if (section['addon-items']) {
+      const addons = section['addon-items'];
+      Object.keys(addons).forEach(addonKey => {
+        const addon = addons[addonKey];
+        const item = document.createElement('div');
+        item.className = 'admin-nested-item admin-addon-item';
+        item.innerHTML = `
+          <div class="admin-nested-item-header">
+            <strong>${escapeHtml(addon.label || addonKey)}</strong>
+            <span class="admin-nested-item-price">$${addon.price || 0} ${addon['price-basis'] || ''}</span>
+            <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-addon-key="${addonKey}">✏️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-addon-key="${addonKey}">🗑️</button>
+          </div>
+        `;
+        
+        const editBtn = item.querySelector('.admin-nested-item-edit');
+        const deleteBtn = item.querySelector('.admin-nested-item-delete');
+        if (editBtn) {
+          editBtn.addEventListener('click', () => editAddonItem(sectionKey, addonKey));
+        }
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => deleteAddonItem(sectionKey, addonKey));
+        }
+        
+        container.appendChild(item);
+      });
+    }
+  }
+
+  // 🟡🟡🟡 - [NESTED CONTENT] Render popup content (nested sections within radio popup)
+  function renderPopupContent(container, popup) {
+    Object.keys(popup).forEach(popupSectionKey => {
+      const popupSection = popup[popupSectionKey];
+      const item = document.createElement('div');
+      item.className = 'admin-popup-section';
+      item.innerHTML = `
+        <div class="admin-popup-section-header">
+          <span class="admin-popup-section-type">${popupSection['html-type'] || 'unknown'}</span>
+          <span class="admin-popup-section-preview">${escapeHtml(getSectionPreview(popupSection))}</span>
+          <button class="admin-popup-section-edit" data-popup-section-key="${popupSectionKey}">✏️</button>
+        </div>
+      `;
+      
+      const editBtn = item.querySelector('.admin-popup-section-edit');
+      if (editBtn) {
+        editBtn.addEventListener('click', () => {
+          // TODO: Implement popup section editing
+          showMessage('Popup section editing coming soon', 'info');
+        });
+      }
+      
+      container.appendChild(item);
     });
-    
-    let jsonEditor = null;
-    let originalMenuData = null;
+  }
 
-    // 🟡🟡🟡 - [JSON EDITOR] Initialize JSON Editor
-    function initializeJsonEditor() {
-    const container = document.getElementById('jsoneditor');
-    if (!container) {
-      console.error('❗❗❗ - [ADMIN MENU EDITOR] JSON editor container not found');
+  // 🟡🟡🟡 - [UTILITY] Escape HTML to prevent XSS
+  function escapeHtml(text) {
+    if (typeof text !== 'string') return String(text);
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // 🟡🟡🟡 - [RENDERING] Render all sections
+  function renderSections() {
+    const sectionsList = document.getElementById('sections-list');
+    if (!sectionsList) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Sections list container not found');
       return;
     }
 
-    // 🟡🟡🟡 - [EDITOR OPTIONS] Configure JSON Editor options
-    const options = {
-      mode: 'tree',
-      modes: ['code', 'tree', 'form', 'text', 'view'],
-      search: true,
-      history: true,
-      navigationBar: true,
-      statusBar: true,
-      mainMenuBar: true,
-      onError: function(err) {
-        console.error('❗❗❗ - [ADMIN MENU EDITOR] JSON Editor error:', err);
-      },
-      onModeChange: function(newMode) {
-        console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Editor mode changed to:', newMode);
+    // 🟡🟡🟡 - [SORT] Sort sections by order
+    const sortedSections = Object.keys(currentMenuState)
+      .map(key => ({ key, section: currentMenuState[key] }))
+      .sort((a, b) => {
+        const orderA = a.section.order || 0;
+        const orderB = b.section.order || 0;
+        return orderA - orderB;
+      });
+
+    // 🟡🟡🟡 - [CLEAR] Clear existing sections
+    sectionsList.innerHTML = '';
+
+    // 🟡🟡🟡 - [RENDER] Render each section
+    sortedSections.forEach(({ key, section }) => {
+      const card = renderSectionCard(key, section);
+      sectionsList.appendChild(card);
+    });
+
+    // 🟡🟡🟡 - [SORTABLE] Initialize or update SortableJS
+    if (typeof Sortable !== 'undefined') {
+      if (sortableInstance) {
+        sortableInstance.destroy();
       }
+      
+      sortableInstance = new Sortable(sectionsList, {
+        handle: '.admin-section-drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function(evt) {
+          // 🟡🟡🟡 - [REORDER] Update order values after drag
+          updateSectionOrders();
+          console.log('✅✅✅ - [ADMIN MENU EDITOR] Sections reordered');
+        }
+      });
+      
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] SortableJS initialized');
+    } else {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] SortableJS library not loaded');
+    }
+  }
+
+  // 🟡🟡🟡 - [REORDER] Update order values based on visual position
+  function updateSectionOrders() {
+    const sectionsList = document.getElementById('sections-list');
+    if (!sectionsList) return;
+
+    const cards = sectionsList.querySelectorAll('.admin-section-card');
+    cards.forEach((card, index) => {
+      const sectionKey = card.dataset.sectionKey;
+      if (currentMenuState[sectionKey]) {
+        currentMenuState[sectionKey].order = index + 1;
+      }
+    });
+  }
+
+  // 🟡🟡🟡 - [TOGGLE] Toggle nested content visibility
+  function toggleNestedContent(sectionKey) {
+    const card = document.querySelector(`[data-section-key="${sectionKey}"]`);
+    if (!card) return;
+
+    const nestedContent = card.querySelector('.admin-nested-content');
+    const toggleBtn = card.querySelector('.admin-expand-toggle');
+    
+    if (nestedContent && toggleBtn) {
+      const isVisible = nestedContent.style.display !== 'none';
+      nestedContent.style.display = isVisible ? 'none' : 'block';
+      toggleBtn.textContent = isVisible ? '▼' : '▲';
+    }
+  }
+
+  // 🟡🟡🟡 - [TOGGLE] Toggle popup content visibility
+  function togglePopupContent(sectionKey, radioKey) {
+    const popupContent = document.querySelector(
+      `.admin-popup-content[data-section-key="${sectionKey}"][data-radio-key="${radioKey}"]`
+    );
+    const toggleBtn = document.querySelector(
+      `.admin-expand-toggle-nested[data-section-key="${sectionKey}"][data-radio-key="${radioKey}"]`
+    );
+    
+    if (popupContent && toggleBtn) {
+      const isVisible = popupContent.style.display !== 'none';
+      popupContent.style.display = isVisible ? 'none' : 'block';
+      toggleBtn.textContent = isVisible ? '▼' : '▲';
+    }
+  }
+
+  // 🟡🟡🟡 - [SECTION MANAGEMENT] Add new section
+  function addSection() {
+    showAddSectionModal();
+  }
+
+  // 🟡🟡🟡 - [MODAL] Show add section modal
+  function showAddSectionModal() {
+    const htmlTypes = [
+      { value: 'h1', label: 'Heading 1 (H1)' },
+      { value: 'h2', label: 'Heading 2 (H2)' },
+      { value: 'p', label: 'Paragraph (P)' },
+      { value: 'image', label: 'Image' },
+      { value: 'radio-group', label: 'Radio Group' },
+      { value: 'checkbox-group', label: 'Checkbox Group' },
+      { value: 'div-group', label: 'Div Group' },
+      { value: 'unordered-list', label: 'Unordered List' }
+    ];
+
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content">
+        <div class="admin-modal-header">
+          <h3>Add New Section</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          <div class="admin-form-group">
+            <label>Select HTML Type:</label>
+            <select id="new-section-html-type" class="admin-form-input">
+              ${htmlTypes.map(type => `<option value="${type.value}">${type.label}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Add Section</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
     };
 
-    // 🟡🟡🟡 - [JSON EDITOR] Check if JSONEditor library is loaded
-    if (typeof JSONEditor === 'undefined') {
-      console.error('❗❗❗ - [ADMIN MENU EDITOR] JSONEditor library not loaded. Check CDN connection.');
-      const messageEl = document.getElementById('admin-message');
-      if (messageEl) {
-        messageEl.textContent = 'JSON Editor library failed to load. Please refresh the page.';
-        messageEl.className = 'admin-message error';
-        messageEl.style.display = 'block';
-      }
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      const htmlType = document.getElementById('new-section-html-type').value;
+      createNewSection(htmlType);
+      closeModal();
+    });
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [SECTION MANAGEMENT] Create new section
+  function createNewSection(htmlType) {
+    const sectionKey = getNextSectionKey();
+    const maxOrder = Math.max(...Object.values(currentMenuState).map(s => s.order || 0), 0);
+    
+    const newSection = {
+      order: maxOrder + 1,
+      'html-type': htmlType
+    };
+
+    // 🟡🟡🟡 - [DEFAULTS] Set default content based on HTML type
+    if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+      newSection.content = '';
+    } else if (htmlType === 'image') {
+      newSection.src = '';
+      newSection.alt = '';
+      newSection.caption = '';
+    } else if (htmlType === 'radio-group' || htmlType === 'checkbox-group' || htmlType === 'div-group') {
+      newSection.content = {};
+    } else if (htmlType === 'unordered-list') {
+      newSection.content = [];
+    }
+
+    currentMenuState[sectionKey] = newSection;
+    renderSections();
+    
+    // 🟡🟡🟡 - [EDIT] Automatically open edit modal for new section
+    setTimeout(() => editSection(sectionKey), 100);
+    
+    console.log('✅✅✅ - [ADMIN MENU EDITOR] New section created:', sectionKey);
+  }
+
+  // 🟡🟡🟡 - [SECTION MANAGEMENT] Edit section
+  function editSection(sectionKey) {
+    const section = currentMenuState[sectionKey];
+    if (!section) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Section not found:', sectionKey);
       return;
     }
 
-    try {
-      // 🟡🟡🟡 - [INITIALIZE] Create JSON Editor instance
-      jsonEditor = new JSONEditor(container, options);
-      
-      // 🟡🟡🟡 - [LOAD DATA] Load menu data into editor
-      const initialData = menu || {};
-      jsonEditor.set(initialData);
-      originalMenuData = JSON.parse(JSON.stringify(initialData)); // Deep copy
-      
-      console.log('✅✅✅ - [ADMIN MENU EDITOR] JSON Editor initialized successfully');
-    } catch (err) {
-      console.error('❗❗❗ - [ADMIN MENU EDITOR] Error initializing JSON Editor:', err);
-      showMessage('Error initializing JSON editor. Please refresh the page.', 'error');
+    const htmlType = section['html-type'] || 'unknown';
+    showEditSectionModal(sectionKey, section, htmlType);
+  }
+
+  // 🟡🟡🟡 - [MODAL] Show edit section modal
+  function showEditSectionModal(sectionKey, section, htmlType) {
+    let modalContent = '';
+
+    if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+      modalContent = `
+        <div class="admin-form-group">
+          <label>Content:</label>
+          <textarea id="edit-section-content" class="admin-form-input" rows="4">${escapeHtml(section.content || '')}</textarea>
+        </div>
+      `;
+    } else if (htmlType === 'image') {
+      modalContent = `
+        <div class="admin-form-group">
+          <label>Image Source (src):</label>
+          <input type="text" id="edit-section-src" class="admin-form-input" value="${escapeHtml(section.src || '')}">
+        </div>
+        <div class="admin-form-group">
+          <label>Alt Text:</label>
+          <input type="text" id="edit-section-alt" class="admin-form-input" value="${escapeHtml(section.alt || '')}">
+        </div>
+        <div class="admin-form-group">
+          <label>Caption:</label>
+          <input type="text" id="edit-section-caption" class="admin-form-input" value="${escapeHtml(section.caption || '')}">
+        </div>
+      `;
+    } else if (htmlType === 'radio-group' || htmlType === 'checkbox-group' || htmlType === 'div-group') {
+      modalContent = `
+        <div class="admin-form-group">
+          <p>Use the expand/collapse button on the section card to manage items.</p>
+          <p>Click the edit button on individual items to modify them.</p>
+        </div>
+      `;
+    } else if (htmlType === 'unordered-list') {
+      const listItems = Array.isArray(section.content) ? section.content.join('\n') : '';
+      modalContent = `
+        <div class="admin-form-group">
+          <label>List Items (one per line):</label>
+          <textarea id="edit-section-content" class="admin-form-input" rows="6">${escapeHtml(listItems)}</textarea>
+        </div>
+      `;
     }
+
+    // 🟡🟡🟡 - [ADDON ITEMS] Check if section has addon-items
+    if (section['addon-items']) {
+      modalContent += `
+        <div class="admin-form-group">
+          <p>This section has addon items. Use the expand/collapse button to manage them.</p>
+        </div>
+      `;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content admin-modal-large">
+        <div class="admin-modal-header">
+          <h3>Edit Section: ${sectionKey} (${htmlType})</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          ${modalContent}
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Save Changes</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
+    };
+
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      saveSectionChanges(sectionKey, section, htmlType, modal);
+      closeModal();
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [SECTION MANAGEMENT] Save section changes
+  function saveSectionChanges(sectionKey, section, htmlType, modal) {
+    if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+      const contentInput = modal.querySelector('#edit-section-content');
+      if (contentInput) {
+        section.content = contentInput.value.trim();
+      }
+    } else if (htmlType === 'image') {
+      const srcInput = modal.querySelector('#edit-section-src');
+      const altInput = modal.querySelector('#edit-section-alt');
+      const captionInput = modal.querySelector('#edit-section-caption');
+      if (srcInput) section.src = srcInput.value.trim();
+      if (altInput) section.alt = altInput.value.trim();
+      if (captionInput) section.caption = captionInput.value.trim();
+    } else if (htmlType === 'unordered-list') {
+      const contentInput = modal.querySelector('#edit-section-content');
+      if (contentInput) {
+        const lines = contentInput.value.split('\n').map(line => line.trim()).filter(line => line);
+        section.content = lines;
+      }
+    }
+
+    currentMenuState[sectionKey] = section;
+    renderSections();
+    console.log('✅✅✅ - [ADMIN MENU EDITOR] Section updated:', sectionKey);
+  }
+
+  // 🟡🟡🟡 - [SECTION MANAGEMENT] Delete section
+  function deleteSection(sectionKey) {
+    if (!confirm(`Are you sure you want to delete section "${sectionKey}"? This cannot be undone.`)) {
+      return;
+    }
+
+    delete currentMenuState[sectionKey];
+    updateSectionOrders();
+    renderSections();
+    console.log('✅✅✅ - [ADMIN MENU EDITOR] Section deleted:', sectionKey);
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Edit radio option
+  function editRadioOption(sectionKey, radioKey) {
+    const section = currentMenuState[sectionKey];
+    if (!section || !section.content || !section.content[radioKey]) return;
+
+    const radio = section.content[radioKey];
+    showEditRadioModal(sectionKey, radioKey, radio);
+  }
+
+  // 🟡🟡🟡 - [MODAL] Show edit radio modal
+  function showEditRadioModal(sectionKey, radioKey, radio) {
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content admin-modal-large">
+        <div class="admin-modal-header">
+          <h3>Edit Radio Option: ${radioKey}</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          <div class="admin-form-group">
+            <label>Label:</label>
+            <input type="text" id="edit-radio-label" class="admin-form-input" value="${escapeHtml(radio.label || '')}">
+          </div>
+          <div class="admin-form-group">
+            <label>Price:</label>
+            <input type="number" id="edit-radio-price" class="admin-form-input" value="${radio.price || 0}" step="0.01">
+          </div>
+          <div class="admin-form-group">
+            <label>Price Basis:</label>
+            <input type="text" id="edit-radio-price-basis" class="admin-form-input" value="${escapeHtml(radio['price-basis'] || '')}" placeholder="e.g., Per guest">
+          </div>
+          <div class="admin-form-group">
+            <label>Description:</label>
+            <textarea id="edit-radio-description" class="admin-form-input" rows="3">${escapeHtml(radio.description || '')}</textarea>
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Save Changes</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
+    };
+
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      const labelInput = modal.querySelector('#edit-radio-label');
+      const priceInput = modal.querySelector('#edit-radio-price');
+      const priceBasisInput = modal.querySelector('#edit-radio-price-basis');
+      const descriptionInput = modal.querySelector('#edit-radio-description');
+
+      if (labelInput) radio.label = labelInput.value.trim();
+      if (priceInput) radio.price = parseFloat(priceInput.value) || 0;
+      if (priceBasisInput) radio['price-basis'] = priceBasisInput.value.trim();
+      if (descriptionInput) radio.description = descriptionInput.value.trim();
+
+      // Preserve popup if it exists
+      if (!radio.popup) radio.popup = {};
+
+      currentMenuState[sectionKey].content[radioKey] = radio;
+      renderSections();
+      closeModal();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Radio option updated:', radioKey);
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Delete radio option
+  function deleteRadioOption(sectionKey, radioKey) {
+    if (!confirm(`Are you sure you want to delete radio option "${radioKey}"?`)) {
+      return;
+    }
+
+    const section = currentMenuState[sectionKey];
+    if (section && section.content) {
+      delete section.content[radioKey];
+      renderSections();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Radio option deleted:', radioKey);
+    }
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Edit checkbox item
+  function editCheckboxItem(sectionKey, checkboxKey) {
+    const section = currentMenuState[sectionKey];
+    if (!section || !section.content || !section.content[checkboxKey]) return;
+
+    const checkbox = section.content[checkboxKey];
+    showEditCheckboxModal(sectionKey, checkboxKey, checkbox);
+  }
+
+  // 🟡🟡🟡 - [MODAL] Show edit checkbox modal
+  function showEditCheckboxModal(sectionKey, checkboxKey, checkbox) {
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content">
+        <div class="admin-modal-header">
+          <h3>Edit Checkbox Item: ${checkboxKey}</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          <div class="admin-form-group">
+            <label>Label:</label>
+            <input type="text" id="edit-checkbox-label" class="admin-form-input" value="${escapeHtml(checkbox.label || '')}">
+          </div>
+          <div class="admin-form-group">
+            <label>Price:</label>
+            <input type="number" id="edit-checkbox-price" class="admin-form-input" value="${checkbox.price || 0}" step="0.01">
+          </div>
+          <div class="admin-form-group">
+            <label>Price Basis:</label>
+            <input type="text" id="edit-checkbox-price-basis" class="admin-form-input" value="${escapeHtml(checkbox['price-basis'] || '')}" placeholder="e.g., Per guest">
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Save Changes</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
+    };
+
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      const labelInput = modal.querySelector('#edit-checkbox-label');
+      const priceInput = modal.querySelector('#edit-checkbox-price');
+      const priceBasisInput = modal.querySelector('#edit-checkbox-price-basis');
+
+      if (labelInput) checkbox.label = labelInput.value.trim();
+      if (priceInput) checkbox.price = parseFloat(priceInput.value) || 0;
+      if (priceBasisInput) checkbox['price-basis'] = priceBasisInput.value.trim();
+
+      currentMenuState[sectionKey].content[checkboxKey] = checkbox;
+      renderSections();
+      closeModal();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Checkbox item updated:', checkboxKey);
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Delete checkbox item
+  function deleteCheckboxItem(sectionKey, checkboxKey) {
+    if (!confirm(`Are you sure you want to delete checkbox item "${checkboxKey}"?`)) {
+      return;
+    }
+
+    const section = currentMenuState[sectionKey];
+    if (section && section.content) {
+      delete section.content[checkboxKey];
+      renderSections();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Checkbox item deleted:', checkboxKey);
+    }
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Edit div item
+  function editDivItem(sectionKey, divKey) {
+    const section = currentMenuState[sectionKey];
+    if (!section || !section.content || !section.content[divKey]) return;
+
+    const div = section.content[divKey];
+    showEditDivModal(sectionKey, divKey, div);
+  }
+
+  // 🟡🟡🟡 - [MODAL] Show edit div modal
+  function showEditDivModal(sectionKey, divKey, div) {
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content">
+        <div class="admin-modal-header">
+          <h3>Edit Div Item: ${divKey}</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          <div class="admin-form-group">
+            <label>Label:</label>
+            <input type="text" id="edit-div-label" class="admin-form-input" value="${escapeHtml(div.label || '')}">
+          </div>
+          <div class="admin-form-group">
+            <label>Price:</label>
+            <input type="number" id="edit-div-price" class="admin-form-input" value="${div.price || 0}" step="0.01">
+          </div>
+          <div class="admin-form-group">
+            <label>Price Basis:</label>
+            <input type="text" id="edit-div-price-basis" class="admin-form-input" value="${escapeHtml(div['price-basis'] || '')}" placeholder="e.g., Per day">
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Save Changes</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
+    };
+
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      const labelInput = modal.querySelector('#edit-div-label');
+      const priceInput = modal.querySelector('#edit-div-price');
+      const priceBasisInput = modal.querySelector('#edit-div-price-basis');
+
+      if (labelInput) div.label = labelInput.value.trim();
+      if (priceInput) div.price = parseFloat(priceInput.value) || 0;
+      if (priceBasisInput) div['price-basis'] = priceBasisInput.value.trim();
+
+      currentMenuState[sectionKey].content[divKey] = div;
+      renderSections();
+      closeModal();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Div item updated:', divKey);
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Delete div item
+  function deleteDivItem(sectionKey, divKey) {
+    if (!confirm(`Are you sure you want to delete div item "${divKey}"?`)) {
+      return;
+    }
+
+    const section = currentMenuState[sectionKey];
+    if (section && section.content) {
+      delete section.content[divKey];
+      renderSections();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Div item deleted:', divKey);
+    }
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Edit addon item
+  function editAddonItem(sectionKey, addonKey) {
+    const section = currentMenuState[sectionKey];
+    if (!section || !section['addon-items'] || !section['addon-items'][addonKey]) return;
+
+    const addon = section['addon-items'][addonKey];
+    showEditAddonModal(sectionKey, addonKey, addon);
+  }
+
+  // 🟡🟡🟡 - [MODAL] Show edit addon modal
+  function showEditAddonModal(sectionKey, addonKey, addon) {
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content">
+        <div class="admin-modal-header">
+          <h3>Edit Addon Item: ${addonKey}</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          <div class="admin-form-group">
+            <label>Label:</label>
+            <input type="text" id="edit-addon-label" class="admin-form-input" value="${escapeHtml(addon.label || '')}">
+          </div>
+          <div class="admin-form-group">
+            <label>Price:</label>
+            <input type="number" id="edit-addon-price" class="admin-form-input" value="${addon.price || 0}" step="0.01">
+          </div>
+          <div class="admin-form-group">
+            <label>Price Basis:</label>
+            <input type="text" id="edit-addon-price-basis" class="admin-form-input" value="${escapeHtml(addon['price-basis'] || '')}" placeholder="e.g., Per guest">
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Save Changes</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
+    };
+
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      const labelInput = modal.querySelector('#edit-addon-label');
+      const priceInput = modal.querySelector('#edit-addon-price');
+      const priceBasisInput = modal.querySelector('#edit-addon-price-basis');
+
+      if (labelInput) addon.label = labelInput.value.trim();
+      if (priceInput) addon.price = parseFloat(priceInput.value) || 0;
+      if (priceBasisInput) addon['price-basis'] = priceBasisInput.value.trim();
+
+      currentMenuState[sectionKey]['addon-items'][addonKey] = addon;
+      renderSections();
+      closeModal();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Addon item updated:', addonKey);
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Delete addon item
+  function deleteAddonItem(sectionKey, addonKey) {
+    if (!confirm(`Are you sure you want to delete addon item "${addonKey}"?`)) {
+      return;
+    }
+
+    const section = currentMenuState[sectionKey];
+    if (section && section['addon-items']) {
+      delete section['addon-items'][addonKey];
+      renderSections();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Addon item deleted:', addonKey);
+    }
+  }
+
+  // 🟡🟡🟡 - [JSON OUTPUT] Convert editor state to JSON
+  function getMenuJSON() {
+    // 🟡🟡🟡 - [DEEP COPY] Create deep copy to avoid mutating state
+    const json = JSON.parse(JSON.stringify(currentMenuState));
+    
+    // 🟡🟡🟡 - [VALIDATE] Ensure all sections have required properties
+    Object.keys(json).forEach(key => {
+      const section = json[key];
+      if (!section['html-type']) {
+        console.warn('⚠️⚠️⚠️ - [ADMIN MENU EDITOR] Section missing html-type:', key);
+      }
+      if (section.order === undefined) {
+        section.order = 0;
+      }
+    });
+    
+    return json;
   }
 
   // 🟡🟡🟡 - [SAVE MENU] Save menu to server
   async function saveMenu() {
     const saveButton = document.getElementById('save-menu-button');
-    if (!saveButton || !jsonEditor) {
-      console.error('❗❗❗ - [ADMIN MENU EDITOR] Save button or editor not found');
+    if (!saveButton) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Save button not found');
       return;
     }
 
     try {
-      // 🟡🟡🟡 - [VALIDATION] Validate JSON before saving
-      let menuItems;
-      try {
-        menuItems = jsonEditor.get();
-      } catch (err) {
-        console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid JSON:', err);
-        showMessage('Invalid JSON. Please fix errors before saving.', 'error');
-        return;
-      }
+      // 🟡🟡🟡 - [JSON OUTPUT] Get current menu state as JSON
+      const menuItems = getMenuJSON();
 
       // 🟡🟡🟡 - [UI STATE] Disable save button and show loading state
       saveButton.disabled = true;
@@ -165,7 +1059,7 @@
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: menuName || 'Menu',
+          name: menuData.menuName || 'Menu',
           menuItems: menuItems
         })
       });
@@ -175,7 +1069,7 @@
       if (result.success) {
         console.log('✅✅✅ - [ADMIN MENU EDITOR] Menu saved successfully');
         showMessage('Menu saved successfully!', 'success');
-        // Update original data to current state
+        // 🟡🟡🟡 - [ORIGINAL DATA] Update original data to current state
         originalMenuData = JSON.parse(JSON.stringify(menuItems));
       } else {
         console.error('❗❗❗ - [ADMIN MENU EDITOR] Save failed:', result.message);
@@ -193,14 +1087,17 @@
 
   // 🟡🟡🟡 - [RESET MENU] Reset menu to original state
   function resetMenu() {
-    if (!jsonEditor || !originalMenuData) {
+    if (!originalMenuData) {
       console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] No original data to reset to');
+      showMessage('No original data to reset to.', 'info');
       return;
     }
 
     if (confirm('Are you sure you want to reset all changes? This cannot be undone.')) {
       try {
-        jsonEditor.set(originalMenuData);
+        // 🟡🟡🟡 - [RESET] Restore original data
+        currentMenuState = JSON.parse(JSON.stringify(originalMenuData));
+        renderSections();
         console.log('✅✅✅ - [ADMIN MENU EDITOR] Menu reset to original state');
         showMessage('Menu reset to original state.', 'success');
         setTimeout(hideMessage, 3000);
@@ -234,37 +1131,51 @@
     }
   }
 
-    // 🟡🟡🟡 - [INITIALIZE] Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeJsonEditor);
-    } else {
-      initializeJsonEditor();
-    }
+  // 🟡🟡🟡 - [INITIALIZATION] Initialize editor with menu data
+  function initializeEditor(data) {
+    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Initializing custom menu editor');
+
+    menuData = data;
+    const { menu } = data;
+
+    // 🟡🟡🟡 - [INITIAL STATE] Initialize current menu state
+    currentMenuState = menu ? JSON.parse(JSON.stringify(menu)) : {};
+    originalMenuData = menu ? JSON.parse(JSON.stringify(menu)) : {};
+
+    console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Menu state initialized:', {
+      hasMenu: Object.keys(currentMenuState).length > 0,
+      sectionCount: Object.keys(currentMenuState).length
+    });
+
+    // 🟡🟡🟡 - [RENDER] Render sections
+    renderSections();
 
     // 🟡🟡🟡 - [EVENT LISTENERS] Attach event listeners
-    document.addEventListener('DOMContentLoaded', function() {
-      const saveButton = document.getElementById('save-menu-button');
-      const resetButton = document.getElementById('reset-menu-button');
+    const addSectionButton = document.getElementById('add-section-button');
+    const saveButton = document.getElementById('save-menu-button');
+    const resetButton = document.getElementById('reset-menu-button');
 
-      if (saveButton) {
-        saveButton.addEventListener('click', saveMenu);
-      }
+    if (addSectionButton) {
+      addSectionButton.addEventListener('click', addSection);
+    }
 
-      if (resetButton) {
-        resetButton.addEventListener('click', resetMenu);
-      }
+    if (saveButton) {
+      saveButton.addEventListener('click', saveMenu);
+    }
 
-      console.log('✅✅✅ - [ADMIN MENU EDITOR] Event listeners attached');
-    });
+    if (resetButton) {
+      resetButton.addEventListener('click', resetMenu);
+    }
+
+    console.log('✅✅✅ - [ADMIN MENU EDITOR] Custom menu editor initialized successfully');
   }
 
   // 🟡🟡🟡 - [START] Initialize when DOM is ready
-  // ⚠️⚠️⚠️ - [INITIALIZATION] Wait for DOMContentLoaded to ensure DOM is ready
   function startInitialization() {
     console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Starting initialization');
-    const menuData = readMenuDataFromDOM();
-    if (menuData) {
-      initializeEditor(menuData);
+    const data = readMenuDataFromDOM();
+    if (data) {
+      initializeEditor(data);
     }
   }
 
@@ -280,4 +1191,3 @@
   }
 
 })();
-

@@ -14,6 +14,282 @@
 
 ---
 
+### December 25, 2025 @ 21:21 - Custom Menu Editor Implementation: Replaced JSONEditor with Drag-and-Drop Visual Editor
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Completely replaced JSONEditor library with a custom-built drag-and-drop menu editor using SortableJS. The new editor provides an intuitive visual interface for non-technical users to edit menu sections with drag-and-drop reordering, interactive section management, and support for all menu HTML types including nested structures (radio groups, popups, checkboxes, addons). The editor maintains the exact JSON structure format required by the application while providing a much better user experience.
+
+**Problem**: 
+- JSONEditor library was not user-friendly for regular people
+- Complex JSON editing interface was intimidating for non-technical users
+- No visual representation of menu structure
+- Difficult to understand menu hierarchy and relationships
+- Heavy dependency on external library
+
+**Solution**:
+- Built custom visual menu editor from scratch
+- Implemented drag-and-drop reordering using SortableJS (lightweight, ~15KB)
+- Created section cards with visual previews and type badges
+- Added interactive add/remove/edit functionality with modals
+- Implemented expand/collapse UI for nested structures
+- Maintained exact JSON output format matching SAMPLE-MENU-JSONB-NEW.json structure
+- Follows DRY principles with reusable rendering functions
+
+#### Major Changes
+
+- **Menu Editor Template** (`src/views/admin/menu-editor.hbs`):
+  - **Removed JSONEditor Dependencies**:
+    - Removed `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.css">`
+    - Removed `<script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.2/dist/jsoneditor.min.js"></script>`
+    - **Impact**: Eliminates dependency on heavy JSONEditor library
+
+  - **Added SortableJS Library**:
+    - Added `<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>`
+    - **Impact**: Enables lightweight drag-and-drop functionality
+
+  - **Updated HTML Structure**:
+    - Replaced `#jsoneditor` div with new `#menu-editor-container` structure
+    - Added `#admin-editor-toolbar` with "Add Section" button
+    - Added `#sections-list` container for draggable section cards
+    - Maintained data attributes pattern (`data-menu-items`, `data-menu-name`, `data-theme`)
+    - **Code Changed**:
+      ```handlebars
+      <div id="menu-editor-container" class="admin-menu-editor-container"
+           data-menu-items="..."
+           data-menu-name="..."
+           data-theme="...">
+        <div class="admin-editor-toolbar">
+          <button id="add-section-button" class="admin-add-section-button">+ Add Section</button>
+        </div>
+        <div id="sections-list" class="admin-sections-list"></div>
+      </div>
+      ```
+    - **Impact**: New visual editor structure replaces JSON editor
+
+- **Admin Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js` - Complete Rewrite):
+  - **Removed All JSONEditor Code**:
+    - Removed `JSONEditor` initialization and usage
+    - Removed JSONEditor-specific error handling
+    - **Impact**: Clean codebase without JSONEditor dependencies
+
+  - **Data Loading** (Maintained Existing Pattern):
+    - Kept DOM data attribute reading pattern (`readMenuDataFromDOM()`)
+    - Maintains compatibility with existing server-side data passing
+    - **Impact**: No breaking changes to data flow
+
+  - **Section Rendering**:
+    - `renderSectionCard()` - Creates visual section cards with previews
+    - `getSectionPreview()` - Generates preview text for each section type
+    - `renderNestedContent()` - Renders nested structures (radio options, checkboxes, addons)
+    - `renderPopupContent()` - Renders popup sections within radio options
+    - Sections display: order number, HTML type badge, section key, content preview
+    - **Impact**: Visual representation of menu structure
+
+  - **Drag-and-Drop Reordering**:
+    - SortableJS integration for section list
+    - `updateSectionOrders()` - Updates order values after drag
+    - Visual feedback during drag (ghost element, opacity)
+    - Drag handle (☰) on each section card
+    - **Code Added**:
+      ```javascript
+      sortableInstance = new Sortable(sectionsList, {
+        handle: '.admin-section-drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function(evt) {
+          updateSectionOrders();
+        }
+      });
+      ```
+    - **Impact**: Intuitive section reordering by dragging
+
+  - **Section Management**:
+    - **Add Section**: `addSection()`, `showAddSectionModal()`, `createNewSection()`
+      - Modal to select HTML type (h1, h2, p, image, radio-group, checkbox-group, div-group, unordered-list)
+      - Auto-generates next section key (section1, section2, etc.)
+      - Sets order to last position + 1
+      - Automatically opens edit modal for new section
+    - **Edit Section**: `editSection()`, `showEditSectionModal()`, `saveSectionChanges()`
+      - Different edit forms based on HTML type
+      - Text sections: textarea for content
+      - Image sections: inputs for src, alt, caption
+      - List sections: textarea (one item per line)
+      - Group sections: instructions to use expand/collapse
+    - **Delete Section**: `deleteSection()`
+      - Confirmation dialog before deletion
+      - Updates order values after deletion
+    - **Impact**: Complete CRUD operations for sections
+
+  - **Nested Structure Support**:
+    - **Radio Groups**: Expand to show radio options
+      - Each option shows: label, price, price-basis, description
+      - Expand option to view/edit popup content (nested sections)
+      - Edit/delete individual radio options
+    - **Checkbox Groups**: Expand to show checkbox items
+      - Edit/delete individual checkbox items
+    - **Div Groups**: Expand to show div items
+      - Edit/delete individual div items
+    - **Addon Items**: Expand to show addon list
+      - Edit/delete individual addon items
+    - **Expand/Collapse UI**: `toggleNestedContent()`, `togglePopupContent()`
+      - Toggle buttons (▼/▲) on sections with nested content
+      - Smooth expand/collapse animations
+    - **Impact**: Full support for complex nested menu structures
+
+  - **JSON Output**:
+    - `getMenuJSON()` - Converts editor state to JSON
+    - Maintains exact structure matching `SAMPLE-MENU-JSONB-NEW.json` format
+    - Validates required properties before output
+    - Deep copy to avoid mutating state
+    - **Impact**: Ensures compatibility with existing menu rendering system
+
+  - **Save/Reset Functionality**:
+    - `saveMenu()` - POSTs JSON to `/admin/api/menu/save` endpoint
+    - Maintains existing save endpoint compatibility
+    - `resetMenu()` - Restores original menu data
+    - Success/error message display
+    - **Impact**: Seamless integration with existing backend
+
+- **Admin CSS Stylesheet** (`public/global/css/admin.css`):
+  - **Removed Old Styles**:
+    - Removed `.admin-json-editor` height constraint
+    - **Impact**: Cleanup of unused styles
+
+  - **New Editor Container Styles**:
+    - `.admin-menu-editor-container` - Main editor container
+    - `.admin-editor-toolbar` - Toolbar with add button
+    - `.admin-sections-list` - Container for section cards
+    - **Impact**: New editor layout
+
+  - **Section Card Styles**:
+    - `.admin-section-card` - Individual section card
+    - `.admin-section-header` - Card header with controls
+    - `.admin-section-drag-handle` - Drag handle styling
+    - `.admin-section-type-badge` - HTML type badges with color coding
+    - `.admin-section-content` - Section content preview
+    - `.sortable-ghost`, `.sortable-drag` - Drag feedback styles
+    - **Impact**: Visual section cards with drag-and-drop support
+
+  - **Nested Content Styles**:
+    - `.admin-nested-content` - Container for nested items
+    - `.admin-nested-item` - Individual nested items (radio, checkbox, etc.)
+    - `.admin-popup-content` - Popup content container
+    - `.admin-expand-toggle` - Expand/collapse button styling
+    - **Impact**: Styled nested structure display
+
+  - **Modal Styles**:
+    - `.admin-modal` - Modal overlay
+    - `.admin-modal-content` - Modal content container
+    - `.admin-modal-header`, `.admin-modal-body`, `.admin-modal-footer` - Modal sections
+    - `.admin-form-group`, `.admin-form-input` - Form styling
+    - `.admin-button-primary`, `.admin-button-secondary` - Button styles
+    - **Impact**: Professional modal dialogs for editing
+
+  - **Responsive Design**:
+    - Updated mobile styles for new editor
+    - Modal adapts to smaller screens
+    - **Impact**: Works on all device sizes
+
+#### Technical Details
+
+**JSON Structure Handling**:
+- Supports all HTML types: `h1`, `h2`, `p`, `image`, `radio-group`, `checkbox-group`, `div-group`, `unordered-list`
+- Handles nested structures: radio options with popups, checkbox items, div items, addon items
+- Maintains exact property structure: `order`, `html-type`, `content`, `src`, `alt`, `caption`, `label`, `price`, `price-basis`, `description`, `popup`
+
+**Section Key Generation**:
+- Auto-generates keys: `section1`, `section2`, etc.
+- Finds highest section number and increments
+- Does not reuse keys when sections are deleted (maintains consistency)
+
+**Order Management**:
+- Order determined by visual position in list
+- Automatically recalculated on drag-and-drop
+- Order starts at 1 and increments by 1
+
+**Validation**:
+- Validates JSON structure before save
+- Ensures required properties exist for each HTML type
+- Shows validation errors to user via message display
+
+**Dependencies**:
+- **SortableJS**: Lightweight drag-and-drop library (~15KB minified)
+  - CDN: `https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js`
+  - No jQuery dependency
+  - MIT License
+
+#### Benefits
+
+- **Better UX**: Visual, intuitive interface for non-technical users
+- **Drag-and-Drop**: Easy section reordering by dragging
+- **Visual Representation**: See menu structure at a glance
+- **Lightweight**: SortableJS is much smaller than JSONEditor
+- **No Breaking Changes**: Maintains existing data loading and save patterns
+- **DRY Principles**: Reusable rendering functions
+- **Full Feature Support**: All HTML types and nested structures supported
+- **Professional UI**: Modern modals, forms, and visual feedback
+
+#### Breaking Changes
+
+None - This is a complete replacement that maintains API compatibility. The save endpoint (`/admin/api/menu/save`) and data format remain unchanged.
+
+#### Files Affected
+
+**Modified Files**:
+- `src/views/admin/menu-editor.hbs` - Removed JSONEditor, added SortableJS, updated HTML structure
+- `public/global/js/admin-menu-editor.js` - Complete rewrite with new editor logic
+- `public/global/css/admin.css` - Added comprehensive styles for new editor
+- `docs/CHANGELOG_ADMIN_BRANCH.md` - Updated changelog entry
+
+**No New Files Created** (all changes are modifications to existing files)
+
+#### Testing Recommendations
+
+1. **Test with Existing Menu Data**:
+   - Load menu editor with existing menu from database
+   - Verify all sections render correctly
+   - Verify nested structures display properly
+
+2. **Test Section Management**:
+   - Add new sections of each HTML type
+   - Edit sections and verify changes save
+   - Delete sections and verify order updates
+
+3. **Test Drag-and-Drop**:
+   - Drag sections to reorder
+   - Verify order values update correctly
+   - Verify visual feedback during drag
+
+4. **Test Nested Structures**:
+   - Expand/collapse radio groups, checkboxes, addons
+   - Edit nested items (radio options, checkboxes, etc.)
+   - Verify popup content displays correctly
+
+5. **Test Save/Reset**:
+   - Save menu and verify JSON output matches expected format
+   - Reset menu and verify original state restores
+   - Verify save endpoint receives correct data
+
+6. **Test Edge Cases**:
+   - Empty menu (no existing data)
+   - Menu with only one section
+   - Menu with deeply nested structures
+   - Very long content in sections
+
+7. **Verify JSON Output**:
+   - Compare saved JSON with `SAMPLE-MENU-JSONB-NEW.json` format
+   - Ensure all required properties are present
+   - Verify order values are correct
+
+#### Related Documentation
+
+- See `public/sample_menu/SAMPLE-MENU-JSONB-NEW.json` for expected JSON format
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin interface conventions
+
+---
+
 ### December 24, 2025 @ 21:38 - Admin Menu Editor Data Loading Fix: Migration from Window Variables to DOM Data Attributes
 
 **Type**: 🟠 MAJOR CHANGE
