@@ -10,6 +10,7 @@ import handlebars from 'handlebars';
 import path from 'path';
 import fs from 'fs';
 import formbody from '@fastify/formbody';
+import fastifyMultipart from '@fastify/multipart';
 import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
 import { fastifyConfig } from './config';
@@ -134,6 +135,15 @@ app.register(fastifyStatic, {
 
 // Register formbody to parse application/x-www-form-urlencoded (HTML forms)
 app.register(formbody);
+
+// 🟡🟡🟡 - [MULTIPART] Register multipart plugin for file uploads (image uploads max 5MB)
+app.register(fastifyMultipart, {
+  limits: {
+    fileSize: 5242880, // 5MB - Maximum file size for image uploads
+    files: 1, // Allow single file upload per request
+    fields: 10, // Reasonable limit for form fields
+  }
+});
 
 // Register cookie plugin - required by the session plugin
 // console.log('🟡🟡🟡 - [app.ts] Registering cookie plugin');

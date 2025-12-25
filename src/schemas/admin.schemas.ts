@@ -55,3 +55,10 @@ export const adminCreateSchema = z.object({
     .or(z.literal(''))
 });
 
+// 🟡🟡🟡 - [ADMIN VALIDATION] Image upload schema - validates file upload request
+// Note: Actual file validation is done in imageUploadService, this schema is for request structure
+export const imageUploadSchema = z.object({
+  // File validation is handled server-side via multipart parser
+  // This schema can be extended if additional form fields are needed
+});
+

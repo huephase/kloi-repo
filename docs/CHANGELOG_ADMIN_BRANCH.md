@@ -14,6 +14,291 @@
 
 ---
 
+### December 25, 2025 @ 22:57 - Image Upload Implementation: Secure Image Uploads for Menu Editor
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented secure image upload functionality for the admin menu editor, allowing admins to upload JPG, PNG, and SVG images (max 5MB) directly from the menu editor interface. Uploaded images are stored in theme-scoped directories (`public/menus/{theme}/`) with UUID-based filenames for security. The feature includes comprehensive client-side and server-side validation, automatic integration with image sections in the menu JSON structure, and a user-friendly upload interface with preview functionality.
+
+**Problem**: 
+- Admins had to manually upload images to the server and then manually enter file paths in the menu editor
+- No way to upload images directly from the menu editor interface
+- Risk of typos in file paths leading to broken images
+- No validation of image file types or sizes
+- Manual file management was error-prone and time-consuming
+
+**Solution**:
+- Added secure image upload endpoint with multipart form data support
+- Implemented comprehensive file validation (type, size, MIME type matching)
+- Created theme-scoped storage directories for menu images
+- Integrated upload functionality directly into image section edit modal
+- Added client-side validation for better UX
+- Implemented image preview functionality
+- Automatic path insertion into image section src field
+
+#### Major Changes
+
+- **Dependencies** (`package.json`):
+  - **Added @fastify/multipart** (^9.0.1): Fastify plugin for handling multipart/form-data file uploads
+  - **Code Added**:
+    ```json
+    "@fastify/multipart": "^9.0.1"
+    ```
+  - **Impact**: Enables secure file upload handling in Fastify
+
+- **Fastify Configuration** (`src/config/fastify.ts`):
+  - **Increased Body Limit**:
+    - Changed `bodyLimit` from 1MB to 5MB (5 * 1024 * 1024 bytes)
+    - Added comment explaining the limit is for image uploads
+    - **Code Changed**:
+      ```typescript
+      bodyLimit: 5242880, // 5MB - Increased for image uploads (JPG, PNG, SVG max 5MB)
+      ```
+    - **Impact**: Allows larger file uploads for images
+
+- **App Registration** (`src/app.ts`):
+  - **Registered Multipart Plugin**:
+    - Added `@fastify/multipart` plugin registration after formbody
+    - Configured with 5MB file size limit, single file per request
+    - **Code Added**:
+      ```typescript
+      app.register(fastifyMultipart, {
+        limits: {
+          fileSize: 5242880, // 5MB - Maximum file size for image uploads
+          files: 1, // Allow single file upload per request
+          fields: 10, // Reasonable limit for form fields
+        }
+      });
+      ```
+    - **Impact**: Enables multipart form data parsing for file uploads
+
+- **Image Upload Service** (`src/services/imageUploadService.ts` - New File):
+  - **File Validation**:
+    - `validateImageFile()` - Validates file type (MIME type + extension), size (5MB max)
+    - Validates both MIME type and file extension for security
+    - Ensures MIME type matches file extension
+    - Returns validation result with error messages
+  - **File Management**:
+    - `generateUniqueFilename()` - Generates UUID-based filenames to prevent conflicts
+    - `ensureThemeDirectory()` - Creates theme directory structure if needed
+    - `saveImageFile()` - Saves validated image file to theme directory
+    - `deleteImageFile()` - Deletes image file (for future cleanup)
+  - **Security Features**:
+    - File type validation (JPG, PNG, SVG only)
+    - File size validation (5MB maximum)
+    - MIME type and extension matching
+    - UUID-based filenames prevent path traversal
+    - Theme-scoped storage
+  - **Code Added**:
+    ```typescript
+    export async function validateImageFile(file: MultipartFile, maxSize: number = MAX_FILE_SIZE)
+    export function generateUniqueFilename(originalName: string, theme: string): string
+    export function ensureThemeDirectory(theme: string): string
+    export async function saveImageFile(file: MultipartFile, theme: string)
+    export function deleteImageFile(filePath: string): void
+    ```
+  - **Impact**: Centralized, secure image upload handling with comprehensive validation
+
+- **Validation Schema** (`src/schemas/admin.schemas.ts`):
+  - **Added Image Upload Schema**:
+    - `imageUploadSchema` - Zod schema for image upload request validation
+    - Note: Actual file validation handled in imageUploadService
+    - **Code Added**:
+      ```typescript
+      export const imageUploadSchema = z.object({
+        // File validation is handled server-side via multipart parser
+      });
+      ```
+    - **Impact**: Type-safe validation structure for upload endpoint
+
+- **Admin Routes** (`src/routes/admin/index.ts`):
+  - **Added Image Upload Endpoint**:
+    - `POST /admin/api/upload-image` - Handles image file uploads
+    - Protected by `validateAdminSession` hook (theme-scoped)
+    - Parses multipart form data
+    - Validates file using `imageUploadService`
+    - Saves file to theme directory
+    - Returns JSON response with file path
+    - **Code Added**:
+      ```typescript
+      app.post('/admin/api/upload-image', async (request, reply) => {
+        const data = await request.file();
+        const validation = await validateImageFile(data);
+        const result = await saveImageFile(data, theme);
+        return reply.send({ success: true, filePath: result.relativePath });
+      });
+      ```
+    - **Impact**: Secure image upload endpoint with admin authentication
+
+- **Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js`):
+  - **Updated Image Section Edit Modal**:
+    - Added file input element (hidden, triggered by upload button)
+    - Added "Choose Image" button for file selection
+    - Added image preview container
+    - Added upload status indicator
+    - **Code Changed** (around line 566):
+      ```javascript
+      <div class="admin-image-upload-container">
+        <input type="file" id="edit-section-image-upload" accept="image/jpeg,image/png,image/svg+xml">
+        <button class="admin-upload-button">Choose Image</button>
+        <span class="admin-upload-status"></span>
+      </div>
+      <div class="admin-image-preview-container">
+        <img src="..." class="admin-image-preview">
+      </div>
+      ```
+    - **Impact**: User-friendly image upload interface in edit modal
+
+  - **Added Image Upload Handler**:
+    - `handleImageUpload()` - Handles file upload process
+    - Client-side validation (file type, size)
+    - Creates FormData and POSTs to `/admin/api/upload-image`
+    - Updates image section `src` field with returned path
+    - Shows image preview
+    - Displays upload status (uploading, success, error)
+    - **Code Added** (around line 1145):
+      ```javascript
+      async function handleImageUpload(sectionKey, file, statusSpan, previewContainer, srcInput) {
+        // Client-side validation
+        // Upload via FormData
+        // Update src field and show preview
+      }
+      ```
+    - **Impact**: Seamless image upload integration with menu editor
+
+  - **Event Listeners**:
+    - Added file input change listener
+    - Added upload button click handler
+    - Integrated with existing modal event handlers
+    - **Impact**: Complete upload workflow in edit modal
+
+- **Admin CSS Stylesheet** (`public/global/css/admin.css`):
+  - **Image Upload Styles**:
+    - `.admin-image-upload-container` - Container for upload controls
+    - `.admin-file-input` - Hidden file input styling
+    - `.admin-upload-button` - Upload button styling (green, matches success theme)
+    - `.admin-upload-status` - Status message styling (uploading, success, error states)
+    - `.admin-image-preview-container` - Preview container with border and padding
+    - `.admin-image-preview` - Image preview styling (max-width, max-height, centered)
+    - **Code Added** (at end of file):
+      ```css
+      .admin-image-upload-container { ... }
+      .admin-upload-button { ... }
+      .admin-upload-status { ... }
+      .admin-image-preview-container { ... }
+      .admin-image-preview { ... }
+      ```
+    - **Impact**: Professional, user-friendly upload interface styling
+
+#### Technical Details
+
+**File Storage Structure**:
+- Images stored in `public/menus/{theme}/` directory
+- Files renamed with UUIDs: `{uuid}.{ext}` (e.g., `550e8400-e29b-41d4-a716-446655440000.jpg`)
+- Theme-scoped directories ensure theme isolation
+- Directory structure created automatically if missing
+
+**File Type Validation**:
+- Accepts MIME types: `image/jpeg`, `image/png`, `image/svg+xml`
+- Accepts file extensions: `.jpg`, `.jpeg`, `.png`, `.svg`
+- Validates both MIME type and extension for security
+- Ensures MIME type matches file extension (prevents spoofing)
+
+**File Size Limit**:
+- Maximum: 5MB (5 * 1024 * 1024 bytes)
+- Enforced on both client (for UX) and server (for security)
+- Fastify bodyLimit and multipart plugin limits configured
+
+**API Response Format**:
+```json
+{
+  "success": true,
+  "filePath": "/public/menus/default/550e8400-e29b-41d4-a716-446655440000.jpg",
+  "message": "Image uploaded successfully"
+}
+```
+
+**Error Response Format**:
+```json
+{
+  "success": false,
+  "message": "File size exceeds 5MB limit"
+}
+```
+
+**Security Features**:
+- Admin authentication required (via `validateAdminSession` hook)
+- Theme-scoped uploads (admins can only upload to their theme directory)
+- File type validation (MIME type + extension)
+- File size limits enforced
+- UUID-based filenames prevent path traversal
+- Directory creation with proper permissions
+
+#### Benefits
+
+- **User-Friendly**: Direct image upload from menu editor interface
+- **Secure**: Comprehensive validation on both client and server
+- **Theme-Scoped**: Images stored per theme, ensuring isolation
+- **Automatic Integration**: Uploaded image path automatically inserted into menu JSON
+- **Preview Functionality**: See uploaded image before saving menu
+- **Error Handling**: Clear error messages for validation failures
+- **Professional UI**: Modern upload interface with status indicators
+
+#### Breaking Changes
+
+None - This is a new feature addition that does not affect existing functionality.
+
+#### Files Affected
+
+**New Files**:
+- `src/services/imageUploadService.ts` - Image upload service with validation and file management
+
+**Modified Files**:
+- `package.json` - Added `@fastify/multipart` dependency
+- `src/config/fastify.ts` - Increased bodyLimit to 5MB
+- `src/app.ts` - Registered multipart plugin
+- `src/schemas/admin.schemas.ts` - Added image upload validation schema
+- `src/routes/admin/index.ts` - Added image upload endpoint
+- `public/global/js/admin-menu-editor.js` - Added upload functionality to image edit modal
+- `public/global/css/admin.css` - Added upload UI styles
+- `docs/CHANGELOG_ADMIN_BRANCH.md` - Updated changelog entry
+
+#### Testing Recommendations
+
+1. **Test Valid Uploads**:
+   - Upload valid JPG image (< 5MB) - should succeed
+   - Upload valid PNG image (< 5MB) - should succeed
+   - Upload valid SVG image (< 5MB) - should succeed
+   - Verify file is saved to correct theme directory
+   - Verify file path is returned correctly
+   - Verify image section src is updated in editor
+   - Verify image preview displays correctly
+
+2. **Test Validation**:
+   - Upload file > 5MB - should fail with error
+   - Upload invalid file type (e.g., PDF) - should fail with error
+   - Upload file with mismatched MIME type and extension - should fail
+   - Verify error messages are user-friendly
+
+3. **Test Security**:
+   - Upload without admin authentication - should fail (redirect to login)
+   - Upload to wrong theme - should be prevented by theme validation
+   - Verify UUID-based filenames prevent path traversal
+   - Test with multiple themes (theme isolation)
+
+4. **Test Integration**:
+   - Upload image and save menu - verify image path persists
+   - Upload image, edit section, verify preview updates
+   - Upload multiple images for different sections
+   - Verify uploaded images are accessible via returned paths
+
+#### Related Documentation
+
+- See `public/sample_menu/SAMPLE-MENU-JSONB-NEW.json` for menu JSON structure with image sections
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin interface conventions
+
+---
+
 ### December 25, 2025 @ 21:21 - Custom Menu Editor Implementation: Replaced JSONEditor with Drag-and-Drop Visual Editor
 
 **Type**: 🟠 MAJOR CHANGE

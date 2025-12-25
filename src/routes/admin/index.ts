@@ -6,6 +6,7 @@ import { adminLoginSchema, menuSaveSchema } from '../../schemas/admin.schemas';
 import { prisma } from '../../lib/prisma';
 import { validateAdminSession } from '../../hooks/adminHooks';
 import { generatePageClass } from '../../lib/pageClass';
+import { saveImageFile, validateImageFile } from '../../services/imageUploadService';
 
 // 🟡🟡🟡 - [RATE LIMITING] Simple in-memory rate limiter for admin login
 // ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Prevent brute force attacks on login endpoint
@@ -290,6 +291,57 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       return reply.status(500).send({
         success: false,
         message: 'Failed to save menu',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // POST /admin/api/upload-image - Upload image file for menu editor
+  app.post('/admin/api/upload-image', async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN API] POST /admin/api/upload-image');
+    
+    const theme = (request as any).theme || 'default';
+    const admin = (request as any).admin;
+
+    try {
+      // 🟡🟡🟡 - [MULTIPART] Parse multipart form data
+      // Type assertion needed because FastifyRequest doesn't include multipart methods in base type
+      const data = await (request as any).file();
+      
+      if (!data) {
+        console.error('❗❗❗ - [ADMIN IMAGE UPLOAD] No file provided in request');
+        return reply.status(400).send({
+          success: false,
+          message: 'No file provided. Please select an image file to upload.'
+        });
+      }
+
+      // 🟡🟡🟡 - [VALIDATION] Validate image file (async validation)
+      const validation = await validateImageFile(data);
+      if (!validation.valid) {
+        console.error('❗❗❗ - [ADMIN IMAGE UPLOAD] File validation failed:', validation.error);
+        return reply.status(400).send({
+          success: false,
+          message: validation.error || 'File validation failed'
+        });
+      }
+
+      // 🟡🟡🟡 - [SAVE] Save image file to theme directory
+      const result = await saveImageFile(data, theme);
+
+      console.log('✅✅✅ - [ADMIN IMAGE UPLOAD] Image uploaded successfully by admin:', admin.id.substring(0, 8), 'for theme:', theme, 'path:', result.relativePath);
+
+      return reply.send({
+        success: true,
+        filePath: result.relativePath,
+        message: 'Image uploaded successfully'
+      });
+    } catch (error) {
+      console.error('❗❗❗ - [ADMIN IMAGE UPLOAD] Error uploading image:', error);
+      
+      return reply.status(500).send({
+        success: false,
+        message: 'Failed to upload image',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }

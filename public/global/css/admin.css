@@ -417,6 +417,17 @@
   color: #28a745;
   font-weight: 600;
   font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.admin-dirham-icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .admin-nested-item-description {
@@ -731,5 +742,70 @@
   .admin-reset-button {
     width: 100%;
   }
+}
+
+/* 🟡🟡🟡 - [IMAGE UPLOAD] Image upload styles */
+.admin-image-upload-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.admin-file-input {
+  display: none;
+}
+
+.admin-upload-button {
+  padding: 0.5rem 1rem;
+  background: #28a745;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.admin-upload-button:hover {
+  background: #218838;
+}
+
+.admin-upload-status {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+}
+
+.admin-upload-status.uploading {
+  color: #007bff;
+  background: #e7f3ff;
+}
+
+.admin-upload-status.success {
+  color: #28a745;
+  background: #d4edda;
+}
+
+.admin-upload-status.error {
+  color: #dc3545;
+  background: #f8d7da;
+}
+
+.admin-image-preview-container {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.admin-image-preview {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 4px;
+  display: block;
+  margin: 0 auto;
 }
 

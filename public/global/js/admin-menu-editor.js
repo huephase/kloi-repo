@@ -206,7 +206,7 @@
         item.innerHTML = `
           <div class="admin-nested-item-header">
             <strong>${escapeHtml(radio.label || radioKey)}</strong>
-            <span class="admin-nested-item-price">$${radio.price || 0} ${radio['price-basis'] || ''}</span>
+            <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${radio.price || 0} ${radio['price-basis'] || ''}</span>
             ${hasPopup ? '<button class="admin-expand-toggle-nested" data-section-key="' + sectionKey + '" data-radio-key="' + radioKey + '">▼</button>' : ''}
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-radio-key="${radioKey}">✏️</button>
             <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-radio-key="${radioKey}">🗑️</button>
@@ -246,7 +246,7 @@
         item.innerHTML = `
           <div class="admin-nested-item-header">
             <strong>${escapeHtml(checkbox.label || checkboxKey)}</strong>
-            <span class="admin-nested-item-price">$${checkbox.price || 0} ${checkbox['price-basis'] || ''}</span>
+            <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${checkbox.price || 0} ${checkbox['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">✏️</button>
             <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">🗑️</button>
           </div>
@@ -272,7 +272,7 @@
         item.innerHTML = `
           <div class="admin-nested-item-header">
             <strong>${escapeHtml(div.label || divKey)}</strong>
-            <span class="admin-nested-item-price">$${div.price || 0} ${div['price-basis'] || ''}</span>
+            <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${div.price || 0} ${div['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-div-key="${divKey}">✏️</button>
             <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-div-key="${divKey}">🗑️</button>
           </div>
@@ -298,7 +298,7 @@
         item.innerHTML = `
           <div class="admin-nested-item-header">
             <strong>${escapeHtml(addon.label || addonKey)}</strong>
-            <span class="admin-nested-item-price">$${addon.price || 0} ${addon['price-basis'] || ''}</span>
+            <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${addon.price || 0} ${addon['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-addon-key="${addonKey}">✏️</button>
             <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-addon-key="${addonKey}">🗑️</button>
           </div>
@@ -564,10 +564,22 @@
         </div>
       `;
     } else if (htmlType === 'image') {
+      const currentImageSrc = section.src || '';
       modalContent = `
         <div class="admin-form-group">
           <label>Image Source (src):</label>
-          <input type="text" id="edit-section-src" class="admin-form-input" value="${escapeHtml(section.src || '')}">
+          <input type="text" id="edit-section-src" class="admin-form-input" value="${escapeHtml(currentImageSrc)}">
+        </div>
+        <div class="admin-form-group">
+          <label>Upload New Image:</label>
+          <div class="admin-image-upload-container">
+            <input type="file" id="edit-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png,image/svg+xml" style="display: none;">
+            <button type="button" class="admin-button-secondary admin-upload-button" data-section-key="${sectionKey}">Choose Image</button>
+            <span class="admin-upload-status" id="upload-status-${sectionKey}"></span>
+          </div>
+          <div class="admin-image-preview-container" id="image-preview-${sectionKey}" style="${currentImageSrc ? '' : 'display: none;'}">
+            <img src="${escapeHtml(currentImageSrc)}" alt="Preview" class="admin-image-preview" onerror="this.style.display='none';">
+          </div>
         </div>
         <div class="admin-form-group">
           <label>Alt Text:</label>
@@ -634,6 +646,28 @@
       saveSectionChanges(sectionKey, section, htmlType, modal);
       closeModal();
     });
+
+    // 🟡🟡🟡 - [IMAGE UPLOAD] Setup image upload functionality for image sections
+    if (htmlType === 'image') {
+      const fileInput = modal.querySelector('#edit-section-image-upload');
+      const uploadButton = modal.querySelector('.admin-upload-button');
+      const statusSpan = modal.querySelector(`#upload-status-${sectionKey}`);
+      const previewContainer = modal.querySelector(`#image-preview-${sectionKey}`);
+      const srcInput = modal.querySelector('#edit-section-src');
+
+      if (uploadButton && fileInput) {
+        uploadButton.addEventListener('click', () => {
+          fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          await handleImageUpload(sectionKey, file, statusSpan, previewContainer, srcInput);
+        });
+      }
+    }
 
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal();
@@ -1128,6 +1162,109 @@
     const messageEl = document.getElementById('admin-message');
     if (messageEl) {
       messageEl.style.display = 'none';
+    }
+  }
+
+  // 🟡🟡🟡 - [IMAGE UPLOAD] Handle image file upload
+  async function handleImageUpload(sectionKey, file, statusSpan, previewContainer, srcInput) {
+    // 🟡🟡🟡 - [VALIDATION] Client-side validation
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg'];
+
+    if (file.size > maxSize) {
+      if (statusSpan) {
+        statusSpan.textContent = '❌ File size exceeds 5MB limit';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] File too large:', file.size, 'bytes');
+      return;
+    }
+
+    if (!allowedTypes.includes(file.type)) {
+      if (statusSpan) {
+        statusSpan.textContent = '❌ Invalid file type. Only JPG, PNG, and SVG are allowed.';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file type:', file.type);
+      return;
+    }
+
+    const fileName = file.name.toLowerCase();
+    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+    if (!hasValidExtension) {
+      if (statusSpan) {
+        statusSpan.textContent = '❌ Invalid file extension. Only .jpg, .jpeg, .png, and .svg are allowed.';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file extension:', fileName);
+      return;
+    }
+
+    // 🟡🟡🟡 - [UPLOAD] Show upload status
+    if (statusSpan) {
+      statusSpan.textContent = '⏳ Uploading...';
+      statusSpan.className = 'admin-upload-status uploading';
+    }
+
+    try {
+      // 🟡🟡🟡 - [FORMDATA] Create FormData with file
+      const formData = new FormData();
+      formData.append('image', file);
+
+      // 🟡🟡🟡 - [API CALL] Upload file to server
+      const response = await fetch('/admin/api/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.filePath) {
+        // 🟡🟡🟡 - [SUCCESS] Update src field with returned path
+        if (srcInput) {
+          srcInput.value = result.filePath;
+        }
+
+        // 🟡🟡🟡 - [PREVIEW] Show image preview
+        if (previewContainer) {
+          const img = previewContainer.querySelector('img');
+          if (img) {
+            img.src = result.filePath;
+            img.style.display = 'block';
+          }
+          previewContainer.style.display = 'block';
+        }
+
+        if (statusSpan) {
+          statusSpan.textContent = '✅ Upload successful!';
+          statusSpan.className = 'admin-upload-status success';
+        }
+
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Image uploaded successfully:', result.filePath);
+
+        // 🟡🟡🟡 - [CLEAR STATUS] Clear status message after 3 seconds
+        setTimeout(() => {
+          if (statusSpan) {
+            statusSpan.textContent = '';
+            statusSpan.className = 'admin-upload-status';
+          }
+        }, 3000);
+      } else {
+        // 🟡🟡🟡 - [ERROR] Show error message
+        if (statusSpan) {
+          statusSpan.textContent = '❌ ' + (result.message || 'Upload failed');
+          statusSpan.className = 'admin-upload-status error';
+        }
+        console.error('❗❗❗ - [ADMIN MENU EDITOR] Upload failed:', result.message);
+      }
+    } catch (error) {
+      // 🟡🟡🟡 - [ERROR] Handle network or other errors
+      if (statusSpan) {
+        statusSpan.textContent = '❌ Error uploading image. Please try again.';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Error uploading image:', error);
     }
   }
 
