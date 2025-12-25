@@ -1,31 +1,31 @@
 {
   "section1": {
     "order": 1,
-    "content": "MINORI Event Menu",
+    "content": "7Brunch Event Menu",
     "html-type": "h1"
   },
   "section2": {
     "order": 2,
-    "content": "Finest Matcha Selections",
+    "content": "Finest Coffee Selections",
     "html-type": "p"
   },
   "section3": {
-    "alt": "Fresh hummus preparation",
-    "src": "/public/themes/127/images/minori-hero.jpg",
+    "alt": "Specialty Coffee and Brunch",
+    "src": "/public/themes/7brunch/images/7brunch-hero.jpg",
     "order": 3,
     "caption": "",
     "html-type": "image"
   },
   "section4": {
     "order": 4,
-    "content": "Please select your Matcha menu",
+    "content": "Please select your menu",
     "html-type": "h2"
   },
   "section5": {
     "order": 5,
     "content": {
       "radio1": {
-        "label": "Matcha Ice Cream Only",
+        "label": "Coffee Only and Bites",
         "popup": {
           "section1": {
             "alt": "Fresh hummus preparation",
@@ -51,7 +51,7 @@
         "price-basis": "Per guest"
       },
       "radio2": {
-        "label": "Matcha and Specialty Drinks",
+        "label": "Coffee and Specialty Drinks",
         "popup": {
           "section1": {
             "alt": "Fresh hummus preparation",
