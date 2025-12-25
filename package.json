@@ -46,6 +46,7 @@
     "@fastify/view": "^11.1.0",
     "@prisma/client": "^6.9.0",
     "@sendgrid/mail": "^8.1.5",
+    "@types/bcrypt": "^5.0.2",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.16.5",
     "bcrypt": "^5.1.1",
@@ -63,7 +64,6 @@
     "zod": "^3.25.51"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
     "@types/express-session": "^1.18.2",
     "@types/fastify-static": "^0.14.0",
     "@types/handlebars": "^4.0.40",
