@@ -12,3 +12,7 @@ body {
     background-color: var(--kloi-background);
     color: var(--kloi-text);
 }
+
+.select-box .country-selector strong {
+    color: #ffcf85;
+}
