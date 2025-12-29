@@ -132,7 +132,7 @@ export function canEditMenu(admin: Admin): boolean {
 }
 
 // 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Check if admin can view menu (all roles can view)
-export function canViewMenu(admin: Admin): boolean {
+export function canViewMenu(_admin: Admin): boolean {
   return true; // All roles can view
 }
 

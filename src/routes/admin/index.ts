@@ -12,7 +12,7 @@ import {
   resendVerificationSchema 
 } from '../../schemas/admin.schemas';
 import { prisma } from '../../lib/prisma';
-import { validateAdminSession, requireEditorOrAbove, requireSuperAdmin, canEditMenu } from '../../hooks/adminHooks';
+import { validateAdminSession, requireEditorOrAbove, requireSuperAdmin } from '../../hooks/adminHooks';
 import { generatePageClass } from '../../lib/pageClass';
 import { saveImageFile, validateImageFile } from '../../services/imageUploadService';
 
@@ -688,7 +688,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   // GET /admin/pending-approvals - List admins awaiting approval
   app.get('/admin/pending-approvals', {
     preHandler: [requireSuperAdmin()]
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] GET /admin/pending-approvals');
     
     try {
