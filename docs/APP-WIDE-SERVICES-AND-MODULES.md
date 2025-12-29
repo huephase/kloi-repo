@@ -517,6 +517,70 @@ Examples across the codebase show the expected prefixes:
 - Views
   - Use registered helpers where applicable and consider partials for reusable blocks.
 
+### Admin Sign-Up and Invitation Workflow
+
+- Admin sign-up is invitation-only. Super admins create invitations that send email links to new users.
+- Sign-up flow: Invitation link → Sign-up form → Email verification → Manual approval → Activation.
+- Email verification is required before approval. Verification tokens expire after 7 days.
+- Backend team manually approves admins and assigns roles (SUPER_ADMIN, EDITOR, READ_ONLY).
+- Admin status flow: PENDING → EMAIL_VERIFIED → APPROVED → ACTIVE (or INACTIVE for deactivation).
+
+Code reference – invitation creation:
+```typescript
+// src/services/adminService.ts
+static async createInvitation(inviterId: string, email: string, theme: string)
+```
+
+Code reference – sign-up processing:
+```typescript
+// src/services/adminService.ts
+static async signUpAdmin(invitationToken: string, firstName: string, lastName: string, phone: string, password: string)
+```
+
+Code reference – email verification:
+```typescript
+// src/services/adminService.ts
+static async verifyEmail(token: string)
+```
+
+Code reference – approval and activation:
+```typescript
+// src/services/adminService.ts
+static async approveAdmin(adminId: string, approverId: string, role: AdminRole)
+static async activateAdmin(adminId: string)
+```
+
+### Role-Based Access Control
+
+- Three admin roles: SUPER_ADMIN (full access), EDITOR (can edit menus), READ_ONLY (view only).
+- Role checks are enforced server-side via hooks before route handlers.
+- Menu editor routes require EDITOR or SUPER_ADMIN role.
+- Invitation and approval management routes require SUPER_ADMIN role only.
+- All roles can view menus, but only EDITOR+ can edit.
+
+Code reference – role-based hooks:
+```typescript
+// src/hooks/adminHooks.ts
+export function requireRole(allowedRoles: AdminRole[])
+export function requireSuperAdmin()
+export function requireEditorOrAbove()
+export function canEditMenu(admin: Admin): boolean
+export function canViewMenu(admin: Admin): boolean
+```
+
+Code reference – role enforcement in routes:
+```typescript
+// src/routes/admin/index.ts
+app.post('/admin/api/menu/save', {
+  preHandler: [requireEditorOrAbove()]
+}, async (request, reply) => { ... });
+```
+
+Required when adding new admin routes:
+- Apply role checks using `requireRole()`, `requireSuperAdmin()`, or `requireEditorOrAbove()` hooks.
+- Check `canEditMenu()` or `canViewMenu()` helper functions for conditional logic.
+- Never trust client-side role information; always verify server-side.
+
 ### Where to Extend and Reuse
 
 - Client wizard utilities: `public/global/js/wizard__progress.js` (extend with new collectors per step).

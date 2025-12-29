@@ -1,0 +1,130 @@
+{{!-- 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN SIGNUP] Admin sign-up page --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-login-container">
+  <div class="admin-login-card">
+    <header class="admin-login-header">
+      <h1>Admin Sign Up</h1>
+      <p class="admin-theme-badge">Theme: <strong>{{theme}}</strong></p>
+    </header>
+
+    {{#if error}}
+      <div class="admin-error-message">
+        <p>{{error}}</p>
+      </div>
+    {{/if}}
+
+    {{#if invitationData}}
+      <form method="POST" action="/admin/signup" class="admin-login-form" id="signup-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input 
+            type="email" 
+            id="email" 
+            name="email" 
+            value="{{invitationData.email}}"
+            disabled
+            class="admin-disabled-input"
+          />
+          <small class="form-help-text">This email was used for your invitation</small>
+        </div>
+
+        <div class="form-group">
+          <label for="firstName">First Name</label>
+          <input 
+            type="text" 
+            id="firstName" 
+            name="firstName" 
+            required 
+            autocomplete="given-name"
+            placeholder="Enter your first name"
+            autofocus
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input 
+            type="text" 
+            id="lastName" 
+            name="lastName" 
+            required 
+            autocomplete="family-name"
+            placeholder="Enter your last name"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="phone">Phone Number</label>
+          <input 
+            type="tel" 
+            id="phone" 
+            name="phone" 
+            required 
+            autocomplete="tel"
+            placeholder="Enter your phone number"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            required 
+            autocomplete="new-password"
+            placeholder="Enter your password (min 8 characters)"
+            minlength="8"
+          />
+          <small class="form-help-text">Must contain uppercase, lowercase, and number</small>
+        </div>
+
+        <div class="form-group">
+          <label for="passwordConfirm">Confirm Password</label>
+          <input 
+            type="password" 
+            id="passwordConfirm" 
+            name="passwordConfirm" 
+            required 
+            autocomplete="new-password"
+            placeholder="Confirm your password"
+            minlength="8"
+          />
+        </div>
+
+        <input type="hidden" name="invitationToken" value="{{invitationData.token}}" />
+        <input type="hidden" name="theme" value="{{theme}}" />
+
+        <button type="submit" class="admin-login-button">
+          Sign Up
+        </button>
+      </form>
+
+      <script>
+        // Client-side password confirmation validation
+        document.getElementById('signup-form').addEventListener('submit', function(e) {
+          const password = document.getElementById('password').value;
+          const passwordConfirm = document.getElementById('passwordConfirm').value;
+          
+          if (password !== passwordConfirm) {
+            e.preventDefault();
+            alert('Passwords do not match. Please try again.');
+            return false;
+          }
+        });
+      </script>
+    {{else}}
+      <div class="admin-error-message">
+        <p>Invalid invitation link. Please use the invitation link sent to your email.</p>
+      </div>
+    {{/if}}
+
+    <footer class="admin-login-footer">
+      <p>Already have an account? <a href="/admin/login?theme={{theme}}">Sign in</a></p>
+    </footer>
+  </div>
+</div>
+

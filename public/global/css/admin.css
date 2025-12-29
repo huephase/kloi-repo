@@ -809,3 +809,27 @@
   margin: 0 auto;
 }
 
+/* 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN CSS] Sign-up form styles */
+.admin-disabled-input {
+  background-color: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.form-help-text {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.admin-success-message {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 4px;
+  padding: 1rem;
+  margin: 1rem 0;
+  color: #155724;
+}
+

@@ -1,0 +1,28 @@
+{{!-- 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN VERIFY EMAIL] Email verification success page --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-login-container">
+  <div class="admin-login-card">
+    <header class="admin-login-header" style="background-color: #4CAF50;">
+      <h1>Email Verified</h1>
+      <p class="admin-theme-badge">Theme: <strong>{{theme}}</strong></p>
+    </header>
+
+    <div class="admin-success-message" style="padding: 20px; text-align: center;">
+      <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
+      <h2>Success!</h2>
+      <p>Your email has been verified successfully.</p>
+      {{#if adminName}}
+        <p>Hello, <strong>{{adminName}}</strong>!</p>
+      {{/if}}
+      <p style="margin-top: 20px;">Your account is now pending approval by the backend team. You will receive an email notification once your account has been activated.</p>
+    </div>
+
+    <footer class="admin-login-footer">
+      <p><a href="/admin/login?theme={{theme}}">Return to login</a></p>
+    </footer>
+  </div>
+</div>
+

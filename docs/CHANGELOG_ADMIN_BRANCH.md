@@ -14,6 +14,354 @@
 
 ---
 
+### December 29, 2025 @ 19:00 - Admin Sign-Up with Invitations and Email Verification
+
+**Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED
+
+**Summary**: Implemented invitation-only admin sign-up system with email verification, manual approval workflow, and role-based access control. New admins sign up via invitation links, verify their email, await manual approval/activation by backend team, and are assigned roles (Super Admin, Editor, Read-Only). The system includes comprehensive security features including rate limiting, token-based verification, and role-based route protection.
+
+**Problem**: 
+- No way for new admins to sign up - all accounts had to be created manually via seed script
+- No email verification process for admin accounts
+- No role-based access control - all admins had full access
+- No invitation system for controlled admin onboarding
+- Manual approval workflow not supported
+
+**Solution**:
+- Implemented invitation-only sign-up with secure token-based invitation links
+- Added email verification with 7-day expiry tokens
+- Created manual approval workflow with status tracking (PENDING → EMAIL_VERIFIED → APPROVED → ACTIVE)
+- Implemented role-based access control (SUPER_ADMIN, EDITOR, READ_ONLY)
+- Added rate limiting for sign-up and verification resend endpoints
+- Integrated SendGrid email service for invitation, verification, and notification emails
+
+#### Major Changes
+
+- **Database Schema** (`prisma/schema.prisma`):
+  - **New Enums**:
+    - `AdminRole` enum: SUPER_ADMIN, EDITOR, READ_ONLY
+    - `AdminStatus` enum: PENDING, EMAIL_VERIFIED, APPROVED, ACTIVE, INACTIVE
+  - **Admins Model Updates**:
+    - Added `firstName` (String, required)
+    - Added `lastName` (String, required)
+    - Added `phone` (String, required)
+    - Added `role` (AdminRole, default: READ_ONLY)
+    - Added `emailVerified` (Boolean, default: false)
+    - Added `emailVerificationToken` (String, nullable, unique)
+    - Added `emailVerificationExpiry` (DateTime, nullable)
+    - Added `invitationToken` (String, nullable, unique, indexed)
+    - Added `invitationExpiry` (DateTime, nullable)
+    - Added `invitedBy` (String, nullable, foreign key to Admins.id)
+    - Added `approvedAt` (DateTime, nullable)
+    - Added `approvedBy` (String, nullable, foreign key to Admins.id)
+    - Added `status` (AdminStatus, default: PENDING)
+    - Made `username` and `password` nullable (for future OAuth support)
+  - **Indexes Added**:
+    - Index on `invitationToken` for fast lookups
+    - Index on `emailVerificationToken` for fast lookups
+    - Index on `email` for email-based queries
+    - Index on `status` for filtering by status
+  - **Relations Added**:
+    - `inviter` relation (Admins invited by this admin)
+    - `approver` relation (Admins approved by this admin)
+  - **Migration**: `YYYYMMDDHHMMSS_add_admin_signup_fields`
+
+- **Email Service** (`src/services/emailService.ts` - Complete Implementation):
+  - **Core Functions**:
+    - `sendEmail()` - Core SendGrid email sending with HTML and text fallback
+    - `sendInvitationEmail()` - Invitation email with secure link
+    - `sendEmailVerificationEmail()` - Email verification with token link
+    - `sendApprovalNotificationEmail()` - Notify backend team of pending approvals
+    - `sendAccountActivatedEmail()` - Notify admin when account is activated
+  - **Features**:
+    - HTML email templates with professional styling
+    - Plain text fallbacks for all emails
+    - Expiration notices in email content
+    - Theme-aware email styling
+
+- **SendGrid Configuration** (`src/config/sendgrid.ts` - New File):
+  - SendGrid API initialization
+  - Environment variable configuration (SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, SENDGRID_FROM_NAME)
+  - Error handling and logging
+
+- **Admin Service Extensions** (`src/services/adminService.ts`):
+  - **New Methods**:
+    - `createInvitation()` - Generate invitation token and send invitation email
+    - `validateInvitationToken()` - Validate invitation token and expiry
+    - `signUpAdmin()` - Process sign-up with invitation token
+    - `generateEmailVerificationToken()` - Generate secure verification token
+    - `verifyEmail()` - Verify email using token, update status to EMAIL_VERIFIED
+    - `resendVerificationEmail()` - Resend verification email with new token
+    - `approveAdmin()` - Backend team approves and assigns role
+    - `activateAdmin()` - Activate admin account (set status to ACTIVE)
+    - `getPendingAdmins()` - Get list of admins awaiting approval
+    - `getAdminByEmail()` - Find admin by email address
+  - **Updated Methods**:
+    - `createAdmin()` - Now supports firstName, lastName, phone, role, status fields
+    - `authenticateAdmin()` - Now checks emailVerified, status=ACTIVE, rejects INACTIVE status
+  - **Token Management**:
+    - Secure token generation using crypto.randomBytes
+    - 7-day expiry for invitation and verification tokens
+    - Single-use tokens (cleared after use)
+
+- **Validation Schemas** (`src/schemas/admin.schemas.ts`):
+  - **New Schemas**:
+    - `adminSignUpSchema` - Validates sign-up form (firstName, lastName, phone, password, invitationToken)
+    - `emailVerificationSchema` - Validates email verification token
+    - `invitationCreateSchema` - Validates invitation creation (email, theme)
+    - `adminApprovalSchema` - Validates admin approval (adminId, role)
+    - `resendVerificationSchema` - Validates resend verification request (email)
+  - **Updated Schemas**:
+    - `adminCreateSchema` - Added firstName, lastName, phone, role fields
+
+- **Admin Routes** (`src/routes/admin/index.ts`):
+  - **New Public Routes** (before validateAdminSession hook):
+    - `GET /admin/signup` - Render sign-up page with invitation token validation
+    - `POST /admin/signup` - Process sign-up (rate limited: 3 per IP per hour)
+    - `GET /admin/verify-email` - Email verification endpoint
+    - `POST /admin/resend-verification` - Resend verification email (rate limited: 3 per email per hour)
+  - **New Protected Routes** (require SUPER_ADMIN):
+    - `GET /admin/pending-approvals` - List admins awaiting approval
+    - `POST /admin/invitations/create` - Create new invitation
+    - `POST /admin/approve` - Approve and activate admin with role assignment
+  - **Updated Routes** (role-based access):
+    - `POST /admin/api/menu/save` - Now requires EDITOR or SUPER_ADMIN role
+    - `POST /admin/api/upload-image` - Now requires EDITOR or SUPER_ADMIN role
+  - **Rate Limiting**:
+    - Sign-up: 3 attempts per IP per hour
+    - Resend verification: 3 requests per email per hour
+    - Uses in-memory Map storage (same pattern as login rate limiting)
+
+- **Role-Based Access Control** (`src/hooks/adminHooks.ts`):
+  - **New Functions**:
+    - `requireRole(allowedRoles)` - Middleware factory for role-based access
+    - `requireSuperAdmin()` - Require SUPER_ADMIN role
+    - `requireEditorOrAbove()` - Require EDITOR or SUPER_ADMIN
+    - `canEditMenu(admin)` - Check if admin can edit menu
+    - `canViewMenu(admin)` - Check if admin can view menu (all roles)
+  - **Updated `validateAdminSession`**:
+    - Now checks admin status is ACTIVE (rejects INACTIVE)
+    - Attaches admin.role to request for easy access
+    - Updated public routes list to include sign-up and verification routes
+
+- **View Templates** (New Files):
+  - `src/views/admin/signup.hbs` - Sign-up form with invitation token validation
+  - `src/views/admin/verify-email.hbs` - Email verification success page
+  - `src/views/admin/verification-sent.hbs` - Verification email sent confirmation
+  - `src/views/admin/verification-error.hbs` - Verification error page
+  - **Updated**: `src/views/admin/login.hbs` - Added invitation-only message
+
+- **Utility Functions** (`src/lib/utils.ts`):
+  - **New Functions**:
+    - `generateSecureToken(length)` - Generate cryptographically secure random tokens
+    - `validatePhoneNumber(phone)` - Validate phone number format
+    - `sanitizePhoneNumber(phone)` - Sanitize phone number input
+
+- **CSS Styles** (`public/global/css/admin.css`):
+  - Added `.admin-disabled-input` styles for disabled form fields
+  - Added `.form-help-text` styles for form help text
+  - Added `.admin-success-message` styles for success messages
+
+#### Technical Details
+
+**Sign-Up Flow**:
+1. Super admin creates invitation via `POST /admin/invitations/create`
+2. System generates secure invitation token and sends email with link
+3. User clicks invitation link → `GET /admin/signup?token=...`
+4. User fills sign-up form (firstName, lastName, phone, password)
+5. System creates admin record with status=PENDING
+6. System generates email verification token and sends verification email
+7. User clicks verification link → `GET /admin/verify-email?token=...`
+8. System updates status to EMAIL_VERIFIED and notifies backend team
+9. Backend team approves via `POST /admin/approve` (assigns role)
+10. System activates account (status=ACTIVE) and notifies user
+11. User can now log in
+
+**Role-Based Access**:
+- **SUPER_ADMIN**: Full access including invitation creation and approval management
+- **EDITOR**: Can edit menus and upload images, cannot manage invitations/approvals
+- **READ_ONLY**: Can view menus only, cannot edit or upload
+
+**Token Security**:
+- Invitation tokens: 32-byte hex tokens, 7-day expiry, single-use
+- Verification tokens: 32-byte hex tokens, 7-day expiry, single-use
+- Tokens generated using `crypto.randomBytes()` for cryptographic security
+
+**Status Flow**:
+- PENDING: Initial state after sign-up, before email verification
+- EMAIL_VERIFIED: After email verification, awaiting approval
+- APPROVED: After backend team approval, before activation
+- ACTIVE: Account is active and can log in
+- INACTIVE: Account deactivated (cannot log in)
+
+#### Security Features
+
+1. **Rate Limiting**:
+   - Sign-up: 3 attempts per IP per hour
+   - Resend verification: 3 requests per email per hour
+   - Prevents abuse and brute force attacks
+
+2. **Token Security**:
+   - Cryptographically secure random tokens
+   - 7-day expiry for all tokens
+   - Single-use tokens (invalidated after use)
+   - Tokens stored in database with expiry timestamps
+
+3. **Email Verification**:
+   - Required before approval
+   - Prevents email enumeration (doesn't reveal if email exists)
+   - Resend functionality with rate limiting
+
+4. **Role Enforcement**:
+   - Server-side role checks in hooks
+   - Never trust client-side role information
+   - Role checks applied before route handlers execute
+
+5. **Invitation Security**:
+   - Invitation tokens expire after 7 days
+   - One-time use (cleared after sign-up)
+   - Theme validation (invitation must match subdomain theme)
+
+#### Environment Variables
+
+**New Variables**:
+- `ADMIN_INVITATION_EXPIRY_HOURS=168` (7 days default)
+- `ADMIN_EMAIL_VERIFICATION_EXPIRY_HOURS=168` (7 days default)
+- `ADMIN_APPROVAL_NOTIFICATION_EMAIL=<backend-team-email>` (for approval notifications)
+- `SENDGRID_FROM_EMAIL=<noreply@yourdomain.com>` (email sender address)
+- `SENDGRID_FROM_NAME=KLOI Admin` (email sender name)
+- `APP_URL=<your-domain>` (for generating invitation/verification links)
+
+#### Migration Instructions
+
+1. **Install Dependencies** (if not already installed):
+   ```bash
+   npm install
+   ```
+
+2. **Run Database Migration**:
+   ```bash
+   npx prisma migrate dev --name add_admin_signup_fields
+   # or for production
+   npx prisma migrate deploy
+   ```
+
+3. **Generate Prisma Client**:
+   ```bash
+   npx prisma generate
+   ```
+
+4. **Set Environment Variables**:
+   - Configure SendGrid API key and email settings
+   - Set admin approval notification email
+   - Configure token expiry hours (optional, defaults to 7 days)
+   - Set APP_URL for invitation/verification links
+
+5. **Create First Super Admin** (if needed):
+   - Use existing seed script or manually create via database
+   - Ensure first admin has SUPER_ADMIN role for invitation creation
+
+#### Breaking Changes
+
+- **Admins Table Schema**: Major schema changes requiring migration
+  - **Impact**: Existing admin accounts will need to be updated with new required fields (firstName, lastName, phone)
+  - **Action Required**: 
+    - Run migration script
+    - Update existing admin records with required fields
+    - Assign roles to existing admins (defaults to READ_ONLY)
+    - Set status to ACTIVE for existing active admins
+
+- **Authentication Changes**: `authenticateAdmin()` now requires emailVerified=true and status=ACTIVE
+  - **Impact**: Existing admins without email verification will not be able to log in
+  - **Action Required**: Set emailVerified=true and status=ACTIVE for existing admins
+
+- **Username/Password Nullable**: Username and password are now nullable
+  - **Impact**: Existing code expecting non-null values may need updates
+  - **Action Required**: Update code to handle nullable username/password (for future OAuth support)
+
+#### Benefits
+
+- **Controlled Onboarding**: Invitation-only sign-up ensures only authorized users can create accounts
+- **Email Verification**: Ensures admin email addresses are valid and owned by the user
+- **Role-Based Access**: Granular permissions prevent unauthorized access to sensitive operations
+- **Audit Trail**: Invitation and approval tracking provides accountability
+- **Security**: Rate limiting, token expiry, and role enforcement protect against abuse
+- **User Experience**: Clear status flow and email notifications keep users informed
+- **Scalability**: Backend team can efficiently manage admin approvals and role assignments
+
+#### Files Affected
+
+**New Files**:
+- `src/config/sendgrid.ts` - SendGrid email service configuration
+- `src/views/admin/signup.hbs` - Sign-up page template
+- `src/views/admin/verify-email.hbs` - Email verification success page
+- `src/views/admin/verification-sent.hbs` - Verification sent confirmation page
+- `src/views/admin/verification-error.hbs` - Verification error page
+
+**Modified Files**:
+- `prisma/schema.prisma` - Added AdminRole and AdminStatus enums, extended Admins model
+- `src/services/adminService.ts` - Added invitation, sign-up, verification, and approval methods
+- `src/services/emailService.ts` - Complete implementation of SendGrid email service
+- `src/schemas/admin.schemas.ts` - Added sign-up, verification, invitation, and approval schemas
+- `src/routes/admin/index.ts` - Added sign-up, verification, invitation, and approval routes
+- `src/hooks/adminHooks.ts` - Added role-based access control functions
+- `src/lib/utils.ts` - Added token generation and phone validation utilities
+- `src/views/admin/login.hbs` - Added invitation-only message
+- `public/global/css/admin.css` - Added sign-up form styles
+- `docs/APP-WIDE-SERVICES-AND-MODULES.md` - Added admin sign-up and role-based access documentation
+
+**Migration File**:
+- `prisma/migrations/YYYYMMDDHHMMSS_add_admin_signup_fields/migration.sql`
+
+#### Testing Recommendations
+
+1. **Test Sign-Up Flow**:
+   - Create invitation as super admin
+   - Click invitation link and verify email is pre-filled
+   - Complete sign-up form with valid data
+   - Verify email verification is sent
+   - Click verification link and verify status updates
+   - Test with invalid/expired invitation tokens
+
+2. **Test Email Verification**:
+   - Verify email with valid token
+   - Test with expired token (should fail)
+   - Test with invalid token (should fail)
+   - Test resend verification email functionality
+   - Verify rate limiting on resend
+
+3. **Test Approval Workflow**:
+   - Approve admin with different roles (SUPER_ADMIN, EDITOR, READ_ONLY)
+   - Verify account activation email is sent
+   - Verify admin can log in after activation
+   - Test approval of non-verified admin (should fail)
+
+4. **Test Role-Based Access**:
+   - Test menu editor access with different roles
+   - Verify EDITOR can edit menus
+   - Verify READ_ONLY cannot edit menus
+   - Verify SUPER_ADMIN can create invitations
+   - Verify non-SUPER_ADMIN cannot create invitations
+
+5. **Test Rate Limiting**:
+   - Test sign-up rate limiting (3 per hour)
+   - Test resend verification rate limiting (3 per email per hour)
+   - Verify rate limit resets after window expires
+
+6. **Test Security**:
+   - Verify tokens expire after 7 days
+   - Verify tokens are single-use
+   - Verify email enumeration prevention
+   - Test with INACTIVE status (should not be able to log in)
+
+#### Related Documentation
+
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin sign-up workflow and role-based access documentation
+- See `src/services/adminService.ts` for all admin service methods
+- See `src/hooks/adminHooks.ts` for role-based access control functions
+
+---
+
 ### December 25, 2025 @ 22:57 - Image Upload Implementation: Secure Image Uploads for Menu Editor
 
 **Type**: 🟠 MAJOR CHANGE

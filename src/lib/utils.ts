@@ -103,3 +103,37 @@ export function calculateNumberOfDaysFromDateInfo(dateInfo: any): number {
   console.warn('⚠️⚠️⚠️ - [calculateNumberOfDaysFromDateInfo] No valid dates found in dateInfo, using default numberOfDays: 1');
   return 1; // Default to 1 day if dateInfo invalid or dates array empty
 }
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [TOKEN UTILITIES] Generate cryptographically secure random token
+import { randomBytes } from 'crypto';
+
+export function generateSecureToken(length: number = 32): string {
+  console.log('🟡🟡🟡 - [generateSecureToken] Generating secure token of length:', length);
+  const token = randomBytes(length).toString('hex');
+  console.log('✅✅✅ - [generateSecureToken] Token generated successfully');
+  return token;
+}
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [PHONE UTILITIES] Validate phone number format
+export function validatePhoneNumber(phone: string): boolean {
+  console.log('🟡🟡🟡 - [validatePhoneNumber] Validating phone:', phone);
+  // Basic validation: allow digits, spaces, dashes, parentheses, plus sign
+  // Minimum 7 digits, maximum 20 characters
+  const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
+  const isValid = phone.length >= 7 && phone.length <= 20 && phoneRegex.test(phone);
+  if (isValid) {
+    console.log('✅✅✅ - [validatePhoneNumber] Phone number is valid');
+  } else {
+    console.log('❗❗❗ - [validatePhoneNumber] Phone number is invalid');
+  }
+  return isValid;
+}
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [PHONE UTILITIES] Sanitize phone number (remove non-digit characters except +)
+export function sanitizePhoneNumber(phone: string): string {
+  console.log('🟡🟡🟡 - [sanitizePhoneNumber] Sanitizing phone:', phone);
+  // Keep only digits and + sign at the start
+  const sanitized = phone.replace(/[^\d+]/g, '').replace(/^\+?/, '+');
+  console.log('✅✅✅ - [sanitizePhoneNumber] Sanitized phone:', sanitized);
+  return sanitized;
+}

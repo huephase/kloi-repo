@@ -1,9 +1,11 @@
-// src/hooks/adminHooks.ts
-// Admin authentication hooks for admin route protection
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN HOOKS] Admin authentication hooks for admin route protection
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { AdminService } from '../services/adminService';
+import { AdminService, Admin } from '../services/adminService';
 
 console.log('🟡🟡🟡 - [ADMIN HOOKS] Loading admin authentication hooks');
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN HOOKS] Admin role type
+export type AdminRole = 'SUPER_ADMIN' | 'EDITOR' | 'READ_ONLY';
 
 /**
  * 🟡🟡🟡 Admin session validation hook for admin routes
@@ -15,7 +17,16 @@ export const validateAdminSession = async (request: FastifyRequest, reply: Fasti
   console.log('🔵🔵🔵 - [ADMIN HOOK] Validating admin session for path:', request.url);
 
   // 🟡🟡🟡 - [PUBLIC ROUTES] Allow public admin routes without authentication
-  const publicAdminRoutes = ['/admin/login', '/admin/logout'];
+  // 2025-12-29T00:00:00Z - Added sign-up and verification routes
+  const publicAdminRoutes = [
+    '/admin/login', 
+    '/admin/logout', 
+    '/admin/signup', 
+    '/admin/verify-email', 
+    '/admin/verification-sent',
+    '/admin/resend-verification',
+    '/admin/verification-error'
+  ];
   const isPublicAdminRoute = publicAdminRoutes.some(route => 
     request.url === route || request.url.startsWith(`${route}?`)
   );
@@ -63,9 +74,18 @@ export const validateAdminSession = async (request: FastifyRequest, reply: Fasti
       return reply.redirect(`/admin/login?theme=${currentTheme}&error=access_denied`);
     }
 
+    // 🟡🟡🟡 - [STATUS CHECK] Check admin status is ACTIVE
+    if (admin.status !== 'ACTIVE') {
+      console.log('❗❗❗ - [ADMIN HOOK] Admin status is not ACTIVE:', admin.status);
+      (request.session as any).adminId = undefined;
+      (request.session as any).adminTheme = undefined;
+      return reply.redirect(`/admin/login?theme=${currentTheme}&error=account_not_active`);
+    }
+
     // ✅✅✅ - [ATTACH ADMIN] Attach admin object to request for use in routes
     (request as any).admin = admin;
-    console.log('✅✅✅ - [ADMIN HOOK] Admin authenticated:', adminId.substring(0, 8), 'for theme:', currentTheme);
+    (request as any).adminRole = admin.role; // Attach role for easy access
+    console.log('✅✅✅ - [ADMIN HOOK] Admin authenticated:', adminId.substring(0, 8), 'for theme:', currentTheme, 'role:', admin.role);
   } catch (error) {
     console.error('❗❗❗ - [ADMIN HOOK] Error validating admin:', error);
     (request.session as any).adminId = undefined;
@@ -73,6 +93,48 @@ export const validateAdminSession = async (request: FastifyRequest, reply: Fasti
     return reply.status(500).send({ error: 'Authentication error' });
   }
 };
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Middleware factory for role-based access control
+export function requireRole(allowedRoles: AdminRole[]) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = (request as any).admin as Admin | undefined;
+    
+    if (!admin) {
+      const theme = (request as any).theme || 'default';
+      return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
+    }
+
+    if (!allowedRoles.includes(admin.role)) {
+      console.log('❗❗❗ - [ROLE CHECK] Admin role not allowed. Required:', allowedRoles, 'Current:', admin.role);
+      return reply.status(403).send({
+        success: false,
+        message: 'You do not have permission to access this resource.'
+      });
+    }
+
+    console.log('✅✅✅ - [ROLE CHECK] Role check passed for:', admin.role);
+  };
+}
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Require SUPER_ADMIN role
+export function requireSuperAdmin() {
+  return requireRole(['SUPER_ADMIN']);
+}
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Require EDITOR or SUPER_ADMIN role
+export function requireEditorOrAbove() {
+  return requireRole(['EDITOR', 'SUPER_ADMIN']);
+}
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Check if admin can edit menu
+export function canEditMenu(admin: Admin): boolean {
+  return admin.role === 'EDITOR' || admin.role === 'SUPER_ADMIN';
+}
+
+// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Check if admin can view menu (all roles can view)
+export function canViewMenu(admin: Admin): boolean {
+  return true; // All roles can view
+}
 
 console.log('✅✅✅ - [ADMIN HOOKS] Admin authentication hooks loaded successfully');
 

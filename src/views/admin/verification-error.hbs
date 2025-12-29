@@ -1,0 +1,29 @@
+{{!-- 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN VERIFICATION ERROR] Email verification error page --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-login-container">
+  <div class="admin-login-card">
+    <header class="admin-login-header" style="background-color: #f44336;">
+      <h1>Verification Failed</h1>
+      <p class="admin-theme-badge">Theme: <strong>{{theme}}</strong></p>
+    </header>
+
+    <div class="admin-error-message" style="padding: 20px; text-align: center;">
+      <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+      <h2>Verification Error</h2>
+      {{#if error}}
+        <p>{{error}}</p>
+      {{else}}
+        <p>The verification link is invalid or has expired.</p>
+      {{/if}}
+      <p style="margin-top: 20px;">Please request a new verification email or contact support if you continue to experience issues.</p>
+    </div>
+
+    <footer class="admin-login-footer">
+      <p><a href="/admin/login?theme={{theme}}">Return to login</a></p>
+    </footer>
+  </div>
+</div>
+
