@@ -136,5 +136,21 @@ export function canViewMenu(_admin: Admin): boolean {
   return true; // All roles can view
 }
 
+// 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Middleware factory for admin subdomain access control
+// This hook ensures routes are only accessible when accessed via the 'admin' subdomain
+// Returns 404 Not Found for all other subdomains to hide route existence
+export function requireAdminSubdomain() {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const theme = (request as any).theme || 'default';
+    
+    if (theme !== 'admin') {
+      console.log('❗❗❗ - [ADMIN SUBDOMAIN] Access denied - route requires admin subdomain, got theme:', theme, 'for path:', request.url);
+      return reply.status(404).send('Not Found');
+    }
+    
+    console.log('✅✅✅ - [ADMIN SUBDOMAIN] Admin subdomain access granted for path:', request.url);
+  };
+}
+
 console.log('✅✅✅ - [ADMIN HOOKS] Admin authentication hooks loaded successfully');
 

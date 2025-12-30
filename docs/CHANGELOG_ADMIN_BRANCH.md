@@ -14,6 +14,379 @@
 
 ---
 
+### December 30, 2025 @ 17:40 - Backend Admin Subdomain Route Protection
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented subdomain-based route protection to restrict backend team routes to only be accessible via the 'admin' subdomain (admin.mydomain.com). Routes accessed from other subdomains return 404 Not Found, providing security through obscurity by hiding route existence from non-admin subdomains.
+
+**Problem**: 
+- Health check route (`/kloiserverhealthcheck`) was accessible from any subdomain
+- Invitation management routes (`/admin/invitations`, etc.) were accessible from any theme subdomain
+- Backend team needed dedicated access to specific routes that should not be available to theme-specific admins
+- No mechanism to restrict routes to specific subdomains
+- Routes were discoverable from any subdomain, potentially exposing backend infrastructure
+
+**Solution**:
+- Created reusable `requireAdminSubdomain()` hook for subdomain-based access control
+- Applied hook to health check route (`/kloiserverhealthcheck`)
+- Applied hook to all invitation management routes (combined with existing `requireSuperAdmin()` hook)
+- Routes return 404 Not Found when accessed from non-admin subdomains
+- Backend team can access protected routes via admin.mydomain.com
+
+#### Major Changes
+
+- **Admin Hooks** (`src/hooks/adminHooks.ts`):
+  - **New Hook Function**:
+    - `requireAdminSubdomain()` - Middleware factory for admin subdomain access control
+    - Checks if `request.theme === 'admin'` (theme extracted from subdomain by existing middleware)
+    - Returns 404 Not Found if accessed from any other subdomain
+    - Includes logging with emoji prefixes following project conventions
+    - **Code Added**:
+      ```typescript
+      // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Middleware factory for admin subdomain access control
+      export function requireAdminSubdomain() {
+        return async (request: FastifyRequest, reply: FastifyReply) => {
+          const theme = (request as any).theme || 'default';
+          
+          if (theme !== 'admin') {
+            console.log('❗❗❗ - [ADMIN SUBDOMAIN] Access denied - route requires admin subdomain, got theme:', theme, 'for path:', request.url);
+            return reply.status(404).send('Not Found');
+          }
+          
+          console.log('✅✅✅ - [ADMIN SUBDOMAIN] Admin subdomain access granted for path:', request.url);
+        };
+      }
+      ```
+    - **Impact**: Provides reusable pattern for subdomain-based route protection
+
+- **Health Check Route** (`src/routes/healthCheck.ts`):
+  - **Updated Route**:
+    - `GET /kloiserverhealthcheck` - Now requires admin subdomain access
+    - Route applies `requireAdminSubdomain()` hook as preHandler
+    - Returns 404 Not Found when accessed from non-admin subdomains
+    - **Code Changed**:
+      ```typescript
+      // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Health check route requires admin subdomain access
+      app.get('/kloiserverhealthcheck', {
+        preHandler: [requireAdminSubdomain()]
+      }, async (_request: FastifyRequest, reply: FastifyReply) => {
+        // ... existing health check logic
+      });
+      ```
+    - **Impact**: Health check dashboard now only accessible to backend team via admin.mydomain.com
+
+- **Admin Routes** (`src/routes/admin/index.ts`):
+  - **Updated Protected Routes** (require admin subdomain + SUPER_ADMIN):
+    - `GET /admin/invitations` - Invitation management page
+    - `GET /admin/pending-approvals` - List admins awaiting approval
+    - `POST /admin/invitations/create` - Create new invitation
+    - `POST /admin/approve` - Approve and activate admin
+  - Routes now apply both `requireAdminSubdomain()` and `requireSuperAdmin()` hooks
+  - Hooks are combined using array syntax: `preHandler: [requireAdminSubdomain(), requireSuperAdmin()]`
+  - **Code Changed**:
+    ```typescript
+    // GET /admin/invitations - Render invitation management page (SUPER_ADMIN only, admin subdomain only)
+    app.get('/admin/invitations', {
+      preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
+    }, async (request: FastifyRequest, reply: FastifyReply) => {
+      // ... existing route logic
+    });
+    ```
+  - **Impact**: Invitation management routes now only accessible from admin subdomain, providing additional security layer
+
+#### Security Considerations
+
+- **404 Response**: Routes return 404 Not Found (not 403 Forbidden) to hide route existence from non-admin subdomains
+- **Security Through Obscurity**: Non-admin subdomains cannot discover that these routes exist
+- **Early Validation**: Theme detection happens early in request lifecycle via `detectThemeFromSubdomain` hook
+- **Lightweight Check**: Hook performs simple string comparison (`theme === 'admin'`)
+- **Layered Security**: Protected routes maintain existing authentication/authorization checks (e.g., `requireSuperAdmin()`)
+- **No Breaking Changes**: Existing admin functionality (menu editor, etc.) continues to work from theme subdomains
+
+#### Access Patterns
+
+- **Backend Team Access**:
+  - Access health check: `https://admin.mydomain.com/kloiserverhealthcheck`
+  - Access invitations: `https://admin.mydomain.com/admin/invitations` (requires SUPER_ADMIN login)
+  - All protected routes accessible via admin.mydomain.com subdomain
+
+- **Theme Admin Access**:
+  - Cannot access health check from theme subdomains (returns 404)
+  - Cannot access invitation routes from theme subdomains (returns 404)
+  - Can still access menu editor and other theme-scoped admin features from their theme subdomains
+
+#### Documentation Updates
+
+- **APP-WIDE-SERVICES-AND-MODULES.md**:
+  - Added new section "Admin Subdomain Route Protection"
+  - Documented `requireAdminSubdomain()` hook usage
+  - Included code examples for protected routes
+  - Listed all protected routes
+  - Added requirements for adding new admin subdomain-protected routes
+
+#### Testing Considerations
+
+- Verify `/kloiserverhealthcheck` returns 404 from non-admin subdomains
+- Verify `/kloiserverhealthcheck` works correctly from admin.mydomain.com
+- Verify invitation routes return 404 from non-admin subdomains
+- Verify invitation routes work correctly from admin.mydomain.com (with proper SUPER_ADMIN auth)
+- Ensure existing admin functionality (menu editor, etc.) still works from theme subdomains
+- Verify hook order: `requireAdminSubdomain()` should run before other hooks
+
+---
+
+### December 30, 2025 @ 17:30 - Super Admin Invitation Link Management UI
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented user-friendly UI for super admins to generate invitation links with tokens. The new interface allows super admins to create invitation links via a web form, view the generated link, and copy it to clipboard for distribution. This complements the existing invitation API endpoint with a visual interface that makes invitation management more accessible.
+
+**Problem**: 
+- Super admins could only create invitations via API endpoint (`POST /admin/invitations/create`)
+- No visual interface for creating invitation links
+- Required technical knowledge to use API directly
+- No easy way to copy invitation links for distribution
+- Manual process for generating and sharing invitation links
+
+**Solution**:
+- Created dedicated invitation management page (`GET /admin/invitations`)
+- Built user-friendly form interface for email and theme input
+- Implemented real-time invitation link generation and display
+- Added copy-to-clipboard functionality for easy link sharing
+- Integrated with existing invitation API endpoint
+- Added navigation between menu editor and invitation management
+
+#### Major Changes
+
+- **Admin Routes** (`src/routes/admin/index.ts`):
+  - **New Protected Route** (require SUPER_ADMIN):
+    - `GET /admin/invitations` - Render invitation management page
+    - Route applies `requireSuperAdmin()` hook for access control
+    - Passes theme, adminUsername, and admin context to template
+    - **Code Added**:
+      ```typescript
+      app.get('/admin/invitations', {
+        preHandler: [requireSuperAdmin()]
+      }, async (request: FastifyRequest, reply: FastifyReply) => {
+        const theme = (request as any).theme || 'default';
+        const admin = (request as any).admin;
+        return reply.view('admin/invitations', {
+          theme,
+          adminUsername: admin.username,
+          admin,
+          page_class: generatePageClass('admin/invitations')
+        });
+      });
+      ```
+    - **Impact**: Super admins can now access invitation management via web interface
+
+- **View Template** (`src/views/admin/invitations.hbs` - New File):
+  - **Invitation Form**:
+    - Email input field with validation (required, email format)
+    - Theme input field with validation (required, alphanumeric with underscores/hyphens)
+    - Theme field pre-filled with current theme from request
+    - Submit button to create invitation
+    - Form help text for each field
+  - **Invitation Link Display**:
+    - Success message area showing invitation creation confirmation
+    - Read-only input field displaying full invitation link URL
+    - Copy button with visual feedback
+    - Help text explaining how to use the link
+  - **Navigation**:
+    - Link to menu editor for easy navigation
+    - Logout button in header
+    - Theme badge and admin username display
+  - **Code Structure**:
+    - Follows existing admin template patterns (header, container, styling)
+    - Uses admin CSS classes for consistent styling
+    - Includes client-side JavaScript for form handling
+  - **Impact**: User-friendly interface for invitation management
+
+- **Client-Side JavaScript** (`public/global/js/admin-invitations.js` - New File):
+  - **Form Handling**:
+    - Intercepts form submission to prevent page reload
+    - Validates email format and theme format client-side
+    - Sends AJAX POST request to `/admin/invitations/create`
+    - Handles loading states (disables button, shows "Creating..." text)
+  - **API Integration**:
+    - Sends JSON payload with email and theme
+    - Parses JSON response from invitation API
+    - Displays success/error messages to user
+    - Shows invitation link in result area on success
+  - **Copy Functionality**:
+    - Uses modern Clipboard API (`navigator.clipboard.writeText`)
+    - Falls back to `document.execCommand('copy')` for older browsers
+    - Provides visual feedback when link is copied
+    - Shows success message after copy
+  - **Error Handling**:
+    - Displays user-friendly error messages
+    - Handles network errors gracefully
+    - Validates input before submission
+    - Shows appropriate messages for validation failures
+  - **Code Features**:
+    - Comprehensive logging with emoji prefixes
+    - Auto-hide success messages after 5 seconds
+    - Smooth scrolling to result area
+    - Proper error state management
+  - **Impact**: Seamless user experience for invitation creation and link copying
+
+- **CSS Styles** (`public/global/css/admin.css`):
+  - **Invitation Form Styles**:
+    - `.admin-invitations-wrapper` - Main container with max-width
+    - `.admin-invitations-form-container` - Form container with card styling
+    - `.admin-invitation-form` - Form layout with flexbox
+    - `.admin-form-group` - Form field grouping
+    - `.admin-form-label` - Label styling with required indicator
+    - `.admin-form-input` - Input field styling with focus states
+    - `.admin-form-help-text` - Help text styling
+  - **Invitation Result Styles**:
+    - `.admin-invitation-result` - Result container with top border
+    - `.admin-invitation-success` - Success message styling
+    - `.admin-invitation-link-container` - Link display container
+    - `.admin-invitation-link-wrapper` - Link input and button wrapper
+    - `.admin-invitation-link-input` - Read-only link input with monospace font
+    - `.admin-button-copy` - Copy button with green theme
+  - **Navigation Styles**:
+    - `.admin-header-actions` - Header action container
+    - `.admin-nav-link` - Navigation link styling
+  - **Responsive Design**:
+    - Mobile-friendly form layout
+    - Stacked button layout on small screens
+    - Full-width inputs on mobile
+    - Responsive header actions
+  - **Code Added** (at end of file):
+    ```css
+    .admin-invitations-wrapper { ... }
+    .admin-invitation-form { ... }
+    .admin-invitation-link-wrapper { ... }
+    .admin-button-copy { ... }
+    /* Responsive styles */
+    ```
+  - **Impact**: Professional, consistent styling matching existing admin interface
+
+#### Technical Details
+
+**Route Access Control**:
+- Route protected by `requireSuperAdmin()` hook
+- Only SUPER_ADMIN role can access invitation management page
+- Theme context passed from request to template
+- Admin information included in template context
+
+**Form Submission Flow**:
+1. User fills email and theme fields
+2. Client-side validation checks format
+3. Form submits via AJAX to `/admin/invitations/create`
+4. Server validates using `invitationCreateSchema`
+5. Server creates invitation via `AdminService.createInvitation()`
+6. Server sends invitation email via SendGrid
+7. Server returns invitation link in JSON response
+8. Client displays link in result area
+9. User can copy link to clipboard
+
+**Copy-to-Clipboard Implementation**:
+- Primary: Uses `navigator.clipboard.writeText()` (modern browsers)
+- Fallback: Uses `document.execCommand('copy')` (older browsers)
+- Visual feedback: Button text changes to "Copied!" with green background
+- Success message displayed after successful copy
+- Error handling for clipboard API failures
+
+**Integration with Existing System**:
+- Uses existing `POST /admin/invitations/create` API endpoint
+- Leverages existing `invitationCreateSchema` for validation
+- Integrates with `AdminService.createInvitation()` method
+- Follows existing admin authentication and role-based access patterns
+- Uses existing admin CSS classes and styling patterns
+
+#### Security Features
+
+1. **Role-Based Access**:
+   - SUPER_ADMIN role required to access page
+   - Server-side role check via `requireSuperAdmin()` hook
+   - Client-side validation does not bypass server-side checks
+
+2. **Input Validation**:
+   - Client-side validation for immediate feedback
+   - Server-side validation via existing `invitationCreateSchema`
+   - Email format validation (regex and Zod schema)
+   - Theme format validation (alphanumeric with underscores/hyphens)
+
+3. **API Security**:
+   - Existing invitation API endpoint already protected
+   - Rate limiting already implemented on API endpoint
+   - Token-based invitation system with expiry
+
+#### Benefits
+
+- **User-Friendly Interface**: Visual form makes invitation creation accessible to non-technical users
+- **Easy Link Sharing**: Copy-to-clipboard functionality simplifies link distribution
+- **Consistent UX**: Follows existing admin interface patterns and styling
+- **Real-Time Feedback**: Immediate success/error messages guide user actions
+- **Mobile Responsive**: Works on all device sizes
+- **No Breaking Changes**: Complements existing API without modifying it
+
+#### Breaking Changes
+
+None - This is a new feature addition that does not affect existing functionality. The existing API endpoint remains unchanged.
+
+#### Files Affected
+
+**New Files**:
+- `src/views/admin/invitations.hbs` - Invitation management page template
+- `public/global/js/admin-invitations.js` - Client-side JavaScript for invitation form
+
+**Modified Files**:
+- `src/routes/admin/index.ts` - Added GET /admin/invitations route
+- `public/global/css/admin.css` - Added invitation form and result styles
+- `docs/CHANGELOG_ADMIN_BRANCH.md` - Added changelog entry
+
+#### Testing Recommendations
+
+1. **Test Route Access**:
+   - Verify SUPER_ADMIN can access `/admin/invitations`
+   - Verify non-SUPER_ADMIN roles are denied access
+   - Verify redirect to login if not authenticated
+
+2. **Test Form Submission**:
+   - Submit form with valid email and theme - should succeed
+   - Submit form with invalid email format - should show error
+   - Submit form with invalid theme format - should show error
+   - Submit form with empty fields - should show validation error
+   - Verify invitation link is displayed after successful creation
+
+3. **Test Copy Functionality**:
+   - Click copy button - should copy link to clipboard
+   - Verify visual feedback (button text changes)
+   - Verify success message appears
+   - Test on different browsers (Chrome, Firefox, Safari)
+
+4. **Test Integration**:
+   - Verify invitation email is sent when link is created
+   - Verify invitation link works when clicked
+   - Verify theme validation matches subdomain
+   - Test with different themes
+
+5. **Test Responsive Design**:
+   - Test on mobile devices
+   - Test on tablets
+   - Verify form layout adapts to screen size
+   - Verify buttons are accessible on small screens
+
+6. **Test Error Handling**:
+   - Test with network errors (disconnect network)
+   - Test with server errors (500 response)
+   - Test with validation errors (400 response)
+   - Verify error messages are user-friendly
+
+#### Related Documentation
+
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin interface conventions
+- See `src/routes/admin/index.ts` for invitation API endpoint
+- See `src/services/adminService.ts` for invitation creation logic
+- See `src/schemas/admin.schemas.ts` for invitation validation schema
+
+---
+
 ### December 29, 2025 @ 19:00 - Admin Sign-Up with Invitations and Email Verification
 
 **Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED

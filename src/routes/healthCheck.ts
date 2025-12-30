@@ -2,6 +2,7 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../lib/prisma';
 import { redisClient } from '../config';
+import { requireAdminSubdomain } from '../hooks/adminHooks';
 
 interface HealthCheckResult {
   name: string;
@@ -14,7 +15,10 @@ interface HealthCheckResult {
 
 export default async function healthCheck(app: FastifyInstance, _opts: FastifyPluginOptions) {
   
-  app.get('/kloiserverhealthcheck', async (_request: FastifyRequest, reply: FastifyReply) => {
+  // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Health check route requires admin subdomain access
+  app.get('/kloiserverhealthcheck', {
+    preHandler: [requireAdminSubdomain()]
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [HEALTH CHECK] Starting comprehensive system health check');
     
     const startTime = Date.now();

@@ -12,7 +12,7 @@ import {
   resendVerificationSchema 
 } from '../../schemas/admin.schemas';
 import { prisma } from '../../lib/prisma';
-import { validateAdminSession, requireEditorOrAbove, requireSuperAdmin } from '../../hooks/adminHooks';
+import { validateAdminSession, requireEditorOrAbove, requireSuperAdmin, requireAdminSubdomain } from '../../hooks/adminHooks';
 import { generatePageClass } from '../../lib/pageClass';
 import { saveImageFile, validateImageFile } from '../../services/imageUploadService';
 
@@ -684,10 +684,36 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   });
 
   // 2025-12-29T00:00:00Z 🟡🟡🟡 - [PROTECTED ROUTES] Invitation and approval management (SUPER_ADMIN only)
+  // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Invitation routes require admin subdomain access
 
-  // GET /admin/pending-approvals - List admins awaiting approval
+  // GET /admin/invitations - Render invitation management page (SUPER_ADMIN only, admin subdomain only)
+  app.get('/admin/invitations', {
+    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN ROUTE] GET /admin/invitations');
+    
+    const theme = (request as any).theme || 'default';
+    const admin = (request as any).admin;
+
+    try {
+      const templatePath = 'admin/invitations';
+      const page_class = generatePageClass(templatePath);
+
+      return reply.view(templatePath, {
+        theme,
+        adminUsername: admin.username,
+        admin,
+        page_class
+      });
+    } catch (error) {
+      console.error('❗❗❗ - [ADMIN INVITATIONS] Error loading invitations page:', error);
+      return reply.status(500).send('Error loading invitations page');
+    }
+  });
+
+  // GET /admin/pending-approvals - List admins awaiting approval (admin subdomain only)
   app.get('/admin/pending-approvals', {
-    preHandler: [requireSuperAdmin()]
+    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
   }, async (_request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] GET /admin/pending-approvals');
     
@@ -716,9 +742,9 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     }
   });
 
-  // POST /admin/invitations/create - Create new invitation (SUPER_ADMIN only)
+  // POST /admin/invitations/create - Create new invitation (SUPER_ADMIN only, admin subdomain only)
   app.post('/admin/invitations/create', {
-    preHandler: [requireSuperAdmin()]
+    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/invitations/create');
     
@@ -761,9 +787,9 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     }
   });
 
-  // POST /admin/approve - Approve and assign role to admin (SUPER_ADMIN only)
+  // POST /admin/approve - Approve and assign role to admin (SUPER_ADMIN only, admin subdomain only)
   app.post('/admin/approve', {
-    preHandler: [requireSuperAdmin()]
+    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/approve');
     

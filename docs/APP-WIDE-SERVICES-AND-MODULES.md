@@ -244,6 +244,58 @@ Rate limiting:
 - Rate limit is stored in-memory Map (similar to `/api/geo/reverse` pattern).
 - Returns HTTP 429 with `retryAfter` header when limit exceeded.
 
+### Admin Subdomain Route Protection
+
+- Certain admin routes are restricted to only be accessible via the 'admin' subdomain (admin.mydomain.com).
+- Routes protected by `requireAdminSubdomain()` hook return 404 Not Found when accessed from any other subdomain.
+- This provides security through obscurity by hiding route existence from non-admin subdomains.
+- The hook checks `request.theme === 'admin'` (theme is extracted from subdomain by existing middleware).
+
+Code reference – admin subdomain hook:
+```139:151:src/hooks/adminHooks.ts
+// 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Middleware factory for admin subdomain access control
+export function requireAdminSubdomain() {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const theme = (request as any).theme || 'default';
+    
+    if (theme !== 'admin') {
+      console.log('❗❗❗ - [ADMIN SUBDOMAIN] Access denied - route requires admin subdomain, got theme:', theme, 'for path:', request.url);
+      return reply.status(404).send('Not Found');
+    }
+    
+    console.log('✅✅✅ - [ADMIN SUBDOMAIN] Admin subdomain access granted for path:', request.url);
+  };
+}
+```
+
+Protected routes:
+- `/kloiserverhealthcheck` - System health check dashboard (backend team access only)
+- `/admin/invitations` - Invitation management page (SUPER_ADMIN only, admin subdomain only)
+- `/admin/pending-approvals` - List admins awaiting approval (SUPER_ADMIN only, admin subdomain only)
+- `/admin/invitations/create` - Create new invitation (SUPER_ADMIN only, admin subdomain only)
+- `/admin/approve` - Approve and activate admin (SUPER_ADMIN only, admin subdomain only)
+
+Code reference – health check route protection:
+```17:20:src/routes/healthCheck.ts
+  // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Health check route requires admin subdomain access
+  app.get('/kloiserverhealthcheck', {
+    preHandler: [requireAdminSubdomain()]
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
+```
+
+Code reference – invitation route protection:
+```689:691:src/routes/admin/index.ts
+  app.get('/admin/invitations', {
+    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+```
+
+Required when adding admin subdomain-protected routes:
+- Import `requireAdminSubdomain` from `src/hooks/adminHooks.ts`.
+- Add `requireAdminSubdomain()` to the `preHandler` array before other hooks (it should run first).
+- Combine with other hooks (e.g., `requireSuperAdmin()`) using array syntax: `preHandler: [requireAdminSubdomain(), requireSuperAdmin()]`.
+- Routes will return 404 Not Found when accessed from non-admin subdomains.
+
 ### Wizard Session API (`/api/session/:step`)
 
 Contract:

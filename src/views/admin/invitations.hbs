@@ -1,0 +1,105 @@
+{{!-- 2025-12-30T17:30:00Z 🟡🟡🟡 - [ADMIN INVITATIONS] Invitation management page for super admins to create invitation links --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-container">
+  <header class="admin-header">
+    <div class="admin-header-content">
+      <h1>Admin Invitations</h1>
+      <div class="admin-header-info">
+        <span class="admin-theme-badge">Theme: <strong>{{theme}}</strong></span>
+        <span class="admin-username">Logged in as: <strong>{{adminUsername}}</strong></span>
+      </div>
+    </div>
+    <div class="admin-header-actions">
+      <a href="/admin/menu-editor" class="admin-nav-link">Menu Editor</a>
+      <form method="POST" action="/admin/logout" class="admin-logout-form">
+        <button type="submit" class="admin-logout-button">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <div class="admin-invitations-wrapper">
+    <div class="admin-invitations-info">
+      <p class="admin-section-description">
+        Create invitation links for new admin users. Enter an email address and theme, then copy the generated invitation link to share with the new admin.
+      </p>
+    </div>
+
+    <div class="admin-invitations-form-container">
+      <form id="invitation-form" class="admin-invitation-form">
+        <div class="admin-form-group">
+          <label for="invitation-email" class="admin-form-label">
+            Email Address <span class="admin-required">*</span>
+          </label>
+          <input 
+            type="email" 
+            id="invitation-email" 
+            name="email" 
+            class="admin-form-input" 
+            placeholder="newadmin@example.com"
+            required
+          />
+          <p class="admin-form-help-text">The email address for the new admin user</p>
+        </div>
+
+        <div class="admin-form-group">
+          <label for="invitation-theme" class="admin-form-label">
+            Theme <span class="admin-required">*</span>
+          </label>
+          <input 
+            type="text" 
+            id="invitation-theme" 
+            name="theme" 
+            class="admin-form-input" 
+            value="{{theme}}"
+            placeholder="default"
+            required
+            pattern="[a-zA-Z0-9_-]+"
+            title="Theme can only contain letters, numbers, underscores, and hyphens"
+          />
+          <p class="admin-form-help-text">The theme subdomain for this admin (letters, numbers, underscores, and hyphens only)</p>
+        </div>
+
+        <div class="admin-form-actions">
+          <button type="submit" id="create-invitation-button" class="admin-button-primary">
+            Create Invitation Link
+          </button>
+        </div>
+      </form>
+
+      <div id="invitation-result" class="admin-invitation-result" style="display: none;">
+        <div class="admin-invitation-success">
+          <h3>✅ Invitation Created Successfully</h3>
+          <p class="admin-invitation-message"></p>
+          
+          <div class="admin-invitation-link-container">
+            <label for="invitation-link-display" class="admin-form-label">
+              Invitation Link
+            </label>
+            <div class="admin-invitation-link-wrapper">
+              <input 
+                type="text" 
+                id="invitation-link-display" 
+                class="admin-invitation-link-input" 
+                readonly
+                value=""
+              />
+              <button type="button" id="copy-invitation-link-button" class="admin-button-copy">
+                Copy Link
+              </button>
+            </div>
+            <p class="admin-form-help-text">Click "Copy Link" to copy the invitation link to your clipboard</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="admin-message" class="admin-message" style="display: none;"></div>
+    </div>
+  </div>
+</div>
+
+{{! 2025-12-30T17:30:00Z 🟡🟡🟡 - [ADMIN JS] Admin invitations JavaScript }}
+<script src="/public/global/js/admin-invitations.js"></script>
+

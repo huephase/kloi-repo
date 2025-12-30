@@ -833,3 +833,222 @@
   color: #155724;
 }
 
+/* 2025-12-30T17:30:00Z 🟡🟡🟡 - [ADMIN CSS] Invitation management page styles */
+.admin-invitations-wrapper {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.admin-invitations-info {
+  margin-bottom: 2rem;
+}
+
+.admin-section-description {
+  color: #666;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.admin-invitations-form-container {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.admin-invitation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.admin-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-form-label {
+  font-weight: 500;
+  color: #333;
+  font-size: 0.9375rem;
+}
+
+.admin-required {
+  color: #dc3545;
+}
+
+.admin-form-input {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.admin-form-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.admin-form-input:invalid {
+  border-color: #dc3545;
+}
+
+.admin-form-help-text {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+.admin-form-actions {
+  margin-top: 0.5rem;
+}
+
+.admin-button-primary {
+  padding: 0.75rem 1.5rem;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+
+.admin-button-primary:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.admin-button-primary:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.admin-invitation-result {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 2px solid #e9ecef;
+}
+
+.admin-invitation-success {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-invitation-success h3 {
+  margin: 0;
+  color: #28a745;
+  font-size: 1.25rem;
+}
+
+.admin-invitation-message {
+  color: #666;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.admin-invitation-link-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.admin-invitation-link-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.admin-invitation-link-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9375rem;
+  background: #f8f9fa;
+  color: #333;
+  font-family: 'Courier New', monospace;
+  word-break: break-all;
+}
+
+.admin-button-copy {
+  padding: 0.75rem 1.5rem;
+  background: #28a745;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.admin-button-copy:hover {
+  background: #218838;
+}
+
+.admin-header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.admin-nav-link {
+  padding: 0.5rem 1rem;
+  background: #6c757d;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.admin-nav-link:hover {
+  background: #5a6268;
+}
+
+/* Responsive styles for invitation page */
+@media (max-width: 768px) {
+  .admin-invitations-wrapper {
+    padding: 0 0.5rem;
+  }
+
+  .admin-invitations-form-container {
+    padding: 1.5rem;
+  }
+
+  .admin-invitation-link-wrapper {
+    flex-direction: column;
+  }
+
+  .admin-button-copy {
+    width: 100%;
+  }
+
+  .admin-header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .admin-nav-link {
+    width: 100%;
+    text-align: center;
+  }
+}
+
