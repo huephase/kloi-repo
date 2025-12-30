@@ -683,31 +683,6 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     }
   });
 
-  // 2025-12-30T19:30:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Central dashboard for all backend superadmin routes
-  // GET /admin/dashboard - Render admin dashboard with links to all superadmin routes (admin subdomain only)
-  app.get('/admin/dashboard', {
-    preHandler: [requireAdminSubdomain()]
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    console.log('🟡🟡🟡 - [ADMIN ROUTE] GET /admin/dashboard');
-    
-    const theme = (request as any).theme || 'default';
-    const admin = (request as any).admin;
-
-    try {
-      const templatePath = 'admin/dashboard';
-      const page_class = generatePageClass(templatePath);
-
-      return reply.view(templatePath, {
-        theme,
-        adminUsername: admin.username,
-        admin,
-        page_class
-      });
-    } catch (error) {
-      console.error('❗❗❗ - [ADMIN DASHBOARD] Error loading dashboard:', error);
-      return reply.status(500).send('Error loading dashboard');
-    }
-  });
 
   // 2025-12-29T00:00:00Z 🟡🟡🟡 - [PROTECTED ROUTES] Invitation and approval management (SUPER_ADMIN only)
   // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Invitation routes require admin subdomain access

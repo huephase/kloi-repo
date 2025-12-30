@@ -18,7 +18,7 @@
 
 **Type**: 🟠 MAJOR CHANGE
 
-**Summary**: Created a centralized admin dashboard route (`/admin/dashboard`) that provides an index of links to all backend superadmin routes. The dashboard is accessible only via the admin subdomain (admin.mydomain.com/dashboard) and requires admin authentication. This centralizes access to all backend team tools and routes in one convenient location.
+**Summary**: Created a centralized admin dashboard route (`/dashboard`) that provides an index of links to all backend superadmin routes. The dashboard is accessible only via the admin subdomain (admin.mydomain.com/dashboard) and requires admin authentication. This centralizes access to all backend team tools and routes in one convenient location. The route follows the same pattern as `/kloiserverhealthcheck` and is registered directly in `app.ts`.
 
 **Problem**: 
 - Backend superadmin routes were scattered across different paths
@@ -27,7 +27,8 @@
 - No overview of available superadmin tools and their access requirements
 
 **Solution**:
-- Created new `/admin/dashboard` route accessible via admin subdomain
+- Created new `/dashboard` route accessible via admin subdomain (similar to `/kloiserverhealthcheck`)
+- Route registered directly in `app.ts` to avoid session validation hooks
 - Built user-friendly dashboard page with cards for each superadmin route
 - Listed all backend superadmin routes with descriptions and access requirements
 - Applied admin subdomain protection and authentication requirements
@@ -35,17 +36,17 @@
 
 #### Major Changes
 
-- **Admin Routes** (`src/routes/admin/index.ts`):
+- **App Routes** (`src/app.ts`):
   - **New Protected Route** (require admin subdomain + authentication):
-    - `GET /admin/dashboard` - Render admin dashboard page
-    - Route applies `requireAdminSubdomain()` hook for subdomain access control
-    - Route automatically protected by `validateAdminSession` hook (applied to all protected routes)
+    - `GET /dashboard` - Render admin dashboard page
+    - Route registered directly in `app.ts` (similar to `/kloiserverhealthcheck` pattern)
+    - Route applies both `requireAdminSubdomain()` and `validateAdminSession()` hooks
     - Passes theme, adminUsername, and admin context to template
     - **Code Added**:
       ```typescript
-      // 2025-12-30T19:30:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Central dashboard for all backend superadmin routes
-      app.get('/admin/dashboard', {
-        preHandler: [requireAdminSubdomain()]
+      // 2025-12-30T20:00:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Register admin dashboard route directly
+      app.get('/dashboard', {
+        preHandler: [requireAdminSubdomain(), validateAdminSession]
       }, async (request: FastifyRequest, reply: FastifyReply) => {
         const theme = (request as any).theme || 'default';
         const admin = (request as any).admin;
@@ -123,7 +124,7 @@
 
 **Access Patterns**:
 - **Backend Team Access**:
-  - Access dashboard: `https://admin.mydomain.com/admin/dashboard` (requires login)
+  - Access dashboard: `https://admin.mydomain.com/dashboard` (requires login)
   - Dashboard provides links to all other superadmin routes
   - All routes accessible via admin.mydomain.com subdomain
 
@@ -158,14 +159,14 @@ None - This is a new feature addition that does not affect existing functionalit
 - `src/views/admin/dashboard.hbs` - Admin dashboard page template
 
 **Modified Files**:
-- `src/routes/admin/index.ts` - Added GET /admin/dashboard route
+- `src/app.ts` - Added GET /dashboard route (registered directly, similar to health check)
 - `public/global/css/admin.css` - Added dashboard page styles
 - `docs/CHANGELOG_ADMIN_BRANCH.md` - Added changelog entry
 
 #### Testing Recommendations
 
 1. **Test Route Access**:
-   - Verify dashboard is accessible from admin.mydomain.com/admin/dashboard (with login)
+   - Verify dashboard is accessible from admin.mydomain.com/dashboard (with login)
    - Verify dashboard returns 404 from non-admin subdomains
    - Verify dashboard redirects to login if not authenticated
 
@@ -189,7 +190,7 @@ None - This is a new feature addition that does not affect existing functionalit
 #### Related Documentation
 
 - See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin interface conventions
-- See `src/routes/admin/index.ts` for all admin routes
+- See `src/app.ts` for dashboard route registration (similar to health check route)
 - See `src/hooks/adminHooks.ts` for admin authentication and subdomain protection hooks
 
 ---
