@@ -141,10 +141,32 @@ export function canViewMenu(_admin: Admin): boolean {
 // Returns 404 Not Found for all other subdomains to hide route existence
 export function requireAdminSubdomain() {
   return async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN SUBDOMAIN] Checking admin subdomain access for path:', request.url);
+    
+    // 2025-12-30T20:00:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Get theme from request (set by detectThemeFromSubdomain middleware)
     const theme = (request as any).theme || 'default';
+    
+    // 2025-12-30T20:00:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Log hostname sources for debugging
+    // Note: Headers can be string or string[], so we need to handle both cases
+    const xForwardedHost = request.headers['x-forwarded-host'];
+    const forwardedHost = Array.isArray(xForwardedHost) ? xForwardedHost[0] : xForwardedHost;
+    const hostHeader = request.headers.host;
+    const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+    const hostname = request.hostname || forwardedHost || host || '';
+    
+    console.log('🟡🟡🟡 - [ADMIN SUBDOMAIN] Theme check details:');
+    console.log('  - Detected theme:', theme);
+    console.log('  - Required theme: admin');
+    console.log('  - request.hostname:', request.hostname);
+    console.log('  - X-Forwarded-Host (raw):', request.headers['x-forwarded-host']);
+    console.log('  - X-Forwarded-Host (parsed):', forwardedHost);
+    console.log('  - Host header (raw):', request.headers.host);
+    console.log('  - Host header (parsed):', host);
+    console.log('  - Selected hostname:', hostname);
     
     if (theme !== 'admin') {
       console.log('❗❗❗ - [ADMIN SUBDOMAIN] Access denied - route requires admin subdomain, got theme:', theme, 'for path:', request.url);
+      console.log('❗❗❗ - [ADMIN SUBDOMAIN] Expected theme: "admin", but received:', theme);
       return reply.status(404).send('Not Found');
     }
     
