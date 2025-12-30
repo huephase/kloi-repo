@@ -14,6 +14,186 @@
 
 ---
 
+### December 30, 2025 @ 19:30 - Admin Dashboard: Centralized Superadmin Route Index
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Created a centralized admin dashboard route (`/admin/dashboard`) that provides an index of links to all backend superadmin routes. The dashboard is accessible only via the admin subdomain (admin.mydomain.com/dashboard) and requires admin authentication. This centralizes access to all backend team tools and routes in one convenient location.
+
+**Problem**: 
+- Backend superadmin routes were scattered across different paths
+- No centralized location to discover and access all admin subdomain-protected routes
+- Backend team had to remember or bookmark individual routes
+- No overview of available superadmin tools and their access requirements
+
+**Solution**:
+- Created new `/admin/dashboard` route accessible via admin subdomain
+- Built user-friendly dashboard page with cards for each superadmin route
+- Listed all backend superadmin routes with descriptions and access requirements
+- Applied admin subdomain protection and authentication requirements
+- Added navigation links to menu editor and logout functionality
+
+#### Major Changes
+
+- **Admin Routes** (`src/routes/admin/index.ts`):
+  - **New Protected Route** (require admin subdomain + authentication):
+    - `GET /admin/dashboard` - Render admin dashboard page
+    - Route applies `requireAdminSubdomain()` hook for subdomain access control
+    - Route automatically protected by `validateAdminSession` hook (applied to all protected routes)
+    - Passes theme, adminUsername, and admin context to template
+    - **Code Added**:
+      ```typescript
+      // 2025-12-30T19:30:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Central dashboard for all backend superadmin routes
+      app.get('/admin/dashboard', {
+        preHandler: [requireAdminSubdomain()]
+      }, async (request: FastifyRequest, reply: FastifyReply) => {
+        const theme = (request as any).theme || 'default';
+        const admin = (request as any).admin;
+        return reply.view('admin/dashboard', {
+          theme,
+          adminUsername: admin.username,
+          admin,
+          page_class: generatePageClass('admin/dashboard')
+        });
+      });
+      ```
+    - **Impact**: Backend team can now access centralized dashboard at admin.mydomain.com/dashboard
+
+- **View Template** (`src/views/admin/dashboard.hbs` - New File):
+  - **Dashboard Layout**:
+    - Admin header with theme badge and username display
+    - Navigation links to menu editor and logout button
+    - Welcome message and description
+  - **Route Cards**:
+    - System Health Check card with link to `/kloiserverhealthcheck`
+    - Invitation Management card with link to `/admin/invitations`
+    - Pending Admin Approvals card with link to `/admin/pending-approvals`
+    - Each card displays route description, access requirements, and direct link
+  - **Footer Note**:
+    - Information about admin subdomain access requirements
+    - Note about SUPER_ADMIN role requirements for certain routes
+  - **Code Structure**:
+    - Follows existing admin template patterns (header, container, styling)
+    - Uses admin CSS classes for consistent styling
+    - Responsive design for mobile devices
+  - **Impact**: User-friendly centralized access point for all superadmin routes
+
+- **CSS Styles** (`public/global/css/admin.css`):
+  - **Dashboard Container Styles**:
+    - `.admin-dashboard-wrapper` - Main dashboard container with max-width
+    - `.admin-dashboard-info` - Info section container
+    - `.admin-section-description` - Description text styling
+  - **Route Card Styles**:
+    - `.admin-dashboard-routes` - Grid layout for route cards
+    - `.admin-dashboard-section-title` - Section title styling
+    - `.admin-route-card` - Individual route card with hover effects
+    - `.admin-route-card-header` - Card header with title and badge
+    - `.admin-route-title` - Route title styling
+    - `.admin-route-badge` - Access requirement badge styling
+    - `.admin-route-description` - Route description text
+    - `.admin-route-actions` - Action button container
+  - **Footer Styles**:
+    - `.admin-dashboard-footer` - Footer container with note styling
+    - `.admin-dashboard-note` - Note text styling
+  - **Responsive Design**:
+    - Mobile-friendly card layout
+    - Stacked layout on small screens
+    - Responsive header actions
+  - **Code Added** (at end of file):
+    ```css
+    .admin-dashboard-wrapper { ... }
+    .admin-dashboard-routes { ... }
+    .admin-route-card { ... }
+    /* Responsive styles */
+    ```
+  - **Impact**: Professional, consistent styling matching existing admin interface
+
+#### Technical Details
+
+**Route Access Control**:
+- Route protected by `requireAdminSubdomain()` hook (checks `request.theme === 'admin'`)
+- Route automatically protected by `validateAdminSession` hook (requires active admin session)
+- Returns 404 Not Found when accessed from non-admin subdomains
+- Redirects to `/admin/login` if not authenticated
+
+**Routes Listed in Dashboard**:
+- `/kloiserverhealthcheck` - System health check dashboard (admin subdomain only)
+- `/admin/invitations` - Invitation management page (SUPER_ADMIN + admin subdomain)
+- `/admin/pending-approvals` - List admins awaiting approval (SUPER_ADMIN + admin subdomain)
+
+**Access Patterns**:
+- **Backend Team Access**:
+  - Access dashboard: `https://admin.mydomain.com/admin/dashboard` (requires login)
+  - Dashboard provides links to all other superadmin routes
+  - All routes accessible via admin.mydomain.com subdomain
+
+- **Theme Admin Access**:
+  - Cannot access dashboard from theme subdomains (returns 404)
+  - Dashboard only accessible from admin subdomain
+
+#### Security Considerations
+
+- **Admin Subdomain Protection**: Route requires admin subdomain access via `requireAdminSubdomain()` hook
+- **Authentication Required**: Route requires active admin session via `validateAdminSession` hook
+- **404 Response**: Returns 404 Not Found (not 403 Forbidden) to hide route existence from non-admin subdomains
+- **Security Through Obscurity**: Non-admin subdomains cannot discover that dashboard route exists
+- **No Breaking Changes**: Existing admin functionality continues to work as before
+
+#### Benefits
+
+- **Centralized Access**: Single location to access all backend superadmin routes
+- **User-Friendly**: Visual cards with descriptions make it easy to find and access routes
+- **Clear Access Requirements**: Each route card shows access requirements (admin subdomain, SUPER_ADMIN role)
+- **Consistent UX**: Follows existing admin interface patterns and styling
+- **Mobile Responsive**: Works on all device sizes
+- **Easy Discovery**: Backend team can easily discover available superadmin tools
+
+#### Breaking Changes
+
+None - This is a new feature addition that does not affect existing functionality.
+
+#### Files Affected
+
+**New Files**:
+- `src/views/admin/dashboard.hbs` - Admin dashboard page template
+
+**Modified Files**:
+- `src/routes/admin/index.ts` - Added GET /admin/dashboard route
+- `public/global/css/admin.css` - Added dashboard page styles
+- `docs/CHANGELOG_ADMIN_BRANCH.md` - Added changelog entry
+
+#### Testing Recommendations
+
+1. **Test Route Access**:
+   - Verify dashboard is accessible from admin.mydomain.com/admin/dashboard (with login)
+   - Verify dashboard returns 404 from non-admin subdomains
+   - Verify dashboard redirects to login if not authenticated
+
+2. **Test Dashboard Links**:
+   - Verify all links in dashboard are correct and functional
+   - Verify health check link opens in new tab
+   - Verify invitation management link works (requires SUPER_ADMIN)
+   - Verify pending approvals link works (requires SUPER_ADMIN)
+
+3. **Test Responsive Design**:
+   - Test on mobile devices
+   - Test on tablets
+   - Verify card layout adapts to screen size
+   - Verify buttons are accessible on small screens
+
+4. **Test Security**:
+   - Verify dashboard requires admin subdomain access
+   - Verify dashboard requires authentication
+   - Test with different admin roles (SUPER_ADMIN, EDITOR, READ_ONLY)
+
+#### Related Documentation
+
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin interface conventions
+- See `src/routes/admin/index.ts` for all admin routes
+- See `src/hooks/adminHooks.ts` for admin authentication and subdomain protection hooks
+
+---
+
 ### December 30, 2025 @ 17:40 - Backend Admin Subdomain Route Protection
 
 **Type**: 🟠 MAJOR CHANGE

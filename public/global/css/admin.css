@@ -1052,3 +1052,129 @@
   }
 }
 
+/* 2025-12-30T19:30:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Dashboard page styles */
+.admin-dashboard-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.admin-dashboard-info {
+  margin-bottom: 2rem;
+}
+
+.admin-section-description {
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.admin-dashboard-routes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.admin-dashboard-section-title {
+  grid-column: 1 / -1;
+  font-size: 1.5rem;
+  color: #333;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.admin-route-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.admin-route-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.admin-route-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.admin-route-title {
+  font-size: 1.25rem;
+  color: #333;
+  margin: 0;
+  flex: 1;
+}
+
+.admin-route-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.admin-route-description {
+  color: #666;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0 0 1.5rem 0;
+  flex: 1;
+}
+
+.admin-route-actions {
+  margin-top: auto;
+}
+
+.admin-dashboard-footer {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.admin-dashboard-note {
+  color: #666;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.admin-dashboard-note strong {
+  color: #333;
+}
+
+/* Responsive styles for dashboard */
+@media (max-width: 768px) {
+  .admin-dashboard-wrapper {
+    padding: 1rem;
+  }
+
+  .admin-dashboard-routes {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-route-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-route-badge {
+    margin-top: 0.5rem;
+  }
+}
+

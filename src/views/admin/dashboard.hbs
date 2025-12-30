@@ -1,0 +1,81 @@
+{{!-- 2025-12-30T19:30:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Central dashboard for all backend superadmin routes --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-container">
+  <header class="admin-header">
+    <div class="admin-header-content">
+      <h1>Admin Dashboard</h1>
+      <div class="admin-header-info">
+        <span class="admin-theme-badge">Theme: <strong>{{theme}}</strong></span>
+        <span class="admin-username">Logged in as: <strong>{{adminUsername}}</strong></span>
+      </div>
+    </div>
+    <div class="admin-header-actions">
+      <a href="/admin/menu-editor" class="admin-nav-link">Menu Editor</a>
+      <form method="POST" action="/admin/logout" class="admin-logout-form">
+        <button type="submit" class="admin-logout-button">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <div class="admin-dashboard-wrapper">
+    <div class="admin-dashboard-info">
+      <p class="admin-section-description">
+        Welcome to the Admin Dashboard. This page provides centralized access to all backend superadmin routes and tools.
+      </p>
+    </div>
+
+    <div class="admin-dashboard-routes">
+      <h2 class="admin-dashboard-section-title">Backend Superadmin Routes</h2>
+      
+      <div class="admin-route-card">
+        <div class="admin-route-card-header">
+          <h3 class="admin-route-title">System Health Check</h3>
+          <span class="admin-route-badge">Admin Subdomain Only</span>
+        </div>
+        <p class="admin-route-description">
+          Comprehensive system health check dashboard showing database, Redis, environment variables, and system resource status.
+        </p>
+        <div class="admin-route-actions">
+          <a href="/kloiserverhealthcheck" class="admin-button-primary" target="_blank">Open Health Check</a>
+        </div>
+      </div>
+
+      <div class="admin-route-card">
+        <div class="admin-route-card-header">
+          <h3 class="admin-route-title">Invitation Management</h3>
+          <span class="admin-route-badge">SUPER_ADMIN Required</span>
+        </div>
+        <p class="admin-route-description">
+          Create and manage invitation links for new admin users. Generate secure invitation tokens and send invitation emails.
+        </p>
+        <div class="admin-route-actions">
+          <a href="/admin/invitations" class="admin-button-primary">Manage Invitations</a>
+        </div>
+      </div>
+
+      <div class="admin-route-card">
+        <div class="admin-route-card-header">
+          <h3 class="admin-route-title">Pending Admin Approvals</h3>
+          <span class="admin-route-badge">SUPER_ADMIN Required</span>
+        </div>
+        <p class="admin-route-description">
+          View and manage admin accounts awaiting approval. Review pending admins and approve or assign roles.
+        </p>
+        <div class="admin-route-actions">
+          <a href="/admin/pending-approvals" class="admin-button-primary">View Pending Approvals</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-dashboard-footer">
+      <p class="admin-dashboard-note">
+        <strong>Note:</strong> All routes listed above require admin subdomain access (admin.mydomain.com). 
+        Some routes also require SUPER_ADMIN role. Accessing these routes from other subdomains will return 404 Not Found.
+      </p>
+    </div>
+  </div>
+</div>
+
