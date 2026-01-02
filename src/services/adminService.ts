@@ -80,7 +80,8 @@ export class AdminService {
     lastName?: string,
     phone?: string,
     role: 'SUPER_ADMIN' | 'EDITOR' | 'READ_ONLY' = 'READ_ONLY',
-    status: 'PENDING' | 'EMAIL_VERIFIED' | 'APPROVED' | 'ACTIVE' | 'INACTIVE' = 'PENDING'
+    status: 'PENDING' | 'EMAIL_VERIFIED' | 'APPROVED' | 'ACTIVE' | 'INACTIVE' = 'PENDING',
+    emailVerified: boolean = false
   ): Promise<Admin> {
     console.log('🟡🟡🟡 - [ADMIN SERVICE] Creating admin:', username, 'for theme:', theme);
     
@@ -112,6 +113,7 @@ export class AdminService {
           phone: phone || '',
           role,
           status,
+          emailVerified,
           isActive: status === 'ACTIVE'
         }
       });
