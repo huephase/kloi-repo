@@ -50,6 +50,7 @@ export default async function routes(_app: FastifyInstance, _opts: FastifyPlugin
   await _app.register(apiRoutes, { prefix: '/api' });
   
   console.log('✅✅✅ - [routes/index] All route modules registered with session protection');
-  console.log('✅✅✅ - [routes/index] Health check dashboard available at /kloiserverhealthcheck');
+  console.log('✅✅✅ - [routes/index] Health check for Render monitoring available at /kloiserverhealthcheck');
+  console.log('✅✅✅ - [routes/index] Admin health check dashboard available at /admin/kloiserverhealthcheck');
 }
 

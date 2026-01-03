@@ -269,7 +269,9 @@ export function requireAdminSubdomain() {
 ```
 
 Protected routes:
-- `/kloiserverhealthcheck` - System health check dashboard (backend team access only)
+- `/kloiserverhealthcheck` - System health check for Render's internal monitoring (no admin requirements, lightweight check)
+- `/admin/kloiserverhealthcheck` - System health check dashboard (admin subdomain only, requires authentication)
+- `/admin/dashboard` - Admin dashboard with links to all superadmin routes (admin subdomain only, requires authentication)
 - `/admin/invitations` - Invitation management page (SUPER_ADMIN only, admin subdomain only)
 - `/admin/pending-approvals` - List admins awaiting approval (SUPER_ADMIN only, admin subdomain only)
 - `/admin/invitations/create` - Create new invitation (SUPER_ADMIN only, admin subdomain only)
@@ -278,6 +280,7 @@ Protected routes:
 Code reference – health check route protection:
 ```17:20:src/routes/healthCheck.ts
   // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Health check route requires admin subdomain access
+  // ⚠️⚠️⚠️ - 2025-01-03 - /kloiserverhealthcheck remains for Render's monitoring, /admin/kloiserverhealthcheck for admin access
   app.get('/kloiserverhealthcheck', {
     preHandler: [requireAdminSubdomain()]
   }, async (_request: FastifyRequest, reply: FastifyReply) => {

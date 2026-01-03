@@ -16,7 +16,7 @@
 .image-caption {
     margin-top: 10px;
     font-style: italic;
-    color: #666;
+    
 }
 
 .menu-list {
@@ -298,7 +298,7 @@
 .loading-message {
     text-align: center;
     padding: 40px;
-    color: #666;
+    
 }
 
 /* 🟡🟡🟡 - [POPUP MODAL] Popup modal styles */

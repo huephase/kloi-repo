@@ -13,7 +13,13 @@ interface HealthCheckResult {
   timestamp: string;
 }
 
-export default async function healthCheck(app: FastifyInstance, _opts: FastifyPluginOptions) {
+// 2025-01-03T11:59:00Z 🟡🟡🟡 - [HEALTH CHECK] Shared function to perform comprehensive health check
+// Extracted for DRY principle - used by both /kloiserverhealthcheck and /admin/kloiserverhealthcheck
+export async function performHealthCheck(): Promise<string> {
+  console.log('🟡🟡🟡 - [HEALTH CHECK] Starting comprehensive system health check');
+  
+  const startTime = Date.now();
+  const results: HealthCheckResult[] = [];
   
   // ⚠️⚠️⚠️ - 2026-01-02 - [RENDER HEALTH CHECK] Lightweight health check endpoint for Render's internal monitoring
   // This endpoint must be fast, simple, and accessible without admin subdomain requirements
@@ -65,11 +71,21 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
     if (reply.sent) return; // If admin check failed, response already sent
     
     // ⚠️⚠️⚠️ - 2026-01-02 - [DETAILED HEALTH CHECK] Full health check dashboard for admin access
-    console.log('🟡🟡🟡 - [HEALTH CHECK] Starting comprehensive system health check');
-    console.log('🟡🟡🟡 - [HEALTH CHECK] Starting comprehensive system health check');
+    const htmlContent = await performHealthCheck();
     
-    const startTime = Date.now();
-    const results: HealthCheckResult[] = [];
+    return reply
+      .header('Content-Type', 'text/html')
+      .send(htmlContent);
+  });
+}
+
+// 2025-01-03T11:59:00Z 🟡🟡🟡 - [HEALTH CHECK] Shared function to perform comprehensive health check
+// Extracted for DRY principle - used by both /kloiserverhealthcheck and /admin/kloiserverhealthcheck
+export async function performHealthCheck(): Promise<string> {
+  console.log('🟡🟡🟡 - [HEALTH CHECK] Starting comprehensive system health check');
+  
+  const startTime = Date.now();
+  const results: HealthCheckResult[] = [];
     
     // 👍👍👍👍👍👍 - 2024-12-28 - Server Time Check
     try {
@@ -373,10 +389,7 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
     // 👍👍👍👍👍👍 - 2024-12-28 - Return HTML page with dark mode styling
     const htmlContent = generateHealthCheckHTML(results, totalTime, overallStatus);
     
-    return reply
-      .header('Content-Type', 'text/html')
-      .send(htmlContent);
-  });
+    return htmlContent;
 }
 
 // 👍👍👍👍👍👍 - 2024-12-28 - Generate HTML for health check dashboard

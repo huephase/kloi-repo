@@ -15,6 +15,7 @@ import { prisma } from '../../lib/prisma';
 import { validateAdminSession, requireEditorOrAbove, requireSuperAdmin, requireAdminSubdomain } from '../../hooks/adminHooks';
 import { generatePageClass } from '../../lib/pageClass';
 import { saveImageFile, validateImageFile } from '../../services/imageUploadService';
+import { performHealthCheck } from '../healthCheck';
 
 // 🟡🟡🟡 - [RATE LIMITING] Simple in-memory rate limiter for admin login
 // ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Prevent brute force attacks on login endpoint
@@ -831,6 +832,52 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
         success: false,
         message: error.message || 'Failed to approve admin'
       });
+    }
+  });
+
+  // 2025-01-03T11:59:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Register admin dashboard route under /admin/ prefix
+  // GET /admin/dashboard - Render admin dashboard with links to all superadmin routes (admin subdomain only, requires authentication)
+  app.get('/admin/dashboard', {
+    preHandler: [requireAdminSubdomain(), validateAdminSession]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN DASHBOARD] GET /admin/dashboard');
+    
+    const theme = (request as any).theme || 'default';
+    const admin = (request as any).admin;
+
+    try {
+      const templatePath = 'admin/dashboard';
+      const page_class = generatePageClass(templatePath);
+
+      return reply.view(templatePath, {
+        theme,
+        adminUsername: admin.username,
+        admin,
+        page_class
+      });
+    } catch (error) {
+      console.error('❗❗❗ - [ADMIN DASHBOARD] Error loading dashboard:', error);
+      return reply.status(500).send('Error loading dashboard');
+    }
+  });
+
+  // 2025-01-03T11:59:00Z 🟡🟡🟡 - [ADMIN HEALTH CHECK] Register admin health check route under /admin/ prefix
+  // GET /admin/kloiserverhealthcheck - System health check dashboard (admin subdomain only, requires authentication)
+  app.get('/admin/kloiserverhealthcheck', {
+    preHandler: [requireAdminSubdomain(), validateAdminSession]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN HEALTH CHECK] GET /admin/kloiserverhealthcheck');
+    
+    try {
+      // 2025-01-03T11:59:00Z 🟡🟡🟡 - [ADMIN HEALTH CHECK] Use shared health check function for DRY principle
+      const htmlContent = await performHealthCheck();
+      
+      return reply
+        .header('Content-Type', 'text/html')
+        .send(htmlContent);
+    } catch (error) {
+      console.error('❗❗❗ - [ADMIN HEALTH CHECK] Error performing health check:', error);
+      return reply.status(500).send('Error performing health check');
     }
   });
 

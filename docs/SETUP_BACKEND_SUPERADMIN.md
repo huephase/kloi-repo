@@ -16,10 +16,10 @@ npx prisma migrate dev
 
 ## Quick Start
 
-To create a backend superadmin account that can immediately log in and manage invitations:
+To create a backend superadmin account that can immediately log in and manage invitations, run the compiled script directly:
 
 ```bash
-npm run admin:seed -- --username superadmin --password YourSecurePassword123 --theme admin --role SUPER_ADMIN --status ACTIVE --emailVerified true --email superadmin@yourdomain.com --firstName "Backend" --lastName "Admin"
+node dist/scripts/seedAdmin.js --username superadmin --password YourSecurePassword123 --theme admin --role SUPER_ADMIN --status ACTIVE --emailVerified true --email superadmin@yourdomain.com --firstName "Backend" --lastName "Admin"
 ```
 
 ## Command Breakdown

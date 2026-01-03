@@ -14,6 +14,208 @@
 
 ---
 
+### January 3, 2025 @ 11:59 - Backend Routes Consolidation: Move All Admin Routes Under /admin/ Prefix
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Consolidated all backend admin routes under the `/admin/` prefix for consistency and better organization. Moved `/dashboard` to `/admin/dashboard` and added `/admin/kloiserverhealthcheck` route. The original `/kloiserverhealthcheck` route remains accessible for Render's internal monitoring (lightweight check without admin requirements). All backend admin routes now follow a consistent naming pattern under the `/admin/` prefix, improving discoverability and maintainability.
+
+**Problem**: 
+- Backend admin routes were scattered across different path patterns (`/dashboard`, `/kloiserverhealthcheck`, `/admin/*`)
+- Inconsistent route organization made it difficult to identify all backend admin routes
+- Dashboard route was registered directly in `app.ts` instead of with other admin routes
+- Health check route lacked an admin-prefixed version for consistency
+
+**Solution**:
+- Moved `/dashboard` route from `app.ts` to `src/routes/admin/index.ts` as `/admin/dashboard`
+- Added new `/admin/kloiserverhealthcheck` route with admin protection hooks
+- Extracted shared health check logic into `performHealthCheck()` function for DRY principle
+- Kept original `/kloiserverhealthcheck` route for Render's internal monitoring
+- Updated dashboard template to reference new admin-prefixed routes
+- Updated all documentation to reflect new route paths
+
+#### Major Changes
+
+- **App Routes** (`src/app.ts`):
+  - **Removed Route**:
+    - Removed `GET /dashboard` route registration (lines 227-251)
+    - Removed unused imports: `requireAdminSubdomain`, `validateAdminSession` (no longer needed in app.ts)
+    - Updated comment for health check route to clarify it serves Render's monitoring
+  - **Code Removed**:
+    ```typescript
+    // 2025-12-30T20:00:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Register admin dashboard route directly
+    app.get('/dashboard', {
+      preHandler: [requireAdminSubdomain(), validateAdminSession]
+    }, async (request: FastifyRequest, reply: FastifyReply) => {
+      // ... dashboard route handler
+    });
+    ```
+  - **Impact**: Dashboard route now properly organized with other admin routes under `/admin/` prefix
+
+- **Admin Routes** (`src/routes/admin/index.ts`):
+  - **New Route Added**:
+    - `GET /admin/dashboard` - Admin dashboard with links to all superadmin routes
+    - Route applies both `requireAdminSubdomain()` and `validateAdminSession` hooks
+    - Registered at end of adminRoutes function before final console.log
+  - **New Route Added**:
+    - `GET /admin/kloiserverhealthcheck` - System health check dashboard (admin subdomain only, requires authentication)
+    - Route applies both `requireAdminSubdomain()` and `validateAdminSession` hooks
+    - Uses shared `performHealthCheck()` function from healthCheck.ts for DRY principle
+  - **Imports Added**:
+    - Added import for `performHealthCheck` from `../healthCheck`
+  - **Code Added**:
+    ```typescript
+    // 2025-01-03T11:59:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Register admin dashboard route under /admin/ prefix
+    app.get('/admin/dashboard', {
+      preHandler: [requireAdminSubdomain(), validateAdminSession]
+    }, async (request: FastifyRequest, reply: FastifyReply) => {
+      // ... dashboard handler
+    });
+
+    // 2025-01-03T11:59:00Z 🟡🟡🟡 - [ADMIN HEALTH CHECK] Register admin health check route under /admin/ prefix
+    app.get('/admin/kloiserverhealthcheck', {
+      preHandler: [requireAdminSubdomain(), validateAdminSession]
+    }, async (request: FastifyRequest, reply: FastifyReply) => {
+      const htmlContent = await performHealthCheck();
+      return reply.header('Content-Type', 'text/html').send(htmlContent);
+    });
+    ```
+  - **Impact**: All backend admin routes now consistently organized under `/admin/` prefix
+
+- **Health Check Routes** (`src/routes/healthCheck.ts`):
+  - **Shared Function Extracted**:
+    - Extracted comprehensive health check logic into `export async function performHealthCheck(): Promise<string>`
+    - Function performs all health checks (server time, database, Redis, environment variables, system resources)
+    - Returns HTML content for health check dashboard
+    - Follows DRY principle - shared by both `/kloiserverhealthcheck` and `/admin/kloiserverhealthcheck`
+  - **Route Updated**:
+    - `/kloiserverhealthcheck` route now calls `performHealthCheck()` function
+    - Route remains accessible for Render's internal monitoring (no admin requirements for Render checks)
+    - For custom domain requests, still requires admin subdomain access
+  - **Code Changed**:
+    ```typescript
+    // 2025-01-03T11:59:00Z 🟡🟡🟡 - [HEALTH CHECK] Shared function to perform comprehensive health check
+    export async function performHealthCheck(): Promise<string> {
+      // ... comprehensive health check logic
+      return htmlContent;
+    }
+
+    // Route handler now calls shared function
+    const htmlContent = await performHealthCheck();
+    return reply.header('Content-Type', 'text/html').send(htmlContent);
+    ```
+  - **Impact**: Health check logic is now reusable and follows DRY principles
+
+- **Dashboard Template** (`src/views/admin/dashboard.hbs`):
+  - **Link Updated**:
+    - Changed health check link from `/kloiserverhealthcheck` to `/admin/kloiserverhealthcheck` (line 42)
+  - **Code Changed**:
+    ```handlebars
+    <a href="/admin/kloiserverhealthcheck" class="admin-button-primary" target="_blank">Open Health Check</a>
+    ```
+  - **Impact**: Dashboard now links to admin-prefixed health check route
+
+- **Documentation Updates**:
+  - **APP-WIDE-SERVICES-AND-MODULES.md**:
+    - Updated protected routes list to include `/admin/kloiserverhealthcheck` and `/admin/dashboard`
+    - Clarified that `/kloiserverhealthcheck` remains for Render's monitoring
+    - Updated code reference comments
+  - **routes/index.ts**:
+    - Updated console log messages to reflect new admin health check path
+    - Added separate log for admin health check dashboard
+  - **Impact**: Documentation now accurately reflects route organization
+
+#### Technical Details
+
+**Route Access Control**:
+- `/admin/dashboard` - Requires admin subdomain + authentication
+- `/admin/kloiserverhealthcheck` - Requires admin subdomain + authentication
+- `/kloiserverhealthcheck` - Remains accessible for Render's monitoring (lightweight check), requires admin subdomain for custom domain requests
+
+**Route Organization**:
+- All backend admin routes now consistently use `/admin/` prefix
+- Routes registered in `src/routes/admin/index.ts` follow same pattern
+- Health check logic extracted to shared function for DRY principle
+
+**Access Patterns**:
+- **Backend Team Access**:
+  - Dashboard: `https://admin.mydomain.com/admin/dashboard` (requires login)
+  - Health Check: `https://admin.mydomain.com/admin/kloiserverhealthcheck` (requires login)
+  - All routes accessible via admin.mydomain.com subdomain
+- **Render Monitoring**:
+  - Health Check: `https://kloi-repo.onrender.com:3000/kloiserverhealthcheck` (no admin requirements, lightweight check)
+
+#### Security Considerations
+
+- **Admin Subdomain Protection**: All `/admin/*` routes require admin subdomain access via `requireAdminSubdomain()` hook
+- **Authentication Required**: All `/admin/*` routes require active admin session via `validateAdminSession` hook
+- **404 Response**: Routes return 404 Not Found (not 403 Forbidden) to hide route existence from non-admin subdomains
+- **Render Health Check**: Original `/kloiserverhealthcheck` remains accessible for Render's monitoring without admin requirements
+- **No Breaking Changes**: Existing functionality continues to work, routes just moved to new paths
+
+#### Benefits
+
+- **Consistent Organization**: All backend admin routes now under `/admin/` prefix
+- **Better Discoverability**: Easy to identify all admin routes by prefix
+- **DRY Principle**: Health check logic extracted to shared function
+- **Maintainability**: Routes organized in single location (`src/routes/admin/index.ts`)
+- **Clear Separation**: Render monitoring route separate from admin routes
+
+#### Breaking Changes
+
+⚠️⚠️⚠️ **Route Path Changes**:
+- `/dashboard` → `/admin/dashboard` (old path no longer works)
+- Health check dashboard moved to `/admin/kloiserverhealthcheck` (original `/kloiserverhealthcheck` still works for Render monitoring)
+
+**Migration Required**:
+- Update bookmarks and links to use new `/admin/dashboard` path
+- Update any scripts or tools that reference `/dashboard` to use `/admin/dashboard`
+- Dashboard template already updated to use new health check path
+
+#### Files Affected
+
+**Modified Files**:
+- `src/app.ts` - Removed `/dashboard` route registration and unused imports
+- `src/routes/admin/index.ts` - Added `/admin/dashboard` and `/admin/kloiserverhealthcheck` routes, added import for `performHealthCheck`
+- `src/routes/healthCheck.ts` - Extracted `performHealthCheck()` function, exported for reuse
+- `src/views/admin/dashboard.hbs` - Updated health check link to `/admin/kloiserverhealthcheck`
+- `src/routes/index.ts` - Updated console log messages for new route paths
+- `docs/APP-WIDE-SERVICES-AND-MODULES.md` - Updated protected routes list and code references
+- `docs/CHANGELOG_ADMIN_BRANCH.md` - Added this changelog entry
+
+#### Testing Recommendations
+
+1. **Test Route Access**:
+   - Verify `/admin/dashboard` is accessible from admin.mydomain.com/admin/dashboard (with login)
+   - Verify `/admin/kloiserverhealthcheck` is accessible from admin.mydomain.com/admin/kloiserverhealthcheck (with login)
+   - Verify `/dashboard` returns 404 (old path no longer works)
+   - Verify `/admin/dashboard` returns 404 from non-admin subdomains
+   - Verify `/admin/kloiserverhealthcheck` returns 404 from non-admin subdomains
+
+2. **Test Render Health Check**:
+   - Verify `/kloiserverhealthcheck` still works for Render's monitoring (lightweight check)
+   - Verify Render can access health check without admin requirements
+
+3. **Test Dashboard Links**:
+   - Verify health check link in dashboard points to `/admin/kloiserverhealthcheck`
+   - Verify all dashboard links are correct and functional
+   - Verify invitation management link works (requires SUPER_ADMIN)
+   - Verify pending approvals link works (requires SUPER_ADMIN)
+
+4. **Test Security**:
+   - Verify all `/admin/*` routes require admin subdomain access
+   - Verify all `/admin/*` routes require authentication
+   - Test with different admin roles (SUPER_ADMIN, EDITOR, READ_ONLY)
+
+#### Related Documentation
+
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin interface conventions and route organization
+- See `src/routes/admin/index.ts` for all admin route registrations
+- See `src/routes/healthCheck.ts` for shared health check function implementation
+- See `src/hooks/adminHooks.ts` for admin authentication and subdomain protection hooks
+
+---
+
 ### January 2, 2025 @ 19:20 - Backend Superadmin Setup: Enhanced Seed Script for Immediate Access
 
 **Type**: 🟠 MAJOR CHANGE

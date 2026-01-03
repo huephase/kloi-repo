@@ -57,7 +57,7 @@ export async function sendInvitationEmail(
         .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
         .content { padding: 20px; background-color: #f9f9f9; }
         .button { display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
-        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; }
         .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 20px 0; }
       </style>
     </head>
@@ -77,7 +77,7 @@ export async function sendInvitationEmail(
             <strong>Note:</strong> This invitation link will expire in 7 days. Please complete your sign-up before then.
           </div>
           <p>If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #666;">${invitationLink}</p>
+          <p style="word-break: break-all;">${invitationLink}</p>
           <p>If you did not expect this invitation, please ignore this email.</p>
         </div>
         <div class="footer">
@@ -131,7 +131,7 @@ export async function sendEmailVerificationEmail(
         .header { background-color: #2196F3; color: white; padding: 20px; text-align: center; }
         .content { padding: 20px; background-color: #f9f9f9; }
         .button { display: inline-block; padding: 12px 24px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
-        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; }
         .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 20px 0; }
       </style>
     </head>
@@ -150,7 +150,7 @@ export async function sendEmailVerificationEmail(
             <strong>Note:</strong> This verification link will expire in 7 days. Please verify your email before then.
           </div>
           <p>If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #666;">${verificationLink}</p>
+          <p style="word-break: break-all;">${verificationLink}</p>
           <p>If you did not sign up for an admin account, please ignore this email.</p>
         </div>
         <div class="footer">
@@ -203,7 +203,7 @@ export async function sendApprovalNotificationEmail(
         .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; }
         .content { padding: 20px; background-color: #f9f9f9; }
         .info-box { background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px; margin: 20px 0; }
-        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; }
       </style>
     </head>
     <body>
@@ -274,7 +274,7 @@ export async function sendAccountActivatedEmail(
         .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
         .content { padding: 20px; background-color: #f9f9f9; }
         .button { display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
-        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; }
         .success-box { background-color: #d4edda; border-left: 4px solid #28a745; padding: 12px; margin: 20px 0; }
       </style>
     </head>

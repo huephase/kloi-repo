@@ -35,7 +35,7 @@
   background: #f0f0f0;
   border-radius: 4px;
   font-size: 0.875rem;
-  color: #666;
+  
   margin-top: 0.5rem;
 }
 
@@ -147,11 +147,7 @@
   display: flex;
   gap: 1.5rem;
   font-size: 0.875rem;
-  color: #666;
-}
-
-.admin-username {
-  color: #666;
+  
 }
 
 .admin-logout-form {
@@ -196,7 +192,7 @@
 .admin-menu-id {
   margin: 0;
   font-size: 0.875rem;
-  color: #666;
+  
 }
 
 .admin-menu-id code {
@@ -288,7 +284,7 @@
 
 .admin-section-drag-handle {
   cursor: move;
-  color: #666;
+  
   font-size: 1.25rem;
   user-select: none;
 }
@@ -299,7 +295,7 @@
 
 .admin-section-order {
   font-weight: 600;
-  color: #666;
+  
   font-size: 0.875rem;
   min-width: 2rem;
 }
@@ -380,7 +376,7 @@
 }
 
 .admin-section-preview {
-  color: #666;
+  
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -431,7 +427,7 @@
 }
 
 .admin-nested-item-description {
-  color: #666;
+  
   font-size: 0.875rem;
   margin-top: 0.5rem;
 }
@@ -481,7 +477,7 @@
   padding: 0.125rem 0.375rem;
   background: #e9ecef;
   border-radius: 3px;
-  color: #666;
+  
 }
 
 .admin-popup-section-preview {
@@ -812,7 +808,7 @@
 /* 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN CSS] Sign-up form styles */
 .admin-disabled-input {
   background-color: #f5f5f5;
-  color: #666;
+  
   cursor: not-allowed;
   opacity: 0.7;
 }
@@ -821,7 +817,7 @@
   display: block;
   margin-top: 0.25rem;
   font-size: 0.875rem;
-  color: #666;
+  
 }
 
 .admin-success-message {
@@ -845,7 +841,7 @@
 }
 
 .admin-section-description {
-  color: #666;
+  
   font-size: 0.9375rem;
   line-height: 1.6;
   margin: 0;
@@ -903,7 +899,7 @@
   display: block;
   margin-top: 0.25rem;
   font-size: 0.875rem;
-  color: #666;
+  
   line-height: 1.4;
 }
 
@@ -953,7 +949,7 @@
 }
 
 .admin-invitation-message {
-  color: #666;
+  
   font-size: 0.9375rem;
   line-height: 1.6;
   margin: 0;
@@ -1064,7 +1060,7 @@
 }
 
 .admin-section-description {
-  color: #666;
+  
   font-size: 1rem;
   line-height: 1.6;
   margin: 0;
@@ -1128,7 +1124,7 @@
 }
 
 .admin-route-description {
-  color: #666;
+  
   font-size: 0.9375rem;
   line-height: 1.6;
   margin: 0 0 1.5rem 0;
@@ -1148,7 +1144,7 @@
 }
 
 .admin-dashboard-note {
-  color: #666;
+  
   font-size: 0.9375rem;
   line-height: 1.6;
   margin: 0;

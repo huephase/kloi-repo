@@ -18,7 +18,6 @@ import { detectThemeFromSubdomain } from './lib/themeDetector';
 import { createRedisStore } from './lib/session-store';
 import routes from './routes';
 import pino from 'pino';
-import { requireAdminSubdomain, validateAdminSession } from './hooks/adminHooks';
 import { generatePageClass } from './lib/pageClass';
 import { FastifyRequest, FastifyReply } from 'fastify';
 
@@ -221,34 +220,9 @@ app.get('/', async (request, reply) => {
 
 // console.log('🟡🟡🟡 - [app.ts] Registering health check route (before protected routes)');
 // 👍👍👍👍👍👍 - 2024-12-28 - Register health check route directly to avoid session validation hooks
+// ⚠️⚠️⚠️ - 2025-01-03 - Health check route remains at /kloiserverhealthcheck for Render's internal monitoring
 import healthCheckRoutes from './routes/healthCheck';
 app.register(healthCheckRoutes);
-
-// 2025-12-30T20:00:00Z 🟡🟡🟡 - [ADMIN DASHBOARD] Register admin dashboard route directly (similar to health check)
-// GET /dashboard - Render admin dashboard with links to all superadmin routes (admin subdomain only, requires authentication)
-app.get('/dashboard', {
-  preHandler: [requireAdminSubdomain(), validateAdminSession]
-}, async (request: FastifyRequest, reply: FastifyReply) => {
-  console.log('🟡🟡🟡 - [ADMIN DASHBOARD] GET /dashboard');
-  
-  const theme = (request as any).theme || 'default';
-  const admin = (request as any).admin;
-
-  try {
-    const templatePath = 'admin/dashboard';
-    const page_class = generatePageClass(templatePath);
-
-    return reply.view(templatePath, {
-      theme,
-      adminUsername: admin.username,
-      admin,
-      page_class
-    });
-  } catch (error) {
-    console.error('❗❗❗ - [ADMIN DASHBOARD] Error loading dashboard:', error);
-    return reply.status(500).send('Error loading dashboard');
-  }
-});
 
 // 🟡🟡🟡 - [WEBHOOK] Register webhook routes before session validation (webhooks bypass session)
 import stripeWebhookRoutes from './routes/webhooks/stripe';
