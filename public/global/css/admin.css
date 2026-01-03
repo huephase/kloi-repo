@@ -203,7 +203,6 @@
 .admin-menu-editor-container {
   border: 1px solid #ddd;
   border-radius: 4px;
-  background: #00000038;
   padding: 1rem;
   min-height: 400px;
 }
@@ -243,7 +242,6 @@
 .admin-section-card {
   border: 1px solid #ddd;
   border-radius: 4px;
-  background: #00000038;
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 
@@ -506,7 +504,7 @@
 }
 
 .admin-modal-content {
-  background: #00000038;
+  background: #ffffff;
   border-radius: 8px;
   width: 100%;
   max-width: 500px;
