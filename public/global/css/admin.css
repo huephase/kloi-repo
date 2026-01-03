@@ -12,7 +12,7 @@
 .admin-login-card {
   width: 100%;
   max-width: 400px;
-  background: #fff;
+  background: #00000038;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   padding: 2rem;
@@ -26,7 +26,7 @@
 .admin-login-header h1 {
   margin: 0 0 0.5rem 0;
   font-size: 1.75rem;
-  color: #333;
+  
 }
 
 .admin-theme-badge {
@@ -37,10 +37,6 @@
   font-size: 0.875rem;
   
   margin-top: 0.5rem;
-}
-
-.admin-theme-badge strong {
-  color: #333;
 }
 
 .admin-error-message {
@@ -71,7 +67,7 @@
 
 .admin-login-form label {
   font-weight: 500;
-  color: #333;
+  
   font-size: 0.875rem;
 }
 
@@ -140,7 +136,7 @@
 .admin-header h1 {
   margin: 0;
   font-size: 1.75rem;
-  color: #333;
+  
 }
 
 .admin-header-info {
@@ -186,7 +182,7 @@
 .admin-menu-name {
   margin: 0 0 0.5rem 0;
   font-size: 1rem;
-  color: #333;
+  
 }
 
 .admin-menu-id {
@@ -196,7 +192,7 @@
 }
 
 .admin-menu-id code {
-  background: #fff;
+  background: #00000038;
   padding: 0.25rem 0.5rem;
   border-radius: 3px;
   font-family: monospace;
@@ -207,7 +203,7 @@
 .admin-menu-editor-container {
   border: 1px solid #ddd;
   border-radius: 4px;
-  background: #fff;
+  background: #00000038;
   padding: 1rem;
   min-height: 400px;
 }
@@ -247,7 +243,7 @@
 .admin-section-card {
   border: 1px solid #ddd;
   border-radius: 4px;
-  background: #fff;
+  background: #00000038;
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 
@@ -343,7 +339,7 @@
   font-size: 0.75rem;
   color: #999;
   padding: 0.25rem 0.5rem;
-  background: #fff;
+  background: #00000038;
   border-radius: 3px;
 }
 
@@ -406,7 +402,7 @@
 
 .admin-nested-item-header strong {
   flex: 1;
-  color: #333;
+  
 }
 
 .admin-nested-item-price {
@@ -460,7 +456,7 @@
 .admin-popup-section {
   padding: 0.5rem;
   margin-bottom: 0.5rem;
-  background: #fff;
+  background: #00000038;
   border: 1px solid #ddd;
   border-radius: 3px;
 }
@@ -510,7 +506,7 @@
 }
 
 .admin-modal-content {
-  background: #fff;
+  background: #00000038;
   border-radius: 8px;
   width: 100%;
   max-width: 500px;
@@ -534,7 +530,7 @@
 .admin-modal-header h3 {
   margin: 0;
   font-size: 1.25rem;
-  color: #333;
+  
 }
 
 .admin-modal-close {
@@ -555,7 +551,7 @@
 
 .admin-modal-close:hover {
   background: #f0f0f0;
-  color: #333;
+  
 }
 
 .admin-modal-body {
@@ -579,7 +575,7 @@
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #333;
+  
   font-size: 0.875rem;
 }
 
@@ -848,7 +844,7 @@
 }
 
 .admin-invitations-form-container {
-  background: #fff;
+  background: #00000038;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 2rem;
@@ -868,7 +864,7 @@
 
 .admin-form-label {
   font-weight: 500;
-  color: #333;
+  
   font-size: 0.9375rem;
 }
 
@@ -975,7 +971,7 @@
   border-radius: 4px;
   font-size: 0.9375rem;
   background: #f8f9fa;
-  color: #333;
+  
   font-family: 'Courier New', monospace;
   word-break: break-all;
 }
@@ -1076,14 +1072,14 @@
 .admin-dashboard-section-title {
   grid-column: 1 / -1;
   font-size: 1.5rem;
-  color: #333;
+  
   margin: 0 0 1rem 0;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid #e0e0e0;
 }
 
 .admin-route-card {
-  background: #fff;
+  background: #00000038;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 1.5rem;
@@ -1107,7 +1103,7 @@
 
 .admin-route-title {
   font-size: 1.25rem;
-  color: #333;
+  
   margin: 0;
   flex: 1;
 }
@@ -1148,10 +1144,6 @@
   font-size: 0.9375rem;
   line-height: 1.6;
   margin: 0;
-}
-
-.admin-dashboard-note strong {
-  color: #333;
 }
 
 /* Responsive styles for dashboard */
