@@ -18,8 +18,6 @@ import { detectThemeFromSubdomain } from './lib/themeDetector';
 import { createRedisStore } from './lib/session-store';
 import routes from './routes';
 import pino from 'pino';
-import { generatePageClass } from './lib/pageClass';
-import { FastifyRequest, FastifyReply } from 'fastify';
 
 // console.log('🟡🟡🟡 - [app.ts] Starting Fastify app setup');
 

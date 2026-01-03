@@ -865,7 +865,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   // GET /admin/kloiserverhealthcheck - System health check dashboard (admin subdomain only, requires authentication)
   app.get('/admin/kloiserverhealthcheck', {
     preHandler: [requireAdminSubdomain(), validateAdminSession]
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN HEALTH CHECK] GET /admin/kloiserverhealthcheck');
     
     try {

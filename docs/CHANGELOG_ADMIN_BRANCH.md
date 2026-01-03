@@ -175,13 +175,27 @@
 #### Files Affected
 
 **Modified Files**:
-- `src/app.ts` - Removed `/dashboard` route registration and unused imports
-- `src/routes/admin/index.ts` - Added `/admin/dashboard` and `/admin/kloiserverhealthcheck` routes, added import for `performHealthCheck`
-- `src/routes/healthCheck.ts` - Extracted `performHealthCheck()` function, exported for reuse
+- `src/app.ts` - Removed `/dashboard` route registration and unused imports (`generatePageClass`, `FastifyRequest`, `FastifyReply`)
+- `src/routes/admin/index.ts` - Added `/admin/dashboard` and `/admin/kloiserverhealthcheck` routes, added import for `performHealthCheck`, fixed unused parameter warning (`request` → `_request`)
+- `src/routes/healthCheck.ts` - Extracted `performHealthCheck()` function, exported for reuse, restored default export `healthCheck()` function for route registration
 - `src/views/admin/dashboard.hbs` - Updated health check link to `/admin/kloiserverhealthcheck`
 - `src/routes/index.ts` - Updated console log messages for new route paths
 - `docs/APP-WIDE-SERVICES-AND-MODULES.md` - Updated protected routes list and code references
 - `docs/CHANGELOG_ADMIN_BRANCH.md` - Added this changelog entry
+
+#### TypeScript Error Fixes
+
+**Issues Resolved**:
+- Fixed unused import errors in `src/app.ts` (removed `generatePageClass`, `FastifyRequest`, `FastifyReply` imports)
+- Fixed duplicate function declaration error in `src/routes/healthCheck.ts` (removed duplicate `performHealthCheck` function definition)
+- Fixed missing default export error in `src/routes/healthCheck.ts` (restored `export default async function healthCheck()`)
+- Fixed unused parameter warning in `src/routes/admin/index.ts` (changed `request` to `_request` in health check route handler)
+- Fixed unused type imports in `src/routes/healthCheck.ts` (kept necessary imports for route handler)
+
+**Code Structure**:
+- `performHealthCheck()` - Exported shared function containing all health check logic
+- `healthCheck()` - Default export function that registers `/kloiserverhealthcheck` route and uses `performHealthCheck()`
+- Admin route handler uses `performHealthCheck()` directly for `/admin/kloiserverhealthcheck` endpoint
 
 #### Testing Recommendations
 
