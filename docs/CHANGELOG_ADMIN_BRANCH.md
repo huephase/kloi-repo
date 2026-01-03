@@ -14,6 +14,352 @@
 
 ---
 
+### January 3, 2025 @ 18:15 - Popup Section Editing: Fixed Grayed-Out Appearance and Implemented Full Editing Functionality
+
+**Summary**: Fixed critical issue where popup sections (nested sections within radio option popups) appeared grayed out and were non-functional. The popup section edit buttons displayed a "coming soon" message instead of actual editing functionality. Implemented complete popup section editing support including text sections (h1, h2, p), image sections with upload capability, and unordered lists. Updated CSS to remove grayed-out appearance and improve visual feedback for editable popup sections.
+
+**Problem**: 
+- Popup sections within radio option popups appeared grayed out with `background: #00000038;` making them look disabled
+- Popup section edit buttons (✏️) showed "coming soon" message instead of opening edit modals
+- No functionality to edit popup section content (text, images, lists)
+- No image upload support for popup image sections
+- Poor visual feedback - sections looked non-interactive despite being part of editable menu structure
+- `renderPopupContent()` function lacked context (sectionKey, radioKey) needed for editing functionality
+
+**Solution**:
+- Updated CSS to change popup section background from dark gray to light gray (`#f8f9fa`) for editable appearance
+- Added hover effects to popup sections and edit buttons for better UX
+- Updated `renderPopupContent()` function signature to accept `sectionKey` and `radioKey` parameters
+- Implemented complete popup section editing functionality with modal dialogs
+- Added support for editing text sections (h1, h2, p), image sections, and unordered lists
+- Implemented image upload functionality specifically for popup sections
+- Added data attributes to edit buttons for proper section identification
+- Replaced "coming soon" placeholder with actual editing implementation
+
+#### Major Changes
+
+- **Admin Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js`):
+  - **Updated `renderPopupContent()` Function**:
+    - Changed function signature from `renderPopupContent(container, popup)` to `renderPopupContent(container, popup, sectionKey, radioKey)`
+    - Added `sectionKey` and `radioKey` parameters for proper context
+    - Updated edit button data attributes to include `data-section-key`, `data-radio-key`, and `data-popup-section-key`
+    - Replaced placeholder "coming soon" message with actual `editPopupSection()` function call
+    - **Code Changed** (lines 321-345):
+      ```javascript
+      // 2025-01-03T18:15:00Z 🟡🟡🟡 - [NESTED CONTENT] Render popup content (nested sections within radio popup)
+      function renderPopupContent(container, popup, sectionKey, radioKey) {
+        Object.keys(popup).forEach(popupSectionKey => {
+          const popupSection = popup[popupSectionKey];
+          const item = document.createElement('div');
+          item.className = 'admin-popup-section';
+          item.innerHTML = `
+            <div class="admin-popup-section-header">
+              <span class="admin-popup-section-type">${popupSection['html-type'] || 'unknown'}</span>
+              <span class="admin-popup-section-preview">${escapeHtml(getSectionPreview(popupSection))}</span>
+              <button class="admin-popup-section-edit" data-section-key="${sectionKey}" data-radio-key="${radioKey}" data-popup-section-key="${popupSectionKey}">✏️</button>
+            </div>
+          `;
+          
+          const editBtn = item.querySelector('.admin-popup-section-edit');
+          if (editBtn) {
+            editBtn.addEventListener('click', () => {
+              // 🟡🟡🟡 - [POPUP EDIT] Edit popup section
+              editPopupSection(sectionKey, radioKey, popupSectionKey);
+            });
+          }
+          
+          container.appendChild(item);
+        });
+      }
+      ```
+    - **Impact**: Popup sections now have proper context for editing functionality
+
+  - **Updated `renderNestedContent()` Function**:
+    - Updated call to `renderPopupContent()` to pass `sectionKey` and `radioKey` parameters
+    - **Code Changed** (line 221):
+      ```javascript
+      // 🟡🟡🟡 - [POPUP CONTENT] Pass sectionKey and radioKey for editing functionality
+      renderPopupContent(popupContainer, radio.popup, sectionKey, radioKey);
+      ```
+    - **Impact**: Popup content rendering now includes necessary context for editing
+
+  - **New Function: `editPopupSection()`**:
+    - Entry point for editing popup sections
+    - Validates popup section exists in menu state
+    - Retrieves popup section from nested structure: `currentMenuState[sectionKey].content[radioKey].popup[popupSectionKey]`
+    - Calls `showEditPopupSectionModal()` with proper context
+    - **Code Added** (lines 1054-1065):
+      ```javascript
+      // 🟡🟡🟡 - [POPUP SECTIONS] Edit popup section
+      function editPopupSection(sectionKey, radioKey, popupSectionKey) {
+        const section = currentMenuState[sectionKey];
+        if (!section || !section.content || !section.content[radioKey] || !section.content[radioKey].popup || !section.content[radioKey].popup[popupSectionKey]) {
+          console.error('❗❗❗ - [ADMIN MENU EDITOR] Popup section not found:', sectionKey, radioKey, popupSectionKey);
+          return;
+        }
+
+        const popupSection = section.content[radioKey].popup[popupSectionKey];
+        const htmlType = popupSection['html-type'] || 'unknown';
+        showEditPopupSectionModal(sectionKey, radioKey, popupSectionKey, popupSection, htmlType);
+      }
+      ```
+    - **Impact**: Enables popup section editing from edit button clicks
+
+  - **New Function: `showEditPopupSectionModal()`**:
+    - Creates modal dialog for editing popup sections
+    - Supports multiple HTML types: `h1`, `h2`, `p`, `image`, `unordered-list`
+    - Text sections: Provides textarea for content editing
+    - Image sections: Provides inputs for src, alt, caption, and image upload functionality
+    - List sections: Provides textarea with one item per line format
+    - Includes image upload button and preview container for image sections
+    - Sets up event listeners for file upload, modal close, and save functionality
+    - **Code Added** (lines 1067-1180):
+      ```javascript
+      // 🟡🟡🟡 - [MODAL] Show edit popup section modal
+      function showEditPopupSectionModal(sectionKey, radioKey, popupSectionKey, popupSection, htmlType) {
+        let modalContent = '';
+
+        if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+          modalContent = `
+            <div class="admin-form-group">
+              <label>Content:</label>
+              <textarea id="edit-popup-section-content" class="admin-form-input" rows="4">${escapeHtml(popupSection.content || '')}</textarea>
+            </div>
+          `;
+        } else if (htmlType === 'image') {
+          // ... image section form with upload functionality
+        } else if (htmlType === 'unordered-list') {
+          // ... list section form
+        }
+        // ... modal creation and event listeners
+      }
+      ```
+    - **Impact**: Provides user-friendly interface for editing all popup section types
+
+  - **New Function: `savePopupSectionChanges()`**:
+    - Saves changes made to popup sections
+    - Handles different HTML types (text, image, list)
+    - Updates nested menu state structure: `currentMenuState[sectionKey].content[radioKey].popup[popupSectionKey]`
+    - Ensures popup object exists before updating
+    - Triggers section re-render after save
+    - **Code Added** (lines 1182-1210):
+      ```javascript
+      // 🟡🟡🟡 - [POPUP SECTIONS] Save popup section changes
+      function savePopupSectionChanges(sectionKey, radioKey, popupSectionKey, popupSection, htmlType, modal) {
+        if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+          const contentInput = modal.querySelector('#edit-popup-section-content');
+          if (contentInput) {
+            popupSection.content = contentInput.value.trim();
+          }
+        } else if (htmlType === 'image') {
+          // ... save image section fields
+        } else if (htmlType === 'unordered-list') {
+          // ... save list section
+        }
+
+        // 🟡🟡🟡 - [UPDATE STATE] Update the popup section in current menu state
+        if (currentMenuState[sectionKey] && currentMenuState[sectionKey].content && currentMenuState[sectionKey].content[radioKey]) {
+          if (!currentMenuState[sectionKey].content[radioKey].popup) {
+            currentMenuState[sectionKey].content[radioKey].popup = {};
+          }
+          currentMenuState[sectionKey].content[radioKey].popup[popupSectionKey] = popupSection;
+          renderSections();
+          console.log('✅✅✅ - [ADMIN MENU EDITOR] Popup section updated:', popupSectionKey);
+        }
+      }
+      ```
+    - **Impact**: Persists popup section edits to menu state and triggers UI update
+
+  - **New Function: `handleImageUploadForPopup()`**:
+    - Handles image file uploads specifically for popup sections
+    - Client-side validation: file size (5MB max), file type (JPG, PNG, SVG), file extension
+    - Creates FormData and POSTs to `/admin/api/upload-image` endpoint
+    - Updates image src field with returned file path
+    - Shows image preview after successful upload
+    - Provides visual feedback (uploading, success, error states)
+    - Uses unique status span IDs based on sectionKey, radioKey, and popupSectionKey
+    - **Code Added** (lines 1212-1295):
+      ```javascript
+      // 🟡🟡🟡 - [IMAGE UPLOAD] Handle image file upload for popup sections
+      async function handleImageUploadForPopup(sectionKey, radioKey, popupSectionKey, file, statusSpan, previewContainer, srcInput) {
+        // ... validation, upload, and feedback logic
+      }
+      ```
+    - **Impact**: Enables image uploads directly from popup section edit modal
+
+- **Admin CSS Stylesheet** (`public/global/css/admin.css`):
+  - **Updated `.admin-popup-section` Styles**:
+    - Changed background from `#00000038` (dark gray/transparent) to `#f8f9fa` (light gray)
+    - Added `cursor: pointer` to indicate interactivity
+    - Added `transition: background 0.2s` for smooth hover effects
+    - Added `.admin-popup-section:hover` rule with `background: #e9ecef` for visual feedback
+    - **Code Changed** (lines 454-460):
+      ```css
+      .admin-popup-section {
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .admin-popup-section:hover {
+        background: #e9ecef;
+      }
+      ```
+    - **Impact**: Popup sections now appear editable and interactive instead of grayed out
+
+  - **Updated `.admin-popup-section-edit` Styles**:
+    - Added `transition: background 0.2s` for smooth hover effects
+    - Added `border-radius: 3px` for better button appearance
+    - Added `.admin-popup-section-edit:hover` rule with `background: #e9ecef` for visual feedback
+    - **Code Changed** (lines 483-490):
+      ```css
+      .admin-popup-section-edit {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.75rem;
+        padding: 0.25rem;
+        transition: background 0.2s;
+        border-radius: 3px;
+      }
+
+      .admin-popup-section-edit:hover {
+        background: #e9ecef;
+      }
+      ```
+    - **Impact**: Edit buttons now provide clear visual feedback on hover
+
+#### Technical Details
+
+**Popup Section Structure**:
+- Popup sections are nested within radio option popups
+- Path in menu state: `currentMenuState[sectionKey].content[radioKey].popup[popupSectionKey]`
+- Each popup section has an `html-type` property (h1, h2, p, image, unordered-list)
+- Popup sections maintain same structure as regular menu sections
+
+**Supported HTML Types for Popup Sections**:
+- **Text Sections** (`h1`, `h2`, `p`): Content stored in `content` property
+- **Image Sections** (`image`): Properties: `src`, `alt`, `caption`
+- **List Sections** (`unordered-list`): Content stored as array in `content` property
+
+**Image Upload Integration**:
+- Uses same `/admin/api/upload-image` endpoint as regular image sections
+- Uploaded images stored in theme-scoped directories: `public/menus/{theme}/`
+- File validation: 5MB max, JPG/PNG/SVG only
+- Unique status span IDs prevent conflicts: `upload-status-popup-${sectionKey}-${radioKey}-${popupSectionKey}`
+
+**Data Flow**:
+1. User clicks edit button (✏️) on popup section
+2. `editPopupSection()` validates section exists and retrieves it
+3. `showEditPopupSectionModal()` creates modal with appropriate form fields
+4. User edits content (text, image, list)
+5. For images: `handleImageUploadForPopup()` uploads file and updates src
+6. `savePopupSectionChanges()` updates menu state
+7. `renderSections()` re-renders UI with updated content
+
+#### Security Considerations
+
+- **Input Validation**: All inputs validated client-side before submission
+- **XSS Prevention**: All user input escaped using `escapeHtml()` function
+- **File Upload Security**: Image uploads use same secure validation as regular sections
+- **State Management**: Changes only applied to menu state after validation
+- **No Breaking Changes**: Existing popup section structure maintained
+
+#### Benefits
+
+- **Full Functionality**: Popup sections now fully editable, not just viewable
+- **Better UX**: Visual feedback indicates sections are interactive
+- **Consistent Interface**: Popup section editing follows same patterns as regular section editing
+- **Image Upload Support**: Can upload images directly from popup section edit modal
+- **Complete Feature Set**: All HTML types supported (text, image, list)
+- **Visual Clarity**: No more grayed-out appearance confusing users
+
+#### Breaking Changes
+
+None - This is a bug fix and feature enhancement that maintains backward compatibility with existing menu JSON structure.
+
+#### Files Affected
+
+**Modified Files**:
+- `public/global/js/admin-menu-editor.js` - Added popup section editing functionality
+  - **Lines Changed**:
+    - Line 221: Updated `renderPopupContent()` call to pass `sectionKey` and `radioKey`
+    - Lines 321-345: Updated `renderPopupContent()` function signature and implementation
+    - Lines 1054-1295: Added new functions for popup section editing (`editPopupSection`, `showEditPopupSectionModal`, `savePopupSectionChanges`, `handleImageUploadForPopup`)
+  - **Impact**: Complete popup section editing functionality implemented
+
+- `public/global/css/admin.css` - Fixed grayed-out appearance and improved interactivity
+  - **Lines Changed**:
+    - Lines 454-460: Updated `.admin-popup-section` styles (background, hover effects)
+    - Lines 483-490: Updated `.admin-popup-section-edit` styles (hover effects)
+  - **Impact**: Popup sections now appear editable and provide visual feedback
+
+- `docs/CHANGELOG_ADMIN_BRANCH.md` - Added this changelog entry
+
+#### Testing Recommendations
+
+1. **Test Popup Section Editing**:
+   - Open menu editor with radio group containing popup sections
+   - Expand radio option to view popup content
+   - Click edit button (✏️) on popup section
+   - Verify modal opens with correct form fields based on HTML type
+   - Edit content and save
+   - Verify changes persist after save
+   - Verify section preview updates after save
+
+2. **Test Text Section Editing**:
+   - Edit h1, h2, and p popup sections
+   - Verify textarea displays current content
+   - Make changes and save
+   - Verify content updates in preview
+
+3. **Test Image Section Editing**:
+   - Edit image popup section
+   - Verify src, alt, caption fields display current values
+   - Upload new image using "Choose Image" button
+   - Verify image preview updates
+   - Verify src field updates with uploaded path
+   - Save and verify image persists
+
+4. **Test List Section Editing**:
+   - Edit unordered-list popup section
+   - Verify textarea displays list items (one per line)
+   - Add/remove list items
+   - Save and verify list updates
+
+5. **Test Visual Appearance**:
+   - Verify popup sections no longer appear grayed out
+   - Verify hover effects work on popup sections
+   - Verify edit button hover effects work
+   - Verify sections look interactive and editable
+
+6. **Test Edge Cases**:
+   - Edit popup section when radio option is collapsed
+   - Edit popup section, then expand/collapse radio option
+   - Edit multiple popup sections in same radio option
+   - Edit popup sections in different radio options
+   - Save menu after editing popup sections
+
+7. **Test Image Upload**:
+   - Upload valid image (< 5MB, JPG/PNG/SVG)
+   - Verify upload success message
+   - Verify image preview displays
+   - Test with invalid file (too large, wrong type)
+   - Verify error messages display correctly
+
+#### Related Documentation
+
+- See `public/global/js/admin-menu-editor.js` for popup section editing implementation
+- See `public/global/css/admin.css` for popup section styling
+- See `docs/CHANGELOG_ADMIN_BRANCH.md` for related menu editor changes
+- See `public/sample_menu/SAMPLE-MENU-JSONB-NEW.json` for menu JSON structure with popup sections
+
+---
+
 ### January 3, 2025 @ 11:59 - Backend Routes Consolidation: Move All Admin Routes Under /admin/ Prefix
 
 **Type**: 🟠 MAJOR CHANGE

@@ -218,7 +218,8 @@
         if (hasPopup) {
           const popupContainer = item.querySelector('.admin-popup-content');
           if (popupContainer) {
-            renderPopupContent(popupContainer, radio.popup);
+            // 🟡🟡🟡 - [POPUP CONTENT] Pass sectionKey and radioKey for editing functionality
+            renderPopupContent(popupContainer, radio.popup, sectionKey, radioKey);
           }
           const popupToggle = item.querySelector('.admin-expand-toggle-nested');
           if (popupToggle) {
@@ -319,7 +320,7 @@
   }
 
   // 🟡🟡🟡 - [NESTED CONTENT] Render popup content (nested sections within radio popup)
-  function renderPopupContent(container, popup) {
+  function renderPopupContent(container, popup, sectionKey, radioKey) {
     Object.keys(popup).forEach(popupSectionKey => {
       const popupSection = popup[popupSectionKey];
       const item = document.createElement('div');
@@ -328,15 +329,15 @@
         <div class="admin-popup-section-header">
           <span class="admin-popup-section-type">${popupSection['html-type'] || 'unknown'}</span>
           <span class="admin-popup-section-preview">${escapeHtml(getSectionPreview(popupSection))}</span>
-          <button class="admin-popup-section-edit" data-popup-section-key="${popupSectionKey}">✏️</button>
+          <button class="admin-popup-section-edit" data-section-key="${sectionKey}" data-radio-key="${radioKey}" data-popup-section-key="${popupSectionKey}">✏️</button>
         </div>
       `;
       
       const editBtn = item.querySelector('.admin-popup-section-edit');
       if (editBtn) {
         editBtn.addEventListener('click', () => {
-          // TODO: Implement popup section editing
-          showMessage('Popup section editing coming soon', 'info');
+          // 🟡🟡🟡 - [POPUP EDIT] Edit popup section
+          editPopupSection(sectionKey, radioKey, popupSectionKey);
         });
       }
       
@@ -1047,6 +1048,267 @@
       delete section['addon-items'][addonKey];
       renderSections();
       console.log('✅✅✅ - [ADMIN MENU EDITOR] Addon item deleted:', addonKey);
+    }
+  }
+
+  // 🟡🟡🟡 - [POPUP SECTIONS] Edit popup section
+  function editPopupSection(sectionKey, radioKey, popupSectionKey) {
+    const section = currentMenuState[sectionKey];
+    if (!section || !section.content || !section.content[radioKey] || !section.content[radioKey].popup || !section.content[radioKey].popup[popupSectionKey]) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Popup section not found:', sectionKey, radioKey, popupSectionKey);
+      return;
+    }
+
+    const popupSection = section.content[radioKey].popup[popupSectionKey];
+    const htmlType = popupSection['html-type'] || 'unknown';
+    showEditPopupSectionModal(sectionKey, radioKey, popupSectionKey, popupSection, htmlType);
+  }
+
+  // 🟡🟡🟡 - [MODAL] Show edit popup section modal
+  function showEditPopupSectionModal(sectionKey, radioKey, popupSectionKey, popupSection, htmlType) {
+    let modalContent = '';
+
+    if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+      modalContent = `
+        <div class="admin-form-group">
+          <label>Content:</label>
+          <textarea id="edit-popup-section-content" class="admin-form-input" rows="4">${escapeHtml(popupSection.content || '')}</textarea>
+        </div>
+      `;
+    } else if (htmlType === 'image') {
+      const currentImageSrc = popupSection.src || '';
+      modalContent = `
+        <div class="admin-form-group">
+          <label>Image Source (src):</label>
+          <input type="text" id="edit-popup-section-src" class="admin-form-input" value="${escapeHtml(currentImageSrc)}">
+        </div>
+        <div class="admin-form-group">
+          <label>Upload New Image:</label>
+          <div class="admin-image-upload-container">
+            <input type="file" id="edit-popup-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png,image/svg+xml" style="display: none;">
+            <button type="button" class="admin-button-secondary admin-upload-button" data-section-key="${sectionKey}" data-radio-key="${radioKey}" data-popup-section-key="${popupSectionKey}">Choose Image</button>
+            <span class="admin-upload-status" id="upload-status-popup-${sectionKey}-${radioKey}-${popupSectionKey}"></span>
+          </div>
+          <div class="admin-image-preview-container" id="image-preview-popup-${sectionKey}-${radioKey}-${popupSectionKey}" style="${currentImageSrc ? '' : 'display: none;'}">
+            <img src="${escapeHtml(currentImageSrc)}" alt="Preview" class="admin-image-preview" onerror="this.style.display='none';">
+          </div>
+        </div>
+        <div class="admin-form-group">
+          <label>Alt Text:</label>
+          <input type="text" id="edit-popup-section-alt" class="admin-form-input" value="${escapeHtml(popupSection.alt || '')}">
+        </div>
+        <div class="admin-form-group">
+          <label>Caption:</label>
+          <input type="text" id="edit-popup-section-caption" class="admin-form-input" value="${escapeHtml(popupSection.caption || '')}">
+        </div>
+      `;
+    } else if (htmlType === 'unordered-list') {
+      const listItems = Array.isArray(popupSection.content) ? popupSection.content.join('\n') : '';
+      modalContent = `
+        <div class="admin-form-group">
+          <label>List Items (one per line):</label>
+          <textarea id="edit-popup-section-content" class="admin-form-input" rows="6">${escapeHtml(listItems)}</textarea>
+        </div>
+      `;
+    } else {
+      modalContent = `
+        <div class="admin-form-group">
+          <p>Editing for HTML type "${htmlType}" is not yet supported in popup sections.</p>
+        </div>
+      `;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content admin-modal-large">
+        <div class="admin-modal-header">
+          <h3>Edit Popup Section: ${popupSectionKey} (${htmlType})</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          ${modalContent}
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Save Changes</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
+    };
+
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      savePopupSectionChanges(sectionKey, radioKey, popupSectionKey, popupSection, htmlType, modal);
+      closeModal();
+    });
+
+    // 🟡🟡🟡 - [IMAGE UPLOAD] Setup image upload functionality for image sections
+    if (htmlType === 'image') {
+      const fileInput = modal.querySelector('#edit-popup-section-image-upload');
+      const uploadButton = modal.querySelector('.admin-upload-button');
+      const statusSpan = modal.querySelector(`#upload-status-popup-${sectionKey}-${radioKey}-${popupSectionKey}`);
+      const previewContainer = modal.querySelector(`#image-preview-popup-${sectionKey}-${radioKey}-${popupSectionKey}`);
+      const srcInput = modal.querySelector('#edit-popup-section-src');
+
+      if (uploadButton && fileInput) {
+        uploadButton.addEventListener('click', () => {
+          fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          await handleImageUploadForPopup(sectionKey, radioKey, popupSectionKey, file, statusSpan, previewContainer, srcInput);
+        });
+      }
+    }
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [POPUP SECTIONS] Save popup section changes
+  function savePopupSectionChanges(sectionKey, radioKey, popupSectionKey, popupSection, htmlType, modal) {
+    if (htmlType === 'h1' || htmlType === 'h2' || htmlType === 'p') {
+      const contentInput = modal.querySelector('#edit-popup-section-content');
+      if (contentInput) {
+        popupSection.content = contentInput.value.trim();
+      }
+    } else if (htmlType === 'image') {
+      const srcInput = modal.querySelector('#edit-popup-section-src');
+      const altInput = modal.querySelector('#edit-popup-section-alt');
+      const captionInput = modal.querySelector('#edit-popup-section-caption');
+      if (srcInput) popupSection.src = srcInput.value.trim();
+      if (altInput) popupSection.alt = altInput.value.trim();
+      if (captionInput) popupSection.caption = captionInput.value.trim();
+    } else if (htmlType === 'unordered-list') {
+      const contentInput = modal.querySelector('#edit-popup-section-content');
+      if (contentInput) {
+        const lines = contentInput.value.split('\n').map(line => line.trim()).filter(line => line);
+        popupSection.content = lines;
+      }
+    }
+
+    // 🟡🟡🟡 - [UPDATE STATE] Update the popup section in current menu state
+    if (currentMenuState[sectionKey] && currentMenuState[sectionKey].content && currentMenuState[sectionKey].content[radioKey]) {
+      if (!currentMenuState[sectionKey].content[radioKey].popup) {
+        currentMenuState[sectionKey].content[radioKey].popup = {};
+      }
+      currentMenuState[sectionKey].content[radioKey].popup[popupSectionKey] = popupSection;
+      renderSections();
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Popup section updated:', popupSectionKey);
+    }
+  }
+
+  // 🟡🟡🟡 - [IMAGE UPLOAD] Handle image file upload for popup sections
+  async function handleImageUploadForPopup(sectionKey, radioKey, popupSectionKey, file, statusSpan, previewContainer, srcInput) {
+    // 🟡🟡🟡 - [VALIDATION] Client-side validation (same as regular image upload)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg'];
+
+    if (file.size > maxSize) {
+      if (statusSpan) {
+        statusSpan.textContent = '❌ File size exceeds 5MB limit';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] File too large:', file.size, 'bytes');
+      return;
+    }
+
+    if (!allowedTypes.includes(file.type)) {
+      if (statusSpan) {
+        statusSpan.textContent = '❌ Invalid file type. Only JPG, PNG, and SVG are allowed.';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file type:', file.type);
+      return;
+    }
+
+    const fileName = file.name.toLowerCase();
+    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+    if (!hasValidExtension) {
+      if (statusSpan) {
+        statusSpan.textContent = '❌ Invalid file extension. Only .jpg, .jpeg, .png, and .svg are allowed.';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file extension:', fileName);
+      return;
+    }
+
+    // 🟡🟡🟡 - [UPLOAD] Show upload status
+    if (statusSpan) {
+      statusSpan.textContent = '⏳ Uploading...';
+      statusSpan.className = 'admin-upload-status uploading';
+    }
+
+    try {
+      // 🟡🟡🟡 - [FORMDATA] Create FormData with file
+      const formData = new FormData();
+      formData.append('image', file);
+
+      // 🟡🟡🟡 - [API CALL] Upload file to server
+      const response = await fetch('/admin/api/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.filePath) {
+        // 🟡🟡🟡 - [SUCCESS] Update src field with returned path
+        if (srcInput) {
+          srcInput.value = result.filePath;
+        }
+
+        // 🟡🟡🟡 - [PREVIEW] Show image preview
+        if (previewContainer) {
+          const img = previewContainer.querySelector('img');
+          if (img) {
+            img.src = result.filePath;
+            img.style.display = 'block';
+          }
+          previewContainer.style.display = 'block';
+        }
+
+        if (statusSpan) {
+          statusSpan.textContent = '✅ Upload successful!';
+          statusSpan.className = 'admin-upload-status success';
+        }
+
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Image uploaded successfully for popup section:', result.filePath);
+
+        // 🟡🟡🟡 - [CLEAR STATUS] Clear status message after 3 seconds
+        setTimeout(() => {
+          if (statusSpan) {
+            statusSpan.textContent = '';
+            statusSpan.className = 'admin-upload-status';
+          }
+        }, 3000);
+      } else {
+        // 🟡🟡🟡 - [ERROR] Show error message
+        if (statusSpan) {
+          statusSpan.textContent = '❌ ' + (result.message || 'Upload failed');
+          statusSpan.className = 'admin-upload-status error';
+        }
+        console.error('❗❗❗ - [ADMIN MENU EDITOR] Upload failed:', result.message);
+      }
+    } catch (error) {
+      // 🟡🟡🟡 - [ERROR] Handle network or other errors
+      if (statusSpan) {
+        statusSpan.textContent = '❌ Error uploading image. Please try again.';
+        statusSpan.className = 'admin-upload-status error';
+      }
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Error uploading image:', error);
     }
   }
 
