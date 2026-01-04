@@ -191,14 +191,7 @@
     }
 
     // 🟡🟡🟡 - [ADD BUTTON] Create and append "+" button after section card
-    const addButton = document.createElement('button');
-    addButton.className = 'admin-add-section-after';
-    addButton.innerHTML = '<img src="/public/kloi_plus_sign.svg" alt="Plus sign" class="kloi_plus_icon">';
-    addButton.title = 'Add section after this';
-    addButton.dataset.insertAfterSectionKey = sectionKey;
-    addButton.addEventListener('click', () => {
-      showAddSectionModal(sectionKey);
-    });
+    const addButton = createAddSectionButton(sectionKey);
 
     // 🟡🟡🟡 - [WRAPPER] Wrap card and add button in a container
     const wrapper = document.createElement('div');
@@ -256,31 +249,14 @@
         }
         
         // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
-        const addNestedButton = document.createElement('button');
-        addNestedButton.className = 'admin-add-nested-item-after';
-        addNestedButton.innerHTML = '+';
-        addNestedButton.title = 'Add item after this';
-        addNestedButton.dataset.sectionKey = sectionKey;
-        addNestedButton.dataset.insertAfterItemKey = radioKey;
-        addNestedButton.dataset.itemType = 'radio';
-        addNestedButton.addEventListener('click', () => {
-          showAddNestedItemModal(sectionKey, 'radio', radioKey);
-        });
+        const addNestedButton = createAddNestedItemButton(sectionKey, 'radio', radioKey);
         
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
       
       // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = document.createElement('button');
-      addNestedButtonEnd.className = 'admin-add-nested-item-after';
-      addNestedButtonEnd.innerHTML = '<img src="/public/kloi_plus_sign.svg" alt="Plus sign" class="kloi_plus_icon">';
-      addNestedButtonEnd.title = 'Add item at end';
-      addNestedButtonEnd.dataset.sectionKey = sectionKey;
-      addNestedButtonEnd.dataset.itemType = 'radio';
-      addNestedButtonEnd.addEventListener('click', () => {
-        showAddNestedItemModal(sectionKey, 'radio', null);
-      });
+      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'radio', null);
       container.appendChild(addNestedButtonEnd);
     } else if (htmlType === 'checkbox-group' && section.content) {
       const content = section.content;
@@ -309,31 +285,14 @@
         }
         
         // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
-        const addNestedButton = document.createElement('button');
-        addNestedButton.className = 'admin-add-nested-item-after';
-        addNestedButton.innerHTML = '+';
-        addNestedButton.title = 'Add item after this';
-        addNestedButton.dataset.sectionKey = sectionKey;
-        addNestedButton.dataset.insertAfterItemKey = checkboxKey;
-        addNestedButton.dataset.itemType = 'checkbox';
-        addNestedButton.addEventListener('click', () => {
-          showAddNestedItemModal(sectionKey, 'checkbox', checkboxKey);
-        });
+        const addNestedButton = createAddNestedItemButton(sectionKey, 'checkbox', checkboxKey);
         
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
       
       // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = document.createElement('button');
-      addNestedButtonEnd.className = 'admin-add-nested-item-after';
-      addNestedButtonEnd.innerHTML = '+';
-      addNestedButtonEnd.title = 'Add item at end';
-      addNestedButtonEnd.dataset.sectionKey = sectionKey;
-      addNestedButtonEnd.dataset.itemType = 'checkbox';
-      addNestedButtonEnd.addEventListener('click', () => {
-        showAddNestedItemModal(sectionKey, 'checkbox', null);
-      });
+      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'checkbox', null);
       container.appendChild(addNestedButtonEnd);
     } else if (htmlType === 'div-group' && section.content) {
       const content = section.content;
@@ -362,31 +321,14 @@
         }
         
         // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
-        const addNestedButton = document.createElement('button');
-        addNestedButton.className = 'admin-add-nested-item-after';
-        addNestedButton.innerHTML = '+';
-        addNestedButton.title = 'Add item after this';
-        addNestedButton.dataset.sectionKey = sectionKey;
-        addNestedButton.dataset.insertAfterItemKey = divKey;
-        addNestedButton.dataset.itemType = 'div';
-        addNestedButton.addEventListener('click', () => {
-          showAddNestedItemModal(sectionKey, 'div', divKey);
-        });
+        const addNestedButton = createAddNestedItemButton(sectionKey, 'div', divKey);
         
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
       
       // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = document.createElement('button');
-      addNestedButtonEnd.className = 'admin-add-nested-item-after';
-      addNestedButtonEnd.innerHTML = '+';
-      addNestedButtonEnd.title = 'Add item at end';
-      addNestedButtonEnd.dataset.sectionKey = sectionKey;
-      addNestedButtonEnd.dataset.itemType = 'div';
-      addNestedButtonEnd.addEventListener('click', () => {
-        showAddNestedItemModal(sectionKey, 'div', null);
-      });
+      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'div', null);
       container.appendChild(addNestedButtonEnd);
     } else if (section['addon-items']) {
       const addons = section['addon-items'];
@@ -415,31 +357,14 @@
         }
         
         // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
-        const addNestedButton = document.createElement('button');
-        addNestedButton.className = 'admin-add-nested-item-after';
-        addNestedButton.innerHTML = '+';
-        addNestedButton.title = 'Add item after this';
-        addNestedButton.dataset.sectionKey = sectionKey;
-        addNestedButton.dataset.insertAfterItemKey = addonKey;
-        addNestedButton.dataset.itemType = 'addon';
-        addNestedButton.addEventListener('click', () => {
-          showAddNestedItemModal(sectionKey, 'addon', addonKey);
-        });
+        const addNestedButton = createAddNestedItemButton(sectionKey, 'addon', addonKey);
         
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
       
       // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = document.createElement('button');
-      addNestedButtonEnd.className = 'admin-add-nested-item-after';
-      addNestedButtonEnd.innerHTML = '+';
-      addNestedButtonEnd.title = 'Add item at end';
-      addNestedButtonEnd.dataset.sectionKey = sectionKey;
-      addNestedButtonEnd.dataset.itemType = 'addon';
-      addNestedButtonEnd.addEventListener('click', () => {
-        showAddNestedItemModal(sectionKey, 'addon', null);
-      });
+      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'addon', null);
       container.appendChild(addNestedButtonEnd);
     }
 
@@ -485,6 +410,41 @@
     return div.innerHTML;
   }
 
+  // 🟡🟡🟡 - [UTILITY] Get plus icon HTML for add buttons
+  function getPlusIconHTML() {
+    return '<img src="/public/kloi_plus_sign.svg" alt="Plus sign" class="kloi_plus_icon">';
+  }
+
+  // 🟡🟡🟡 - [UTILITY] Create add section button after a section
+  function createAddSectionButton(sectionKey) {
+    const addButton = document.createElement('button');
+    addButton.className = 'admin-add-section-after';
+    addButton.innerHTML = getPlusIconHTML();
+    addButton.title = 'Add section after this';
+    addButton.dataset.insertAfterSectionKey = sectionKey;
+    addButton.addEventListener('click', () => {
+      showAddSectionModal(sectionKey);
+    });
+    return addButton;
+  }
+
+  // 🟡🟡🟡 - [UTILITY] Create add nested item button after a nested item
+  function createAddNestedItemButton(sectionKey, itemType, insertAfterItemKey) {
+    const addButton = document.createElement('button');
+    addButton.className = 'admin-add-nested-item-after';
+    addButton.innerHTML = getPlusIconHTML();
+    addButton.title = insertAfterItemKey ? 'Add item after this' : 'Add item at end';
+    addButton.dataset.sectionKey = sectionKey;
+    if (insertAfterItemKey) {
+      addButton.dataset.insertAfterItemKey = insertAfterItemKey;
+    }
+    addButton.dataset.itemType = itemType;
+    addButton.addEventListener('click', () => {
+      showAddNestedItemModal(sectionKey, itemType, insertAfterItemKey);
+    });
+    return addButton;
+  }
+
   // 🟡🟡🟡 - [RENDERING] Render all sections
   function renderSections() {
     const sectionsList = document.getElementById('sections-list');
@@ -520,13 +480,7 @@
     });
 
     // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at the end of list for adding to end
-    const addButtonEnd = document.createElement('button');
-    addButtonEnd.className = 'admin-add-section-after';
-    addButtonEnd.innerHTML = '+';
-    addButtonEnd.title = 'Add section at end';
-    addButtonEnd.addEventListener('click', () => {
-      showAddSectionModal(null);
-    });
+    const addButtonEnd = createAddSectionButton(null);
     sectionsList.appendChild(addButtonEnd);
 
     // 🟡🟡🟡 - [SORTABLE] Initialize or update SortableJS for main sections
