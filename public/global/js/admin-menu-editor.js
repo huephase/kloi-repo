@@ -190,7 +190,23 @@
       expandBtn.addEventListener('click', () => toggleNestedContent(sectionKey));
     }
 
-    return card;
+    // 🟡🟡🟡 - [ADD BUTTON] Create and append "+" button after section card
+    const addButton = document.createElement('button');
+    addButton.className = 'admin-add-section-after';
+    addButton.innerHTML = '+';
+    addButton.title = 'Add section after this';
+    addButton.dataset.insertAfterSectionKey = sectionKey;
+    addButton.addEventListener('click', () => {
+      showAddSectionModal(sectionKey);
+    });
+
+    // 🟡🟡🟡 - [WRAPPER] Wrap card and add button in a container
+    const wrapper = document.createElement('div');
+    wrapper.className = 'admin-section-wrapper';
+    wrapper.appendChild(card);
+    wrapper.appendChild(addButton);
+
+    return wrapper;
   }
 
   // 🟡🟡🟡 - [NESTED CONTENT] Render nested content (radio options, checkboxes, addons, popups)
@@ -239,8 +255,33 @@
           deleteBtn.addEventListener('click', () => deleteRadioOption(sectionKey, radioKey));
         }
         
+        // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
+        const addNestedButton = document.createElement('button');
+        addNestedButton.className = 'admin-add-nested-item-after';
+        addNestedButton.innerHTML = '+';
+        addNestedButton.title = 'Add item after this';
+        addNestedButton.dataset.sectionKey = sectionKey;
+        addNestedButton.dataset.insertAfterItemKey = radioKey;
+        addNestedButton.dataset.itemType = 'radio';
+        addNestedButton.addEventListener('click', () => {
+          showAddNestedItemModal(sectionKey, 'radio', radioKey);
+        });
+        
         container.appendChild(item);
+        container.appendChild(addNestedButton);
       });
+      
+      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
+      const addNestedButtonEnd = document.createElement('button');
+      addNestedButtonEnd.className = 'admin-add-nested-item-after';
+      addNestedButtonEnd.innerHTML = '+';
+      addNestedButtonEnd.title = 'Add item at end';
+      addNestedButtonEnd.dataset.sectionKey = sectionKey;
+      addNestedButtonEnd.dataset.itemType = 'radio';
+      addNestedButtonEnd.addEventListener('click', () => {
+        showAddNestedItemModal(sectionKey, 'radio', null);
+      });
+      container.appendChild(addNestedButtonEnd);
     } else if (htmlType === 'checkbox-group' && section.content) {
       const content = section.content;
       Object.keys(content).forEach(checkboxKey => {
@@ -267,8 +308,33 @@
           deleteBtn.addEventListener('click', () => deleteCheckboxItem(sectionKey, checkboxKey));
         }
         
+        // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
+        const addNestedButton = document.createElement('button');
+        addNestedButton.className = 'admin-add-nested-item-after';
+        addNestedButton.innerHTML = '+';
+        addNestedButton.title = 'Add item after this';
+        addNestedButton.dataset.sectionKey = sectionKey;
+        addNestedButton.dataset.insertAfterItemKey = checkboxKey;
+        addNestedButton.dataset.itemType = 'checkbox';
+        addNestedButton.addEventListener('click', () => {
+          showAddNestedItemModal(sectionKey, 'checkbox', checkboxKey);
+        });
+        
         container.appendChild(item);
+        container.appendChild(addNestedButton);
       });
+      
+      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
+      const addNestedButtonEnd = document.createElement('button');
+      addNestedButtonEnd.className = 'admin-add-nested-item-after';
+      addNestedButtonEnd.innerHTML = '+';
+      addNestedButtonEnd.title = 'Add item at end';
+      addNestedButtonEnd.dataset.sectionKey = sectionKey;
+      addNestedButtonEnd.dataset.itemType = 'checkbox';
+      addNestedButtonEnd.addEventListener('click', () => {
+        showAddNestedItemModal(sectionKey, 'checkbox', null);
+      });
+      container.appendChild(addNestedButtonEnd);
     } else if (htmlType === 'div-group' && section.content) {
       const content = section.content;
       Object.keys(content).forEach(divKey => {
@@ -295,8 +361,33 @@
           deleteBtn.addEventListener('click', () => deleteDivItem(sectionKey, divKey));
         }
         
+        // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
+        const addNestedButton = document.createElement('button');
+        addNestedButton.className = 'admin-add-nested-item-after';
+        addNestedButton.innerHTML = '+';
+        addNestedButton.title = 'Add item after this';
+        addNestedButton.dataset.sectionKey = sectionKey;
+        addNestedButton.dataset.insertAfterItemKey = divKey;
+        addNestedButton.dataset.itemType = 'div';
+        addNestedButton.addEventListener('click', () => {
+          showAddNestedItemModal(sectionKey, 'div', divKey);
+        });
+        
         container.appendChild(item);
+        container.appendChild(addNestedButton);
       });
+      
+      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
+      const addNestedButtonEnd = document.createElement('button');
+      addNestedButtonEnd.className = 'admin-add-nested-item-after';
+      addNestedButtonEnd.innerHTML = '+';
+      addNestedButtonEnd.title = 'Add item at end';
+      addNestedButtonEnd.dataset.sectionKey = sectionKey;
+      addNestedButtonEnd.dataset.itemType = 'div';
+      addNestedButtonEnd.addEventListener('click', () => {
+        showAddNestedItemModal(sectionKey, 'div', null);
+      });
+      container.appendChild(addNestedButtonEnd);
     } else if (section['addon-items']) {
       const addons = section['addon-items'];
       Object.keys(addons).forEach(addonKey => {
@@ -323,8 +414,33 @@
           deleteBtn.addEventListener('click', () => deleteAddonItem(sectionKey, addonKey));
         }
         
+        // 🟡🟡🟡 - [ADD BUTTON] Add "+" button after nested item
+        const addNestedButton = document.createElement('button');
+        addNestedButton.className = 'admin-add-nested-item-after';
+        addNestedButton.innerHTML = '+';
+        addNestedButton.title = 'Add item after this';
+        addNestedButton.dataset.sectionKey = sectionKey;
+        addNestedButton.dataset.insertAfterItemKey = addonKey;
+        addNestedButton.dataset.itemType = 'addon';
+        addNestedButton.addEventListener('click', () => {
+          showAddNestedItemModal(sectionKey, 'addon', addonKey);
+        });
+        
         container.appendChild(item);
+        container.appendChild(addNestedButton);
       });
+      
+      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
+      const addNestedButtonEnd = document.createElement('button');
+      addNestedButtonEnd.className = 'admin-add-nested-item-after';
+      addNestedButtonEnd.innerHTML = '+';
+      addNestedButtonEnd.title = 'Add item at end';
+      addNestedButtonEnd.dataset.sectionKey = sectionKey;
+      addNestedButtonEnd.dataset.itemType = 'addon';
+      addNestedButtonEnd.addEventListener('click', () => {
+        showAddNestedItemModal(sectionKey, 'addon', null);
+      });
+      container.appendChild(addNestedButtonEnd);
     }
 
     // 🟡🟡🟡 - [NESTED SORTABLE] Initialize SortableJS for nested content container if visible
@@ -397,11 +513,21 @@
     // 🟡🟡🟡 - [CLEAR] Clear existing sections
     sectionsList.innerHTML = '';
 
-    // 🟡🟡🟡 - [RENDER] Render each section
+    // 🟡🟡🟡 - [RENDER] Render each section (now returns wrapper with card and add button)
     sortedSections.forEach(({ key, section }) => {
-      const card = renderSectionCard(key, section);
-      sectionsList.appendChild(card);
+      const wrapper = renderSectionCard(key, section);
+      sectionsList.appendChild(wrapper);
     });
+
+    // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at the end of list for adding to end
+    const addButtonEnd = document.createElement('button');
+    addButtonEnd.className = 'admin-add-section-after';
+    addButtonEnd.innerHTML = '+';
+    addButtonEnd.title = 'Add section at end';
+    addButtonEnd.addEventListener('click', () => {
+      showAddSectionModal(null);
+    });
+    sectionsList.appendChild(addButtonEnd);
 
     // 🟡🟡🟡 - [SORTABLE] Initialize or update SortableJS for main sections
     if (typeof Sortable !== 'undefined') {
@@ -414,6 +540,7 @@
         animation: 150,
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
+        filter: '.admin-add-section-after', // 🟡🟡🟡 - [FILTER] Prevent dragging add buttons
         onMove: function(evt) {
           // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers in real-time during drag movement
           // Use requestAnimationFrame for smooth updates
@@ -467,11 +594,15 @@
     const sectionsList = document.getElementById('sections-list');
     if (!sectionsList) return;
 
-    const cards = sectionsList.querySelectorAll('.admin-section-card');
-    cards.forEach((card, index) => {
-      const orderSpan = card.querySelector('.admin-section-order');
-      if (orderSpan) {
-        orderSpan.textContent = `#${index + 1}`;
+    // 🟡🟡🟡 - [WRAPPER] Get section cards from wrappers (excluding add buttons)
+    const wrappers = sectionsList.querySelectorAll('.admin-section-wrapper');
+    wrappers.forEach((wrapper, index) => {
+      const card = wrapper.querySelector('.admin-section-card');
+      if (card) {
+        const orderSpan = card.querySelector('.admin-section-order');
+        if (orderSpan) {
+          orderSpan.textContent = `#${index + 1}`;
+        }
       }
     });
   }
@@ -481,11 +612,15 @@
     const sectionsList = document.getElementById('sections-list');
     if (!sectionsList) return;
 
-    const cards = sectionsList.querySelectorAll('.admin-section-card');
-    cards.forEach((card, index) => {
-      const sectionKey = card.dataset.sectionKey;
-      if (currentMenuState[sectionKey]) {
-        currentMenuState[sectionKey].order = index + 1;
+    // 🟡🟡🟡 - [WRAPPER] Get section cards from wrappers (excluding add buttons)
+    const wrappers = sectionsList.querySelectorAll('.admin-section-wrapper');
+    wrappers.forEach((wrapper, index) => {
+      const card = wrapper.querySelector('.admin-section-card');
+      if (card) {
+        const sectionKey = card.dataset.sectionKey;
+        if (currentMenuState[sectionKey]) {
+          currentMenuState[sectionKey].order = index + 1;
+        }
       }
     });
   }
@@ -516,6 +651,7 @@
       animation: 150,
       ghostClass: 'sortable-ghost',
       dragClass: 'sortable-drag',
+      filter: '.admin-add-nested-item-after', // 🟡🟡🟡 - [FILTER] Prevent dragging add buttons
       onEnd: function(evt) {
         // 🟡🟡🟡 - [REORDER] Update nested item order after drag
         updateNestedItemOrder(sectionKey, section);
@@ -535,7 +671,8 @@
     if (!nestedContainer) return;
 
     const htmlType = section['html-type'] || '';
-    const items = nestedContainer.querySelectorAll('.admin-nested-item');
+    // 🟡🟡🟡 - [FILTER] Get only nested items, excluding add buttons
+    const items = nestedContainer.querySelectorAll('.admin-nested-item:not(.admin-add-nested-item-after)');
     
     // 🟡🟡🟡 - [REORDER] Get ordered list of item keys from DOM
     const orderedKeys = Array.from(items).map(item => item.dataset.itemKey).filter(key => key);
@@ -645,11 +782,11 @@
 
   // 🟡🟡🟡 - [SECTION MANAGEMENT] Add new section
   function addSection() {
-    showAddSectionModal();
+    showAddSectionModal(null);
   }
 
   // 🟡🟡🟡 - [MODAL] Show add section modal
-  function showAddSectionModal() {
+  function showAddSectionModal(insertAfterSectionKey = null) {
     const htmlTypes = [
       { value: 'h1', label: 'Heading 1 (H1)' },
       { value: 'h2', label: 'Heading 2 (H2)' },
@@ -694,7 +831,7 @@
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       const htmlType = document.getElementById('new-section-html-type').value;
-      createNewSection(htmlType);
+      createNewSection(htmlType, insertAfterSectionKey);
       closeModal();
     });
 
@@ -705,12 +842,29 @@
   }
 
   // 🟡🟡🟡 - [SECTION MANAGEMENT] Create new section
-  function createNewSection(htmlType) {
+  function createNewSection(htmlType, insertAfterSectionKey = null) {
     const sectionKey = getNextSectionKey();
-    const maxOrder = Math.max(...Object.values(currentMenuState).map(s => s.order || 0), 0);
+    
+    // 🟡🟡🟡 - [ORDER] Calculate order based on insert position
+    let newOrder;
+    if (insertAfterSectionKey && currentMenuState[insertAfterSectionKey]) {
+      // 🟡🟡🟡 - [INSERT AFTER] Insert after specified section
+      const insertAfterOrder = currentMenuState[insertAfterSectionKey].order || 0;
+      // 🟡🟡🟡 - [REORDER] Update orders of all sections after insertion point
+      Object.keys(currentMenuState).forEach(key => {
+        if (currentMenuState[key].order > insertAfterOrder) {
+          currentMenuState[key].order += 1;
+        }
+      });
+      newOrder = insertAfterOrder + 1;
+    } else {
+      // 🟡🟡🟡 - [APPEND] Append to end
+      const maxOrder = Math.max(...Object.values(currentMenuState).map(s => s.order || 0), 0);
+      newOrder = maxOrder + 1;
+    }
     
     const newSection = {
-      order: maxOrder + 1,
+      order: newOrder,
       'html-type': htmlType
     };
 
@@ -733,7 +887,181 @@
     // 🟡🟡🟡 - [EDIT] Automatically open edit modal for new section
     setTimeout(() => editSection(sectionKey), 100);
     
-    console.log('✅✅✅ - [ADMIN MENU EDITOR] New section created:', sectionKey);
+    console.log('✅✅✅ - [ADMIN MENU EDITOR] New section created:', sectionKey, 'after:', insertAfterSectionKey || 'end');
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Show modal to add nested item
+  function showAddNestedItemModal(sectionKey, itemType, insertAfterItemKey = null) {
+    const section = currentMenuState[sectionKey];
+    if (!section) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Section not found:', sectionKey);
+      return;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'admin-modal';
+    modal.innerHTML = `
+      <div class="admin-modal-content">
+        <div class="admin-modal-header">
+          <h3>Add New ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Item</h3>
+          <button class="admin-modal-close">&times;</button>
+        </div>
+        <div class="admin-modal-body">
+          <div class="admin-form-group">
+            <label>Item Key (identifier):</label>
+            <input type="text" id="new-nested-item-key" class="admin-form-input" placeholder="e.g., option1, item1">
+          </div>
+          <div class="admin-form-group">
+            <label>Label:</label>
+            <input type="text" id="new-nested-item-label" class="admin-form-input" placeholder="Item label">
+          </div>
+          <div class="admin-form-group">
+            <label>Price:</label>
+            <input type="number" id="new-nested-item-price" class="admin-form-input" value="0" step="0.01">
+          </div>
+          <div class="admin-form-group">
+            <label>Price Basis:</label>
+            <input type="text" id="new-nested-item-price-basis" class="admin-form-input" placeholder="e.g., Per guest">
+          </div>
+          ${itemType === 'radio' ? `
+          <div class="admin-form-group">
+            <label>Description (optional):</label>
+            <textarea id="new-nested-item-description" class="admin-form-input" rows="3" placeholder="Item description"></textarea>
+          </div>
+          ` : ''}
+        </div>
+        <div class="admin-modal-footer">
+          <button class="admin-button-secondary admin-modal-cancel">Cancel</button>
+          <button class="admin-button-primary admin-modal-confirm">Add Item</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.body.removeChild(modal);
+    };
+
+    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+      const itemKey = document.getElementById('new-nested-item-key').value.trim();
+      const label = document.getElementById('new-nested-item-label').value.trim();
+      const price = parseFloat(document.getElementById('new-nested-item-price').value) || 0;
+      const priceBasis = document.getElementById('new-nested-item-price-basis').value.trim();
+      const description = itemType === 'radio' ? document.getElementById('new-nested-item-description').value.trim() : '';
+
+      if (!itemKey) {
+        alert('Please enter an item key');
+        return;
+      }
+
+      createNewNestedItem(sectionKey, itemType, itemKey, { label, price, 'price-basis': priceBasis, description }, insertAfterItemKey);
+      closeModal();
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // 🟡🟡🟡 - [NESTED ITEMS] Create new nested item
+  function createNewNestedItem(sectionKey, itemType, itemKey, itemData, insertAfterItemKey = null) {
+    const section = currentMenuState[sectionKey];
+    if (!section) {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] Section not found:', sectionKey);
+      return;
+    }
+
+    // 🟡🟡🟡 - [VALIDATE] Check if item key already exists
+    if (itemType === 'radio' || itemType === 'checkbox' || itemType === 'div') {
+      if (section.content && section.content[itemKey]) {
+        alert(`Item key "${itemKey}" already exists. Please use a different key.`);
+        return;
+      }
+    } else if (itemType === 'addon') {
+      if (section['addon-items'] && section['addon-items'][itemKey]) {
+        alert(`Item key "${itemKey}" already exists. Please use a different key.`);
+        return;
+      }
+    }
+
+    // 🟡🟡🟡 - [CREATE] Create new item object
+    const newItem = {
+      label: itemData.label || itemKey,
+      price: itemData.price || 0,
+      'price-basis': itemData['price-basis'] || ''
+    };
+
+    if (itemType === 'radio' && itemData.description) {
+      newItem.description = itemData.description;
+      newItem.popup = {};
+    }
+
+    // 🟡🟡🟡 - [INSERT] Insert item at correct position
+    if (itemType === 'radio' || itemType === 'checkbox' || itemType === 'div') {
+      if (!section.content) {
+        section.content = {};
+      }
+
+      if (insertAfterItemKey && section.content[insertAfterItemKey]) {
+        // 🟡🟡🟡 - [REORDER] Insert after specified item
+        const keys = Object.keys(section.content);
+        const insertIndex = keys.indexOf(insertAfterItemKey);
+        const newContent = {};
+        
+        // 🟡🟡🟡 - [REBUILD] Rebuild object with new item in correct position
+        keys.forEach((key, index) => {
+          newContent[key] = section.content[key];
+          if (index === insertIndex) {
+            newContent[itemKey] = newItem;
+          }
+        });
+        
+        // 🟡🟡🟡 - [APPEND] If insertAfterItemKey not found, append to end
+        if (insertIndex === -1) {
+          newContent[itemKey] = newItem;
+        }
+        
+        section.content = newContent;
+      } else {
+        // 🟡🟡🟡 - [APPEND] Append to end
+        section.content[itemKey] = newItem;
+      }
+    } else if (itemType === 'addon') {
+      if (!section['addon-items']) {
+        section['addon-items'] = {};
+      }
+
+      if (insertAfterItemKey && section['addon-items'][insertAfterItemKey]) {
+        // 🟡🟡🟡 - [REORDER] Insert after specified item
+        const keys = Object.keys(section['addon-items']);
+        const insertIndex = keys.indexOf(insertAfterItemKey);
+        const newAddonItems = {};
+        
+        keys.forEach((key, index) => {
+          newAddonItems[key] = section['addon-items'][key];
+          if (index === insertIndex) {
+            newAddonItems[itemKey] = newItem;
+          }
+        });
+        
+        if (insertIndex === -1) {
+          newAddonItems[itemKey] = newItem;
+        }
+        
+        section['addon-items'] = newAddonItems;
+      } else {
+        // 🟡🟡🟡 - [APPEND] Append to end
+        section['addon-items'][itemKey] = newItem;
+      }
+    }
+
+    currentMenuState[sectionKey] = section;
+    renderSections();
+    
+    console.log('✅✅✅ - [ADMIN MENU EDITOR] New nested item created:', itemKey, 'type:', itemType, 'after:', insertAfterItemKey || 'end');
   }
 
   // 🟡🟡🟡 - [SECTION MANAGEMENT] Edit section
@@ -1745,13 +2073,9 @@
     renderSections();
 
     // 🟡🟡🟡 - [EVENT LISTENERS] Attach event listeners
-    const addSectionButton = document.getElementById('add-section-button');
+    // Note: add-section-button removed - now using "+" buttons after each section
     const saveButton = document.getElementById('save-menu-button');
     const resetButton = document.getElementById('reset-menu-button');
-
-    if (addSectionButton) {
-      addSectionButton.addEventListener('click', addSection);
-    }
 
     if (saveButton) {
       saveButton.addEventListener('click', saveMenu);
