@@ -274,7 +274,7 @@
       // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
       const addNestedButtonEnd = document.createElement('button');
       addNestedButtonEnd.className = 'admin-add-nested-item-after';
-      addNestedButtonEnd.innerHTML = '+';
+      addNestedButtonEnd.innerHTML = '<img src="/public/kloi_plus_sign.svg" alt="Plus sign" class="kloi_plus_icon">';
       addNestedButtonEnd.title = 'Add item at end';
       addNestedButtonEnd.dataset.sectionKey = sectionKey;
       addNestedButtonEnd.dataset.itemType = 'radio';
