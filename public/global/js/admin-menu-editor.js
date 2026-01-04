@@ -7,6 +7,7 @@
   let menuData = null;
   let originalMenuData = null;
   let sortableInstance = null;
+  let nestedSortableInstances = {}; // 🟡🟡🟡 - [NESTED SORTABLE] Store nested sortable instances by section key
   let currentMenuState = {}; // Current state of menu sections
 
   // 🟡🟡🟡 - [INITIALIZATION] Read menu data from DOM data attributes
@@ -203,8 +204,10 @@
         const hasPopup = radio.popup && Object.keys(radio.popup).length > 0;
         const item = document.createElement('div');
         item.className = 'admin-nested-item admin-radio-item';
+        item.dataset.itemKey = radioKey; // 🟡🟡🟡 - [NESTED SORTABLE] Store item key for reordering
         item.innerHTML = `
           <div class="admin-nested-item-header">
+            <span class="admin-nested-item-drag-handle" title="Drag to reorder">☰</span>
             <strong>${escapeHtml(radio.label || radioKey)}</strong>
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${radio.price || 0} ${radio['price-basis'] || ''}</span>
             ${hasPopup ? '<button class="admin-expand-toggle-nested" data-section-key="' + sectionKey + '" data-radio-key="' + radioKey + '">▼</button>' : ''}
@@ -244,8 +247,10 @@
         const checkbox = content[checkboxKey];
         const item = document.createElement('div');
         item.className = 'admin-nested-item admin-checkbox-item';
+        item.dataset.itemKey = checkboxKey; // 🟡🟡🟡 - [NESTED SORTABLE] Store item key for reordering
         item.innerHTML = `
           <div class="admin-nested-item-header">
+            <span class="admin-nested-item-drag-handle" title="Drag to reorder">☰</span>
             <strong>${escapeHtml(checkbox.label || checkboxKey)}</strong>
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${checkbox.price || 0} ${checkbox['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">✏️</button>
@@ -270,8 +275,10 @@
         const div = content[divKey];
         const item = document.createElement('div');
         item.className = 'admin-nested-item admin-div-item';
+        item.dataset.itemKey = divKey; // 🟡🟡🟡 - [NESTED SORTABLE] Store item key for reordering
         item.innerHTML = `
           <div class="admin-nested-item-header">
+            <span class="admin-nested-item-drag-handle" title="Drag to reorder">☰</span>
             <strong>${escapeHtml(div.label || divKey)}</strong>
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${div.price || 0} ${div['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-div-key="${divKey}">✏️</button>
@@ -296,8 +303,10 @@
         const addon = addons[addonKey];
         const item = document.createElement('div');
         item.className = 'admin-nested-item admin-addon-item';
+        item.dataset.itemKey = addonKey; // 🟡🟡🟡 - [NESTED SORTABLE] Store item key for reordering
         item.innerHTML = `
           <div class="admin-nested-item-header">
+            <span class="admin-nested-item-drag-handle" title="Drag to reorder">☰</span>
             <strong>${escapeHtml(addon.label || addonKey)}</strong>
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${addon.price || 0} ${addon['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-addon-key="${addonKey}">✏️</button>
@@ -316,6 +325,13 @@
         
         container.appendChild(item);
       });
+    }
+
+    // 🟡🟡🟡 - [NESTED SORTABLE] Initialize SortableJS for nested content container if visible
+    // Note: Only initialize if container is visible (not hidden)
+    // If hidden, it will be initialized when expanded via toggleNestedContent()
+    if (container.style.display !== 'none') {
+      initializeNestedSortable(container, sectionKey, section);
     }
   }
 
@@ -361,6 +377,14 @@
       return;
     }
 
+    // 🟡🟡🟡 - [CLEANUP] Destroy all nested sortable instances before re-rendering
+    Object.keys(nestedSortableInstances).forEach(sectionKey => {
+      if (nestedSortableInstances[sectionKey]) {
+        nestedSortableInstances[sectionKey].destroy();
+      }
+    });
+    nestedSortableInstances = {};
+
     // 🟡🟡🟡 - [SORT] Sort sections by order
     const sortedSections = Object.keys(currentMenuState)
       .map(key => ({ key, section: currentMenuState[key] }))
@@ -379,7 +403,7 @@
       sectionsList.appendChild(card);
     });
 
-    // 🟡🟡🟡 - [SORTABLE] Initialize or update SortableJS
+    // 🟡🟡🟡 - [SORTABLE] Initialize or update SortableJS for main sections
     if (typeof Sortable !== 'undefined') {
       if (sortableInstance) {
         sortableInstance.destroy();
@@ -390,17 +414,66 @@
         animation: 150,
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
+        onMove: function(evt) {
+          // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers in real-time during drag movement
+          // Use requestAnimationFrame for smooth updates
+          requestAnimationFrame(() => {
+            updateSectionOrderNumbers();
+          });
+          // Don't return anything to allow the move
+        },
+        onSort: function(evt) {
+          // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers when order changes
+          updateSectionOrderNumbers();
+        },
         onEnd: function(evt) {
           // 🟡🟡🟡 - [REORDER] Update order values after drag
           updateSectionOrders();
+          // 🟡🟡🟡 - [REALTIME UPDATE] Ensure order numbers are correct after drag ends
+          updateSectionOrderNumbers();
           console.log('✅✅✅ - [ADMIN MENU EDITOR] Sections reordered');
         }
       });
       
-      console.log('✅✅✅ - [ADMIN MENU EDITOR] SortableJS initialized');
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Main sections SortableJS initialized');
     } else {
       console.error('❗❗❗ - [ADMIN MENU EDITOR] SortableJS library not loaded');
     }
+
+    // 🟡🟡🟡 - [NESTED SORTABLE] Initialize nested sortables for all expanded nested content
+    initializeAllNestedSortables();
+
+    // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers on initial render
+    updateSectionOrderNumbers();
+  }
+
+  // 🟡🟡🟡 - [NESTED SORTABLE] Initialize sortables for all visible nested content containers
+  function initializeAllNestedSortables() {
+    const cards = document.querySelectorAll('.admin-section-card');
+    cards.forEach(card => {
+      const sectionKey = card.dataset.sectionKey;
+      if (!sectionKey || !currentMenuState[sectionKey]) return;
+
+      const nestedContainer = card.querySelector('.admin-nested-content');
+      if (nestedContainer && nestedContainer.style.display !== 'none') {
+        // 🟡🟡🟡 - [INITIALIZE] Only initialize if container is visible
+        initializeNestedSortable(nestedContainer, sectionKey, currentMenuState[sectionKey]);
+      }
+    });
+  }
+
+  // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers displayed in UI based on visual position
+  function updateSectionOrderNumbers() {
+    const sectionsList = document.getElementById('sections-list');
+    if (!sectionsList) return;
+
+    const cards = sectionsList.querySelectorAll('.admin-section-card');
+    cards.forEach((card, index) => {
+      const orderSpan = card.querySelector('.admin-section-order');
+      if (orderSpan) {
+        orderSpan.textContent = `#${index + 1}`;
+      }
+    });
   }
 
   // 🟡🟡🟡 - [REORDER] Update order values based on visual position
@@ -417,6 +490,116 @@
     });
   }
 
+  // 🟡🟡🟡 - [NESTED SORTABLE] Initialize SortableJS for nested content container
+  function initializeNestedSortable(container, sectionKey, section) {
+    // 🟡🟡🟡 - [CLEANUP] Destroy existing sortable instance if it exists
+    if (nestedSortableInstances[sectionKey]) {
+      nestedSortableInstances[sectionKey].destroy();
+      delete nestedSortableInstances[sectionKey];
+    }
+
+    // 🟡🟡🟡 - [VALIDATION] Only initialize if SortableJS is available and container has items
+    if (typeof Sortable === 'undefined') {
+      console.error('❗❗❗ - [ADMIN MENU EDITOR] SortableJS library not loaded for nested content');
+      return;
+    }
+
+    const items = container.querySelectorAll('.admin-nested-item');
+    if (items.length === 0) {
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] No nested items to sort for section:', sectionKey);
+      return;
+    }
+
+    // 🟡🟡🟡 - [SORTABLE] Initialize SortableJS for nested container
+    nestedSortableInstances[sectionKey] = new Sortable(container, {
+      handle: '.admin-nested-item-drag-handle',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      onEnd: function(evt) {
+        // 🟡🟡🟡 - [REORDER] Update nested item order after drag
+        updateNestedItemOrder(sectionKey, section);
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Nested items reordered for section:', sectionKey);
+      }
+    });
+
+    console.log('✅✅✅ - [ADMIN MENU EDITOR] Nested SortableJS initialized for section:', sectionKey);
+  }
+
+  // 🟡🟡🟡 - [NESTED SORTABLE] Update nested item order based on visual position
+  function updateNestedItemOrder(sectionKey, section) {
+    const card = document.querySelector(`[data-section-key="${sectionKey}"]`);
+    if (!card) return;
+
+    const nestedContainer = card.querySelector('.admin-nested-content');
+    if (!nestedContainer) return;
+
+    const htmlType = section['html-type'] || '';
+    const items = nestedContainer.querySelectorAll('.admin-nested-item');
+    
+    // 🟡🟡🟡 - [REORDER] Get ordered list of item keys from DOM
+    const orderedKeys = Array.from(items).map(item => item.dataset.itemKey).filter(key => key);
+
+    if (htmlType === 'radio-group' && section.content) {
+      // 🟡🟡🟡 - [RADIO GROUP] Rebuild content object with new order
+      const newContent = {};
+      orderedKeys.forEach(key => {
+        if (section.content[key]) {
+          newContent[key] = section.content[key];
+        }
+      });
+      // 🟡🟡🟡 - [PRESERVE] Preserve any keys that weren't in DOM (shouldn't happen, but safety check)
+      Object.keys(section.content).forEach(key => {
+        if (!newContent[key]) {
+          newContent[key] = section.content[key];
+        }
+      });
+      currentMenuState[sectionKey].content = newContent;
+    } else if (htmlType === 'checkbox-group' && section.content) {
+      // 🟡🟡🟡 - [CHECKBOX GROUP] Rebuild content object with new order
+      const newContent = {};
+      orderedKeys.forEach(key => {
+        if (section.content[key]) {
+          newContent[key] = section.content[key];
+        }
+      });
+      Object.keys(section.content).forEach(key => {
+        if (!newContent[key]) {
+          newContent[key] = section.content[key];
+        }
+      });
+      currentMenuState[sectionKey].content = newContent;
+    } else if (htmlType === 'div-group' && section.content) {
+      // 🟡🟡🟡 - [DIV GROUP] Rebuild content object with new order
+      const newContent = {};
+      orderedKeys.forEach(key => {
+        if (section.content[key]) {
+          newContent[key] = section.content[key];
+        }
+      });
+      Object.keys(section.content).forEach(key => {
+        if (!newContent[key]) {
+          newContent[key] = section.content[key];
+        }
+      });
+      currentMenuState[sectionKey].content = newContent;
+    } else if (section['addon-items']) {
+      // 🟡🟡🟡 - [ADDON ITEMS] Rebuild addon-items object with new order
+      const newAddonItems = {};
+      orderedKeys.forEach(key => {
+        if (section['addon-items'][key]) {
+          newAddonItems[key] = section['addon-items'][key];
+        }
+      });
+      Object.keys(section['addon-items']).forEach(key => {
+        if (!newAddonItems[key]) {
+          newAddonItems[key] = section['addon-items'][key];
+        }
+      });
+      currentMenuState[sectionKey]['addon-items'] = newAddonItems;
+    }
+  }
+
   // 🟡🟡🟡 - [TOGGLE] Toggle nested content visibility
   function toggleNestedContent(sectionKey) {
     const card = document.querySelector(`[data-section-key="${sectionKey}"]`);
@@ -429,6 +612,18 @@
       const isVisible = nestedContent.style.display !== 'none';
       nestedContent.style.display = isVisible ? 'none' : 'block';
       toggleBtn.textContent = isVisible ? '▼' : '▲';
+      
+      // 🟡🟡🟡 - [NESTED SORTABLE] Initialize sortable when expanding, destroy when collapsing
+      if (!isVisible && currentMenuState[sectionKey]) {
+        // 🟡🟡🟡 - [INITIALIZE] Initialize sortable when expanding
+        setTimeout(() => {
+          initializeNestedSortable(nestedContent, sectionKey, currentMenuState[sectionKey]);
+        }, 50); // Small delay to ensure DOM is updated
+      } else if (isVisible && nestedSortableInstances[sectionKey]) {
+        // 🟡🟡🟡 - [CLEANUP] Destroy sortable when collapsing
+        nestedSortableInstances[sectionKey].destroy();
+        delete nestedSortableInstances[sectionKey];
+      }
     }
   }
 

@@ -398,6 +398,18 @@
   margin-bottom: 0.5rem;
 }
 
+.admin-nested-item-drag-handle {
+  cursor: move;
+  font-size: 1rem;
+  user-select: none;
+  color: #6c757d;
+  flex-shrink: 0;
+}
+
+.admin-nested-item-drag-handle:hover {
+  color: #007bff;
+}
+
 .admin-nested-item-header strong {
   flex: 1;
   

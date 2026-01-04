@@ -14,6 +14,391 @@
 
 ---
 
+### January 4, 2025 @ 12:10 - Nested Sorting and Real-Time Order Updates: Enhanced Drag-and-Drop Functionality
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented comprehensive nested sorting functionality for menu editor nested content containers (radio groups, checkbox groups, div groups, and addon items). Previously, only main section cards were sortable, but nested items within expanded sections could not be reordered. Additionally, implemented real-time order number updates for section cards, providing immediate visual feedback as items are dragged. The implementation includes proper lifecycle management for nested SortableJS instances, ensuring smooth performance and correct data structure updates.
+
+**Problem**: 
+- Nested items within `.admin-nested-content` containers were not sortable
+- Users could drag main sections but could not reorder nested items (radio options, checkbox items, div items, addon items)
+- Order numbers displayed in section headers (`#1`, `#2`, etc.) were static and only updated after page refresh
+- No visual feedback during drag operations for order changes
+- Missing drag handles on nested items
+- No SortableJS initialization for nested content containers
+
+**Solution**:
+- Implemented SortableJS initialization for all nested content containers
+- Added drag handles (☰) to all nested items for intuitive reordering
+- Created proper lifecycle management for nested sortable instances
+- Implemented real-time order number updates during drag operations
+- Added data structure updates to preserve order when nested items are reordered
+- Enhanced user experience with immediate visual feedback
+
+#### Major Changes
+
+- **Admin Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js`):
+
+  - **State Management Updates**:
+    - Added `nestedSortableInstances` object to track SortableJS instances for nested containers
+    - **Code Added** (line 10):
+      ```javascript
+      let nestedSortableInstances = {}; // 🟡🟡🟡 - [NESTED SORTABLE] Store nested sortable instances by section key
+      ```
+    - **Impact**: Enables proper management of multiple nested sortable instances
+
+  - **Nested Item Rendering Updates**:
+    - Added drag handles to all nested item types (radio, checkbox, div, addon)
+    - Added `data-item-key` attribute to nested items for order tracking
+    - **Code Changed** (lines 199-240, 241-266, 267-292, 293-319):
+      ```javascript
+      // Radio group items
+      item.className = 'admin-nested-item admin-radio-item';
+      item.dataset.itemKey = radioKey; // 🟡🟡🟡 - [NESTED SORTABLE] Store item key for reordering
+      item.innerHTML = `
+        <div class="admin-nested-item-header">
+          <span class="admin-nested-item-drag-handle" title="Drag to reorder">☰</span>
+          <strong>${escapeHtml(radio.label || radioKey)}</strong>
+          // ... rest of item content
+        </div>
+      `;
+      ```
+    - **Impact**: All nested items now have drag handles and can be reordered
+
+  - **New Function: `initializeNestedSortable()`**:
+    - Initializes SortableJS for nested content containers
+    - Only initializes when container is visible (expanded)
+    - Handles cleanup of existing instances before creating new ones
+    - **Code Added** (lines 462-496):
+      ```javascript
+      // 🟡🟡🟡 - [NESTED SORTABLE] Initialize SortableJS for nested content container
+      function initializeNestedSortable(container, sectionKey, section) {
+        // 🟡🟡🟡 - [CLEANUP] Destroy existing sortable instance if it exists
+        if (nestedSortableInstances[sectionKey]) {
+          nestedSortableInstances[sectionKey].destroy();
+          delete nestedSortableInstances[sectionKey];
+        }
+
+        // 🟡🟡🟡 - [VALIDATION] Only initialize if SortableJS is available and container has items
+        if (typeof Sortable === 'undefined') {
+          console.error('❗❗❗ - [ADMIN MENU EDITOR] SortableJS library not loaded for nested content');
+          return;
+        }
+
+        const items = container.querySelectorAll('.admin-nested-item');
+        if (items.length === 0) {
+          console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] No nested items to sort for section:', sectionKey);
+          return;
+        }
+
+        // 🟡🟡🟡 - [SORTABLE] Initialize SortableJS for nested container
+        nestedSortableInstances[sectionKey] = new Sortable(container, {
+          handle: '.admin-nested-item-drag-handle',
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          dragClass: 'sortable-drag',
+          onEnd: function(evt) {
+            // 🟡🟡🟡 - [REORDER] Update nested item order after drag
+            updateNestedItemOrder(sectionKey, section);
+            console.log('✅✅✅ - [ADMIN MENU EDITOR] Nested items reordered for section:', sectionKey);
+          }
+        });
+
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Nested SortableJS initialized for section:', sectionKey);
+      }
+      ```
+    - **Impact**: Enables drag-and-drop functionality for nested items
+
+  - **New Function: `updateNestedItemOrder()`**:
+    - Updates nested item order in data structure based on visual DOM position
+    - Handles all nested types: radio-group, checkbox-group, div-group, addon-items
+    - Rebuilds content/addon-items objects with new key order
+    - **Code Added** (lines 498-570):
+      ```javascript
+      // 🟡🟡🟡 - [NESTED SORTABLE] Update nested item order based on visual position
+      function updateNestedItemOrder(sectionKey, section) {
+        const card = document.querySelector(`[data-section-key="${sectionKey}"]`);
+        if (!card) return;
+
+        const nestedContainer = card.querySelector('.admin-nested-content');
+        if (!nestedContainer) return;
+
+        const htmlType = section['html-type'] || '';
+        const items = nestedContainer.querySelectorAll('.admin-nested-item');
+        
+        // 🟡🟡🟡 - [REORDER] Get ordered list of item keys from DOM
+        const orderedKeys = Array.from(items).map(item => item.dataset.itemKey).filter(key => key);
+
+        if (htmlType === 'radio-group' && section.content) {
+          // 🟡🟡🟡 - [RADIO GROUP] Rebuild content object with new order
+          const newContent = {};
+          orderedKeys.forEach(key => {
+            if (section.content[key]) {
+              newContent[key] = section.content[key];
+            }
+          });
+          // ... preserve any keys that weren't in DOM
+          currentMenuState[sectionKey].content = newContent;
+        }
+        // ... similar logic for checkbox-group, div-group, addon-items
+      }
+      ```
+    - **Impact**: Preserves nested item order in menu data structure
+
+  - **New Function: `initializeAllNestedSortables()`**:
+    - Initializes sortables for all visible nested content containers
+    - Called after section rendering to ensure all expanded nested content is sortable
+    - **Code Added** (lines 433-446):
+      ```javascript
+      // 🟡🟡🟡 - [NESTED SORTABLE] Initialize sortables for all visible nested content containers
+      function initializeAllNestedSortables() {
+        const cards = document.querySelectorAll('.admin-section-card');
+        cards.forEach(card => {
+          const sectionKey = card.dataset.sectionKey;
+          if (!sectionKey || !currentMenuState[sectionKey]) return;
+
+          const nestedContainer = card.querySelector('.admin-nested-content');
+          if (nestedContainer && nestedContainer.style.display !== 'none') {
+            // 🟡🟡🟡 - [INITIALIZE] Only initialize if container is visible
+            initializeNestedSortable(nestedContainer, sectionKey, currentMenuState[sectionKey]);
+          }
+        });
+      }
+      ```
+    - **Impact**: Ensures all expanded nested content is sortable on page load
+
+  - **Updated `renderNestedContent()` Function**:
+    - Added call to `initializeNestedSortable()` after rendering nested items
+    - Only initializes if container is visible
+    - **Code Changed** (line 320):
+      ```javascript
+      // 🟡🟡🟡 - [NESTED SORTABLE] Initialize SortableJS for nested content container if visible
+      // Note: Only initialize if container is visible (not hidden)
+      // If hidden, it will be initialized when expanded via toggleNestedContent()
+      if (container.style.display !== 'none') {
+        initializeNestedSortable(container, sectionKey, section);
+      }
+      ```
+    - **Impact**: Nested content is sortable immediately when rendered and visible
+
+  - **Updated `toggleNestedContent()` Function**:
+    - Initializes sortable when nested content is expanded
+    - Destroys sortable when nested content is collapsed
+    - **Code Changed** (lines 476-495):
+      ```javascript
+      // 🟡🟡🟡 - [TOGGLE] Toggle nested content visibility
+      function toggleNestedContent(sectionKey) {
+        const card = document.querySelector(`[data-section-key="${sectionKey}"]`);
+        if (!card) return;
+
+        const nestedContent = card.querySelector('.admin-nested-content');
+        const toggleBtn = card.querySelector('.admin-expand-toggle');
+        
+        if (nestedContent && toggleBtn) {
+          const isVisible = nestedContent.style.display !== 'none';
+          nestedContent.style.display = isVisible ? 'none' : 'block';
+          toggleBtn.textContent = isVisible ? '▼' : '▲';
+          
+          // 🟡🟡🟡 - [NESTED SORTABLE] Initialize sortable when expanding, destroy when collapsing
+          if (!isVisible && currentMenuState[sectionKey]) {
+            // 🟡🟡🟡 - [INITIALIZE] Initialize sortable when expanding
+            setTimeout(() => {
+              initializeNestedSortable(nestedContent, sectionKey, currentMenuState[sectionKey]);
+            }, 50); // Small delay to ensure DOM is updated
+          } else if (isVisible && nestedSortableInstances[sectionKey]) {
+            // 🟡🟡🟡 - [CLEANUP] Destroy sortable when collapsing
+            nestedSortableInstances[sectionKey].destroy();
+            delete nestedSortableInstances[sectionKey];
+          }
+        }
+      }
+      ```
+    - **Impact**: Proper lifecycle management of nested sortable instances
+
+  - **Updated `renderSections()` Function**:
+    - Added cleanup of all nested sortable instances before re-rendering
+    - Calls `initializeAllNestedSortables()` after rendering
+    - **Code Changed** (lines 356-375):
+      ```javascript
+      // 🟡🟡🟡 - [CLEANUP] Destroy all nested sortable instances before re-rendering
+      Object.keys(nestedSortableInstances).forEach(sectionKey => {
+        if (nestedSortableInstances[sectionKey]) {
+          nestedSortableInstances[sectionKey].destroy();
+        }
+      });
+      nestedSortableInstances = {};
+      ```
+    - **Impact**: Prevents memory leaks and ensures clean state on re-render
+
+  - **New Function: `updateSectionOrderNumbers()`**:
+    - Updates displayed order numbers in real-time based on DOM position
+    - Called during drag operations for immediate visual feedback
+    - **Code Added** (lines 457-469):
+      ```javascript
+      // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers displayed in UI based on visual position
+      function updateSectionOrderNumbers() {
+        const sectionsList = document.getElementById('sections-list');
+        if (!sectionsList) return;
+
+        const cards = sectionsList.querySelectorAll('.admin-section-card');
+        cards.forEach((card, index) => {
+          const orderSpan = card.querySelector('.admin-section-order');
+          if (orderSpan) {
+            orderSpan.textContent = `#${index + 1}`;
+          }
+        });
+      }
+      ```
+    - **Impact**: Provides real-time visual feedback during drag operations
+
+  - **Enhanced Main Section SortableJS Configuration**:
+    - Added `onMove` event handler for real-time order number updates during drag
+    - Added `onSort` event handler for order updates when order changes
+    - Enhanced `onEnd` to ensure order numbers are correct after drag
+    - **Code Changed** (lines 412-422):
+      ```javascript
+      sortableInstance = new Sortable(sectionsList, {
+        handle: '.admin-section-drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onMove: function(evt) {
+          // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers in real-time during drag movement
+          // Use requestAnimationFrame for smooth updates
+          requestAnimationFrame(() => {
+            updateSectionOrderNumbers();
+          });
+          // Don't return anything to allow the move
+        },
+        onSort: function(evt) {
+          // 🟡🟡🟡 - [REALTIME UPDATE] Update order numbers when order changes
+          updateSectionOrderNumbers();
+        },
+        onEnd: function(evt) {
+          // 🟡🟡🟡 - [REORDER] Update order values after drag
+          updateSectionOrders();
+          // 🟡🟡🟡 - [REALTIME UPDATE] Ensure order numbers are correct after drag ends
+          updateSectionOrderNumbers();
+          console.log('✅✅✅ - [ADMIN MENU EDITOR] Sections reordered');
+        }
+      });
+      ```
+    - **Impact**: Order numbers update in real-time as sections are dragged
+
+- **Admin CSS Stylesheet** (`public/global/css/admin.css`):
+
+  - **New Nested Drag Handle Styles**:
+    - Added styles for `.admin-nested-item-drag-handle`
+    - Matches main section drag handle styling for consistency
+    - Includes hover effects for better UX
+    - **Code Added** (lines 393-402):
+      ```css
+      .admin-nested-item-drag-handle {
+        cursor: move;
+        font-size: 1rem;
+        user-select: none;
+        color: #6c757d;
+        flex-shrink: 0;
+      }
+
+      .admin-nested-item-drag-handle:hover {
+        color: #007bff;
+      }
+      ```
+    - **Impact**: Visual consistency and clear drag affordance for nested items
+
+#### Technical Details
+
+**Nested Sorting Implementation**:
+- SortableJS instances are created per nested content container
+- Each instance is stored in `nestedSortableInstances` object keyed by section key
+- Instances are destroyed when nested content is collapsed or sections are re-rendered
+- Only visible (expanded) nested content containers have active sortable instances
+- Drag handles (☰) are added to all nested item types: radio options, checkbox items, div items, addon items
+
+**Order Preservation**:
+- JavaScript objects preserve insertion order for string keys (ES2015+)
+- When nested items are reordered, the content/addon-items objects are rebuilt with keys in new order
+- Order is determined by DOM position of nested items
+- Data structure updates happen in `updateNestedItemOrder()` function
+
+**Real-Time Order Updates**:
+- Order numbers update during drag using `onMove` and `onSort` events
+- `requestAnimationFrame` ensures smooth updates without blocking UI
+- Order numbers are updated on initial render to ensure correctness
+- Final order is saved to data structure in `onEnd` event
+
+**Lifecycle Management**:
+- Nested sortable instances are created when nested content is expanded
+- Instances are destroyed when nested content is collapsed
+- All instances are cleaned up before section re-rendering
+- Prevents memory leaks and ensures clean state
+
+#### Benefits
+
+- **Enhanced User Experience**: Users can now reorder nested items (radio options, checkboxes, etc.) with intuitive drag-and-drop
+- **Real-Time Feedback**: Order numbers update immediately during drag operations
+- **Consistent Interface**: All draggable items (main sections and nested items) have consistent drag handles
+- **Proper Data Management**: Order changes are properly saved to menu data structure
+- **Performance Optimized**: Sortable instances are only active when needed (expanded containers)
+- **Memory Safe**: Proper cleanup prevents memory leaks from multiple sortable instances
+
+#### Breaking Changes
+
+None - This is a feature enhancement that does not affect existing functionality.
+
+#### Files Affected
+
+**Modified Files**:
+- `public/global/js/admin-menu-editor.js` - Added nested sorting functionality and real-time order updates
+- `public/global/css/admin.css` - Added styles for nested drag handles
+
+**Code Sections Modified**:
+- State management (line 10): Added `nestedSortableInstances` object
+- `renderNestedContent()` function (lines 196-320): Added drag handles and sortable initialization
+- `renderSections()` function (lines 356-431): Added cleanup and initialization of nested sortables
+- `toggleNestedContent()` function (lines 476-495): Added sortable lifecycle management
+- Main SortableJS configuration (lines 412-422): Added real-time order update events
+- New functions added:
+  - `initializeNestedSortable()` (lines 462-496)
+  - `updateNestedItemOrder()` (lines 498-570)
+  - `initializeAllNestedSortables()` (lines 433-446)
+  - `updateSectionOrderNumbers()` (lines 457-469)
+
+#### Testing Recommendations
+
+1. **Test Nested Sorting**:
+   - Expand a radio-group section and drag radio options - should reorder smoothly
+   - Expand a checkbox-group section and drag checkbox items - should reorder
+   - Expand a div-group section and drag div items - should reorder
+   - Expand a section with addon-items and drag addon items - should reorder
+   - Verify order is preserved after saving menu
+
+2. **Test Real-Time Order Updates**:
+   - Drag a main section card - order numbers should update in real-time
+   - Verify all section order numbers update correctly during drag
+   - Verify order numbers are correct after drag ends
+   - Verify order numbers are correct on page load
+
+3. **Test Lifecycle Management**:
+   - Expand nested content - sortable should initialize
+   - Collapse nested content - sortable should be destroyed
+   - Re-render sections - all nested sortables should be cleaned up
+   - Verify no memory leaks after multiple expand/collapse cycles
+
+4. **Test Data Persistence**:
+   - Reorder nested items and save menu
+   - Reload page and verify order is preserved
+   - Verify JSON structure maintains correct key order
+
+#### Related Documentation
+
+- See `public/global/js/admin-menu-editor.js` for complete implementation
+- See `docs/CHANGELOG_ADMIN_BRANCH.md` entry "December 25, 2025 @ 21:21" for original drag-and-drop implementation
+
+---
+
 ### January 3, 2025 @ 18:15 - Popup Section Editing: Fixed Grayed-Out Appearance and Implemented Full Editing Functionality
 
 **Summary**: Fixed critical issue where popup sections (nested sections within radio option popups) appeared grayed out and were non-functional. The popup section edit buttons displayed a "coming soon" message instead of actual editing functionality. Implemented complete popup section editing support including text sections (h1, h2, p), image sections with upload capability, and unordered lists. Updated CSS to remove grayed-out appearance and improve visual feedback for editable popup sections.
