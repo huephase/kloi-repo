@@ -193,7 +193,7 @@
     // 🟡🟡🟡 - [ADD BUTTON] Create and append "+" button after section card
     const addButton = document.createElement('button');
     addButton.className = 'admin-add-section-after';
-    addButton.innerHTML = '+';
+    addButton.innerHTML = '<img src="/public/kloi_plus_sign.svg" alt="Plus sign" class="kloi_plus_icon">';
     addButton.title = 'Add section after this';
     addButton.dataset.insertAfterSectionKey = sectionKey;
     addButton.addEventListener('click', () => {
