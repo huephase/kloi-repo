@@ -14,6 +14,261 @@
 
 ---
 
+### January 5, 2025 @ 20:57 - Image Upload Restrictions and Menu Preview Feature
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented comprehensive image upload restrictions (5MB limit, JPG/PNG only, automatic square cropping) and added a full menu preview feature that opens in a new tab. These changes improve image quality consistency, reduce storage usage, and provide administrators with a real-time preview of how their menu will appear to end users.
+
+**Problem**: 
+- Image uploads had no size restrictions, potentially causing performance issues and excessive storage usage
+- SVG files were allowed but may not render consistently across all browsers and devices
+- Images could be uploaded in any aspect ratio, leading to inconsistent visual presentation
+- Administrators had no way to preview how their menu would look to end users before saving
+- No visual feedback on how menu sections, popups, and nested content would render
+
+**Solution**:
+- Implemented 5MB file size limit with client-side validation
+- Restricted file formats to JPG and PNG only (removed SVG support)
+- Added automatic square (1:1) cropping using Canvas API for non-square images
+- Created comprehensive menu preview system that renders all section types
+- Implemented preview that opens in new tab with full HTML/CSS/JavaScript
+- Added interactive popup toggle functionality in preview
+
+#### Major Changes
+
+- **Admin Menu Editor Template** (`src/views/admin/menu-editor.hbs`):
+
+  - **Added Preview Button**:
+    - Added "Preview Menu" button to admin menu actions section
+    - Positioned before Save and Reset buttons for logical workflow
+    - **Code Added** (line 36-38):
+      ```handlebars
+      <button id="preview-menu-button" class="admin-preview-button">
+        Preview Menu
+      </button>
+      ```
+
+  - **Updated File Input Restrictions**:
+    - Changed file input accept attribute to only allow JPG and PNG
+    - **Code Changed** (line 1043):
+      ```handlebars
+      // Before:
+      <input type="file" id="edit-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png,image/svg+xml" style="display: none;">
+      
+      // After:
+      <input type="file" id="edit-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png" style="display: none;">
+      ```
+    - **Code Changed** (line 1574):
+      ```handlebars
+      // Similar change for popup section image upload
+      <input type="file" id="edit-popup-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png" style="display: none;">
+      ```
+    - **Impact**: Users can only select JPG/PNG files from file picker, preventing SVG uploads at the UI level
+
+- **Admin Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js`):
+
+  - **Image Cropping Function**:
+    - Created `cropImageToSquare()` function using Canvas API
+    - Automatically crops images to 1:1 aspect ratio if not already square
+    - Centers crop using smaller dimension
+    - Skips cropping if image is already square
+    - **Code Added** (lines 1997-2061):
+      ```javascript
+      // 🟡🟡🟡 - [IMAGE CROPPING] Crop image to square (1:1) proportions using Canvas API
+      async function cropImageToSquare(file) {
+        return new Promise((resolve, reject) => {
+          // Loads image, checks dimensions, crops to square, converts to blob
+          // Returns cropped File object or original if already square
+        });
+      }
+      ```
+    - **Impact**: All uploaded images are automatically square, ensuring consistent visual presentation
+
+  - **Updated Image Upload Validation**:
+    - Removed SVG from allowed types and extensions
+    - Updated error messages to only mention JPG and PNG
+    - Added image processing status messages
+    - **Code Changed** - `handleImageUpload()` function (lines 2064-2108):
+      ```javascript
+      // Before:
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml'];
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg'];
+      
+      // After:
+      const allowedTypes = ['image/jpeg', 'image/png'];
+      const allowedExtensions = ['.jpg', '.jpeg', '.png'];
+      ```
+    - **Code Changed** - Error messages updated:
+      ```javascript
+      // Before:
+      statusSpan.textContent = '❌ Invalid file type. Only JPG, PNG, and SVG are allowed.';
+      
+      // After:
+      statusSpan.textContent = '❌ Invalid file type. Only JPG and PNG are allowed.';
+      ```
+    - **Code Added** - Image cropping integration:
+      ```javascript
+      // 🟡🟡🟡 - [CROP] Crop image to square (1:1) if not already square
+      let processedFile = file;
+      try {
+        processedFile = await cropImageToSquare(file);
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Image processed for square crop');
+      } catch (cropError) {
+        console.error('❗❗❗ - [ADMIN MENU EDITOR] Error cropping image, using original:', cropError);
+        processedFile = file; // Fallback to original
+      }
+      ```
+    - **Impact**: 
+      - Prevents SVG uploads at validation level
+      - All images automatically cropped to square before upload
+      - Better user feedback during image processing
+
+  - **Updated Popup Section Image Upload**:
+    - Applied same restrictions and cropping to popup section image uploads
+    - **Code Changed** - `handleImageUploadForPopup()` function (lines 1699-1816):
+      ```javascript
+      // Same validation and cropping logic as regular image upload
+      const allowedTypes = ['image/jpeg', 'image/png'];
+      const allowedExtensions = ['.jpg', '.jpeg', '.png'];
+      // Includes automatic square cropping
+      ```
+    - **Impact**: Consistent image handling across all upload contexts
+
+  - **Menu Preview Feature**:
+    - Created comprehensive preview rendering system
+    - **Code Added** - Section rendering functions (lines 1818-1950):
+      ```javascript
+      // 🟡🟡🟡 - [PREVIEW] Render a single section to HTML
+      function renderSectionToHTML(sectionKey, section) {
+        // Handles all section types: h1, h2, p, image, unordered-list, 
+        // radio-group, checkbox-group, div-group
+      }
+      
+      // 🟡🟡🟡 - [PREVIEW] Render addon items to HTML
+      function renderAddonItemsToHTML(addonItems) {
+        // Renders addon-items nested in h2 sections
+      }
+      
+      // 🟡🟡🟡 - [PREVIEW] Render radio group to HTML
+      function renderRadioGroupToHTML(radioContent, sectionKey) {
+        // Renders radio buttons with popup support
+      }
+      
+      // 🟡🟡🟡 - [PREVIEW] Render popup content to HTML
+      function renderPopupContentToHTML(popup) {
+        // Renders nested popup sections
+      }
+      
+      // 🟡🟡🟡 - [PREVIEW] Render checkbox group to HTML
+      function renderCheckboxGroupToHTML(checkboxContent) {
+        // Renders checkbox items
+      }
+      
+      // 🟡🟡🟡 - [PREVIEW] Render div group to HTML
+      function renderDivGroupToHTML(divContent) {
+        // Renders div group items
+      }
+      ```
+    - **Code Added** - Preview HTML generation (lines 1952-2070):
+      ```javascript
+      // 🟡🟡🟡 - [PREVIEW] Generate complete HTML preview page
+      function generatePreviewHTML(menuJSON) {
+        // Sorts sections by order
+        // Renders all sections
+        // Generates complete HTML page with embedded CSS and JavaScript
+        // Includes popup toggle functionality
+      }
+      ```
+    - **Code Added** - Preview window opening (lines 2072-2110):
+      ```javascript
+      // 🟡🟡🟡 - [PREVIEW] Open menu preview in new tab
+      function openMenuPreview() {
+        // Gets current menu state
+        // Generates preview HTML
+        // Creates blob URL
+        // Opens in new tab
+        // Handles popup blocking
+      }
+      ```
+    - **Code Added** - Preview button event listener (lines 2240-2243):
+      ```javascript
+      const previewButton = document.getElementById('preview-menu-button');
+      if (previewButton) {
+        previewButton.addEventListener('click', openMenuPreview);
+      }
+      ```
+    - **Impact**: 
+      - Administrators can preview entire menu before saving
+      - See how all section types render
+      - Test popup functionality
+      - Verify menu structure and content
+
+#### Technical Details
+
+- **Image Cropping Implementation**:
+  - Uses native Canvas API (no external dependencies)
+  - Centers crop by calculating offset from larger dimension
+  - Preserves original file name and type
+  - Falls back to original file if cropping fails
+  - Quality set to 0.92 for JPEG/PNG compression
+
+- **Preview HTML Structure**:
+  - Complete standalone HTML page with embedded CSS
+  - Responsive design with max-width container
+  - Professional styling matching menu presentation
+  - Interactive JavaScript for popup toggles
+  - Opens in new tab using Blob URLs (automatically cleaned up)
+
+- **Preview Rendering Features**:
+  - Sorts all sections by order value
+  - Renders all HTML types: h1, h2, p, image, unordered-list
+  - Handles nested structures: radio-groups, checkbox-groups, div-groups
+  - Supports addon-items within h2 sections
+  - Renders popup content with toggle buttons
+  - Displays prices and price basis correctly
+  - Shows image captions and alt text
+
+#### Files Modified
+
+1. **`src/views/admin/menu-editor.hbs`**:
+   - Added preview button to admin menu actions
+   - Updated file input accept attributes (2 locations)
+
+2. **`public/global/js/admin-menu-editor.js`**:
+   - Added `cropImageToSquare()` function (65 lines)
+   - Updated `handleImageUpload()` function with validation and cropping (45 lines modified)
+   - Updated `handleImageUploadForPopup()` function with validation and cropping (45 lines modified)
+   - Added preview rendering functions (250+ lines):
+     - `renderSectionToHTML()`
+     - `renderAddonItemsToHTML()`
+     - `renderRadioGroupToHTML()`
+     - `renderPopupContentToHTML()`
+     - `renderCheckboxGroupToHTML()`
+     - `renderDivGroupToHTML()`
+     - `generatePreviewHTML()`
+     - `openMenuPreview()`
+   - Added preview button event listener in `initializeEditor()`
+
+#### Testing Recommendations
+
+- Test image upload with various file sizes (under/over 5MB)
+- Test image upload with different formats (JPG, PNG, SVG should be rejected)
+- Test image upload with different aspect ratios (should auto-crop to square)
+- Test preview with menus containing all section types
+- Test preview with menus containing popup content
+- Test preview with menus containing addon-items
+- Verify preview opens in new tab correctly
+- Verify popup toggles work in preview
+- Test preview with empty menu (should show appropriate message)
+
+#### Related Documentation
+
+- See `public/sample_menu/SAMPLE-MENU-JSONB-NEW.json` for menu JSON structure
+- See `docs/APP-WIDE-SERVICES-AND-MODULES.md` for admin interface conventions
+
+---
+
 ### January 5, 2025 @ 18:12 - Menu Editor UI Improvements: Fixed Add Button Duplication, Price Basis Dropdowns, and Save Confirmation with Retry Logic
 
 **Type**: 🟠 MAJOR CHANGE

@@ -1040,7 +1040,7 @@
         <div class="admin-form-group">
           <label>Upload New Image:</label>
           <div class="admin-image-upload-container">
-            <input type="file" id="edit-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png,image/svg+xml" style="display: none;">
+            <input type="file" id="edit-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png" style="display: none;">
             <button type="button" class="admin-button-secondary admin-upload-button" data-section-key="${sectionKey}">Choose Image</button>
             <span class="admin-upload-status" id="upload-status-${sectionKey}"></span>
           </div>
@@ -1571,7 +1571,7 @@
         <div class="admin-form-group">
           <label>Upload New Image:</label>
           <div class="admin-image-upload-container">
-            <input type="file" id="edit-popup-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png,image/svg+xml" style="display: none;">
+            <input type="file" id="edit-popup-section-image-upload" class="admin-file-input" accept="image/jpeg,image/png" style="display: none;">
             <button type="button" class="admin-button-secondary admin-upload-button" data-section-key="${sectionKey}" data-radio-key="${radioKey}" data-popup-section-key="${popupSectionKey}">Choose Image</button>
             <span class="admin-upload-status" id="upload-status-popup-${sectionKey}-${radioKey}-${popupSectionKey}"></span>
           </div>
@@ -1697,10 +1697,10 @@
 
   // 🟡🟡🟡 - [IMAGE UPLOAD] Handle image file upload for popup sections
   async function handleImageUploadForPopup(sectionKey, radioKey, popupSectionKey, file, statusSpan, previewContainer, srcInput) {
-    // 🟡🟡🟡 - [VALIDATION] Client-side validation (same as regular image upload)
+    // 🟡🟡🟡 - [VALIDATION] Client-side validation - JPG and PNG only, max 5MB
     const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml'];
-    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg'];
+    const allowedTypes = ['image/jpeg', 'image/png'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png'];
 
     if (file.size > maxSize) {
       if (statusSpan) {
@@ -1713,7 +1713,7 @@
 
     if (!allowedTypes.includes(file.type)) {
       if (statusSpan) {
-        statusSpan.textContent = '❌ Invalid file type. Only JPG, PNG, and SVG are allowed.';
+        statusSpan.textContent = '❌ Invalid file type. Only JPG and PNG are allowed.';
         statusSpan.className = 'admin-upload-status error';
       }
       console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file type:', file.type);
@@ -1724,23 +1724,40 @@
     const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
     if (!hasValidExtension) {
       if (statusSpan) {
-        statusSpan.textContent = '❌ Invalid file extension. Only .jpg, .jpeg, .png, and .svg are allowed.';
+        statusSpan.textContent = '❌ Invalid file extension. Only .jpg, .jpeg, and .png are allowed.';
         statusSpan.className = 'admin-upload-status error';
       }
       console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file extension:', fileName);
       return;
     }
 
-    // 🟡🟡🟡 - [UPLOAD] Show upload status
+    // 🟡🟡🟡 - [CROPPING] Show cropping status
     if (statusSpan) {
-      statusSpan.textContent = '⏳ Uploading...';
+      statusSpan.textContent = '⏳ Processing image...';
       statusSpan.className = 'admin-upload-status uploading';
     }
 
     try {
-      // 🟡🟡🟡 - [FORMDATA] Create FormData with file
+      // 🟡🟡🟡 - [CROP] Crop image to square (1:1) if not already square
+      let processedFile = file;
+      try {
+        processedFile = await cropImageToSquare(file);
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Image processed for square crop (popup)');
+      } catch (cropError) {
+        console.error('❗❗❗ - [ADMIN MENU EDITOR] Error cropping image, using original:', cropError);
+        // 🟡🟡🟡 - [FALLBACK] If cropping fails, use original file
+        processedFile = file;
+      }
+
+      // 🟡🟡🟡 - [UPLOAD] Show upload status
+      if (statusSpan) {
+        statusSpan.textContent = '⏳ Uploading...';
+        statusSpan.className = 'admin-upload-status uploading';
+      }
+
+      // 🟡🟡🟡 - [FORMDATA] Create FormData with processed file
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', processedFile);
 
       // 🟡🟡🟡 - [API CALL] Upload file to server
       const response = await fetch('/admin/api/upload-image', {
@@ -1977,12 +1994,78 @@
     }
   }
 
+  // 🟡🟡🟡 - [IMAGE CROPPING] Crop image to square (1:1) proportions using Canvas API
+  async function cropImageToSquare(file) {
+    return new Promise((resolve, reject) => {
+      // 🟡🟡🟡 - [IMAGE LOAD] Load image from file
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            // 🟡🟡🟡 - [DIMENSIONS] Get image dimensions
+            const width = img.width;
+            const height = img.height;
+            console.log('🟡🟡🟡 - [IMAGE CROPPING] Original dimensions:', width, 'x', height);
+
+            // 🟡🟡🟡 - [SQUARE CHECK] Check if already square
+            if (width === height) {
+              console.log('✅✅✅ - [IMAGE CROPPING] Image is already square, no cropping needed');
+              resolve(file);
+              return;
+            }
+
+            // 🟡🟡🟡 - [CROP SIZE] Calculate square crop size (use smaller dimension)
+            const cropSize = Math.min(width, height);
+            const cropX = (width - cropSize) / 2;
+            const cropY = (height - cropSize) / 2;
+
+            // 🟡🟡🟡 - [CANVAS] Create canvas for cropping
+            const canvas = document.createElement('canvas');
+            canvas.width = cropSize;
+            canvas.height = cropSize;
+            const ctx = canvas.getContext('2d');
+
+            // 🟡🟡🟡 - [DRAW] Draw cropped image to canvas
+            ctx.drawImage(img, cropX, cropY, cropSize, cropSize, 0, 0, cropSize, cropSize);
+
+            // 🟡🟡🟡 - [CONVERT] Convert canvas to blob
+            canvas.toBlob((blob) => {
+              if (blob) {
+                // 🟡🟡🟡 - [FILE] Create new file from blob with original name
+                const croppedFile = new File([blob], file.name, {
+                  type: file.type,
+                  lastModified: Date.now()
+                });
+                console.log('✅✅✅ - [IMAGE CROPPING] Image cropped to square:', cropSize, 'x', cropSize);
+                resolve(croppedFile);
+              } else {
+                reject(new Error('Failed to create cropped image'));
+              }
+            }, file.type, 0.92); // Use 0.92 quality for JPEG/PNG
+          } catch (error) {
+            console.error('❗❗❗ - [IMAGE CROPPING] Error cropping image:', error);
+            reject(error);
+          }
+        };
+        img.onerror = () => {
+          reject(new Error('Failed to load image'));
+        };
+        img.src = e.target.result;
+      };
+      reader.onerror = () => {
+        reject(new Error('Failed to read file'));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   // 🟡🟡🟡 - [IMAGE UPLOAD] Handle image file upload
   async function handleImageUpload(sectionKey, file, statusSpan, previewContainer, srcInput) {
-    // 🟡🟡🟡 - [VALIDATION] Client-side validation
+    // 🟡🟡🟡 - [VALIDATION] Client-side validation - JPG and PNG only, max 5MB
     const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml'];
-    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.svg'];
+    const allowedTypes = ['image/jpeg', 'image/png'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png'];
 
     if (file.size > maxSize) {
       if (statusSpan) {
@@ -1995,7 +2078,7 @@
 
     if (!allowedTypes.includes(file.type)) {
       if (statusSpan) {
-        statusSpan.textContent = '❌ Invalid file type. Only JPG, PNG, and SVG are allowed.';
+        statusSpan.textContent = '❌ Invalid file type. Only JPG and PNG are allowed.';
         statusSpan.className = 'admin-upload-status error';
       }
       console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file type:', file.type);
@@ -2006,23 +2089,40 @@
     const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
     if (!hasValidExtension) {
       if (statusSpan) {
-        statusSpan.textContent = '❌ Invalid file extension. Only .jpg, .jpeg, .png, and .svg are allowed.';
+        statusSpan.textContent = '❌ Invalid file extension. Only .jpg, .jpeg, and .png are allowed.';
         statusSpan.className = 'admin-upload-status error';
       }
       console.error('❗❗❗ - [ADMIN MENU EDITOR] Invalid file extension:', fileName);
       return;
     }
 
-    // 🟡🟡🟡 - [UPLOAD] Show upload status
+    // 🟡🟡🟡 - [CROPPING] Show cropping status
     if (statusSpan) {
-      statusSpan.textContent = '⏳ Uploading...';
+      statusSpan.textContent = '⏳ Processing image...';
       statusSpan.className = 'admin-upload-status uploading';
     }
 
     try {
-      // 🟡🟡🟡 - [FORMDATA] Create FormData with file
+      // 🟡🟡🟡 - [CROP] Crop image to square (1:1) if not already square
+      let processedFile = file;
+      try {
+        processedFile = await cropImageToSquare(file);
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Image processed for square crop');
+      } catch (cropError) {
+        console.error('❗❗❗ - [ADMIN MENU EDITOR] Error cropping image, using original:', cropError);
+        // 🟡🟡🟡 - [FALLBACK] If cropping fails, use original file
+        processedFile = file;
+      }
+
+      // 🟡🟡🟡 - [UPLOAD] Show upload status
+      if (statusSpan) {
+        statusSpan.textContent = '⏳ Uploading...';
+        statusSpan.className = 'admin-upload-status uploading';
+      }
+
+      // 🟡🟡🟡 - [FORMDATA] Create FormData with processed file
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', processedFile);
 
       // 🟡🟡🟡 - [API CALL] Upload file to server
       const response = await fetch('/admin/api/upload-image', {
@@ -2080,6 +2180,415 @@
     }
   }
 
+  // 🟡🟡🟡 - [PREVIEW] Render a single section to HTML
+  function renderSectionToHTML(sectionKey, section) {
+    const htmlType = section['html-type'] || 'unknown';
+    let html = '';
+
+    // 🟡🟡🟡 - [HEADINGS] Render h1 and h2 headings
+    if (htmlType === 'h1') {
+      html += `<h1 class="menu-preview-h1">${escapeHtml(section.content || '')}</h1>`;
+    } else if (htmlType === 'h2') {
+      html += `<h2 class="menu-preview-h2">${escapeHtml(section.content || '')}</h2>`;
+      
+      // 🟡🟡🟡 - [ADDON ITEMS] Handle addon-items if present in h2 section
+      if (section['addon-items']) {
+        html += renderAddonItemsToHTML(section['addon-items']);
+      }
+    } else if (htmlType === 'p') {
+      // 🟡🟡🟡 - [PARAGRAPH] Render paragraph
+      html += `<p class="menu-preview-p">${escapeHtml(section.content || '')}</p>`;
+    } else if (htmlType === 'image') {
+      // 🟡🟡🟡 - [IMAGE] Render image with alt and caption
+      const src = section.src || '';
+      const alt = section.alt || '';
+      const caption = section.caption || '';
+      html += `<div class="menu-preview-image-container">`;
+      if (src) {
+        html += `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" class="menu-preview-image" onerror="this.style.display='none';">`;
+      }
+      if (caption) {
+        html += `<p class="menu-preview-image-caption">${escapeHtml(caption)}</p>`;
+      }
+      html += `</div>`;
+    } else if (htmlType === 'unordered-list') {
+      // 🟡🟡🟡 - [LIST] Render unordered list
+      const items = Array.isArray(section.content) ? section.content : [];
+      html += `<ul class="menu-preview-list">`;
+      items.forEach(item => {
+        html += `<li>${escapeHtml(item)}</li>`;
+      });
+      html += `</ul>`;
+    } else if (htmlType === 'radio-group') {
+      // 🟡🟡🟡 - [RADIO GROUP] Render radio button group
+      html += renderRadioGroupToHTML(section.content || {}, sectionKey);
+    } else if (htmlType === 'checkbox-group') {
+      // 🟡🟡🟡 - [CHECKBOX GROUP] Render checkbox group
+      html += renderCheckboxGroupToHTML(section.content || {});
+    } else if (htmlType === 'div-group') {
+      // 🟡🟡🟡 - [DIV GROUP] Render div group
+      html += renderDivGroupToHTML(section.content || {});
+    }
+
+    return html;
+  }
+
+  // 🟡🟡🟡 - [PREVIEW] Render addon items to HTML
+  function renderAddonItemsToHTML(addonItems) {
+    if (!addonItems || Object.keys(addonItems).length === 0) return '';
+    
+    let html = '<div class="menu-preview-addon-group">';
+    Object.keys(addonItems).forEach(addonKey => {
+      const addon = addonItems[addonKey];
+      const label = escapeHtml(addon.label || addonKey);
+      const price = addon.price || 0;
+      const priceBasis = escapeHtml(addon['price-basis'] || '');
+      html += `<div class="menu-preview-addon-item">`;
+      html += `<span class="menu-preview-addon-label">${label}</span>`;
+      html += `<span class="menu-preview-addon-price">${price} ${priceBasis}</span>`;
+      html += `</div>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // 🟡🟡🟡 - [PREVIEW] Render radio group to HTML
+  function renderRadioGroupToHTML(radioContent, sectionKey) {
+    if (!radioContent || Object.keys(radioContent).length === 0) return '';
+    
+    let html = '<div class="menu-preview-radio-group">';
+    Object.keys(radioContent).forEach(radioKey => {
+      const radio = radioContent[radioKey];
+      const label = escapeHtml(radio.label || radioKey);
+      const price = radio.price || 0;
+      const priceBasis = escapeHtml(radio['price-basis'] || '');
+      const description = escapeHtml(radio.description || '');
+      const hasPopup = radio.popup && Object.keys(radio.popup).length > 0;
+      
+      html += `<div class="menu-preview-radio-item" data-radio-key="${sectionKey}-${radioKey}">`;
+      html += `<div class="menu-preview-radio-header">`;
+      html += `<input type="radio" name="menu-preview-radio-${sectionKey}" id="radio-${sectionKey}-${radioKey}" class="menu-preview-radio-input">`;
+      html += `<label for="radio-${sectionKey}-${radioKey}" class="menu-preview-radio-label">${label}</label>`;
+      html += `<span class="menu-preview-radio-price">${price} ${priceBasis}</span>`;
+      html += `</div>`;
+      
+      if (description) {
+        html += `<p class="menu-preview-radio-description">${description}</p>`;
+      }
+      
+      // 🟡🟡🟡 - [POPUP] Render popup content if present
+      if (hasPopup) {
+        html += `<div class="menu-preview-popup-content" id="popup-${sectionKey}-${radioKey}" style="display: none;">`;
+        html += renderPopupContentToHTML(radio.popup);
+        html += `</div>`;
+        html += `<button type="button" class="menu-preview-popup-toggle" data-popup-id="popup-${sectionKey}-${radioKey}">View Details</button>`;
+      }
+      
+      html += `</div>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // 🟡🟡🟡 - [PREVIEW] Render popup content to HTML
+  function renderPopupContentToHTML(popup) {
+    if (!popup || Object.keys(popup).length === 0) return '';
+    
+    // 🟡🟡🟡 - [SORT] Sort popup sections by order if available, otherwise by key
+    const popupSections = Object.keys(popup).map(key => ({
+      key,
+      section: popup[key],
+      order: popup[key].order || 0
+    })).sort((a, b) => a.order - b.order);
+    
+    let html = '<div class="menu-preview-popup-sections">';
+    popupSections.forEach(({ key, section }) => {
+      html += renderSectionToHTML(key, section);
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // 🟡🟡🟡 - [PREVIEW] Render checkbox group to HTML
+  function renderCheckboxGroupToHTML(checkboxContent) {
+    if (!checkboxContent || Object.keys(checkboxContent).length === 0) return '';
+    
+    let html = '<div class="menu-preview-checkbox-group">';
+    Object.keys(checkboxContent).forEach(checkboxKey => {
+      const checkbox = checkboxContent[checkboxKey];
+      const label = escapeHtml(checkbox.label || checkboxKey);
+      const price = checkbox.price || 0;
+      const priceBasis = escapeHtml(checkbox['price-basis'] || '');
+      
+      html += `<div class="menu-preview-checkbox-item">`;
+      html += `<input type="checkbox" id="checkbox-${checkboxKey}" class="menu-preview-checkbox-input">`;
+      html += `<label for="checkbox-${checkboxKey}" class="menu-preview-checkbox-label">${label}</label>`;
+      html += `<span class="menu-preview-checkbox-price">${price} ${priceBasis}</span>`;
+      html += `</div>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // 🟡🟡🟡 - [PREVIEW] Render div group to HTML
+  function renderDivGroupToHTML(divContent) {
+    if (!divContent || Object.keys(divContent).length === 0) return '';
+    
+    let html = '<div class="menu-preview-div-group">';
+    Object.keys(divContent).forEach(divKey => {
+      const div = divContent[divKey];
+      const label = escapeHtml(div.label || divKey);
+      const price = div.price || 0;
+      const priceBasis = escapeHtml(div['price-basis'] || '');
+      
+      html += `<div class="menu-preview-div-item">`;
+      html += `<span class="menu-preview-div-label">${label}</span>`;
+      html += `<span class="menu-preview-div-price">${price} ${priceBasis}</span>`;
+      html += `</div>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // 🟡🟡🟡 - [PREVIEW] Generate complete HTML preview page
+  function generatePreviewHTML(menuJSON) {
+    // 🟡🟡🟡 - [SORT] Sort sections by order
+    const sections = Object.keys(menuJSON)
+      .map(key => ({
+        key,
+        section: menuJSON[key],
+        order: menuJSON[key].order || 0
+      }))
+      .sort((a, b) => a.order - b.order);
+
+    // 🟡🟡🟡 - [RENDER] Render all sections
+    let sectionsHTML = '';
+    sections.forEach(({ key, section }) => {
+      sectionsHTML += `<div class="menu-preview-section" data-section-key="${key}">`;
+      sectionsHTML += renderSectionToHTML(key, section);
+      sectionsHTML += `</div>`;
+    });
+
+    // 🟡🟡🟡 - [HTML] Generate complete HTML page
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Menu Preview</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .menu-preview-container {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .menu-preview-section {
+      margin-bottom: 2rem;
+    }
+    .menu-preview-h1 {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      color: #222;
+    }
+    .menu-preview-h2 {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      margin-top: 2rem;
+      color: #333;
+    }
+    .menu-preview-p {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: #555;
+    }
+    .menu-preview-image-container {
+      margin: 1.5rem 0;
+      text-align: center;
+    }
+    .menu-preview-image {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .menu-preview-image-caption {
+      margin-top: 0.5rem;
+      font-style: italic;
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .menu-preview-list {
+      margin: 1rem 0;
+      padding-left: 2rem;
+    }
+    .menu-preview-list li {
+      margin-bottom: 0.5rem;
+    }
+    .menu-preview-radio-group,
+    .menu-preview-checkbox-group,
+    .menu-preview-div-group,
+    .menu-preview-addon-group {
+      margin: 1.5rem 0;
+    }
+    .menu-preview-radio-item,
+    .menu-preview-checkbox-item,
+    .menu-preview-div-item,
+    .menu-preview-addon-item {
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      background: #fafafa;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .menu-preview-radio-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+    }
+    .menu-preview-radio-label,
+    .menu-preview-checkbox-label,
+    .menu-preview-div-label,
+    .menu-preview-addon-label {
+      flex: 1;
+      font-weight: 500;
+    }
+    .menu-preview-radio-price,
+    .menu-preview-checkbox-price,
+    .menu-preview-div-price,
+    .menu-preview-addon-price {
+      font-weight: bold;
+      color: #0066cc;
+    }
+    .menu-preview-radio-description {
+      margin-top: 0.5rem;
+      color: #666;
+      font-size: 0.95rem;
+    }
+    .menu-preview-popup-toggle {
+      margin-top: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .menu-preview-popup-toggle:hover {
+      background: #0052a3;
+    }
+    .menu-preview-popup-content {
+      margin-top: 1rem;
+      padding: 1.5rem;
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+    }
+    .menu-preview-popup-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .menu-preview-radio-input,
+    .menu-preview-checkbox-input {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="menu-preview-container">
+    <h1 style="margin-bottom: 2rem; color: #0066cc;">Menu Preview</h1>
+    ${sectionsHTML}
+  </div>
+  <script>
+    // 🟡🟡🟡 - [POPUP TOGGLE] Handle popup toggle functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      const popupToggles = document.querySelectorAll('.menu-preview-popup-toggle');
+      popupToggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+          const popupId = this.getAttribute('data-popup-id');
+          const popup = document.getElementById(popupId);
+          if (popup) {
+            const isVisible = popup.style.display !== 'none';
+            popup.style.display = isVisible ? 'none' : 'block';
+            this.textContent = isVisible ? 'View Details' : 'Hide Details';
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>`;
+
+    return html;
+  }
+
+  // 🟡🟡🟡 - [PREVIEW] Open menu preview in new tab
+  function openMenuPreview() {
+    try {
+      // 🟡🟡🟡 - [JSON] Get current menu state as JSON
+      const menuJSON = getMenuJSON();
+      
+      if (!menuJSON || Object.keys(menuJSON).length === 0) {
+        alert('No menu content to preview. Please add some sections first.');
+        console.warn('⚠️⚠️⚠️ - [MENU PREVIEW] No menu content to preview');
+        return;
+      }
+
+      console.log('🟡🟡🟡 - [MENU PREVIEW] Generating preview for menu with', Object.keys(menuJSON).length, 'sections');
+
+      // 🟡🟡🟡 - [HTML] Generate preview HTML
+      const previewHTML = generatePreviewHTML(menuJSON);
+
+      // 🟡🟡🟡 - [BLOB] Create blob URL for preview
+      const blob = new Blob([previewHTML], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+
+      // 🟡🟡🟡 - [OPEN] Open preview in new tab
+      const previewWindow = window.open(url, '_blank');
+      
+      if (!previewWindow) {
+        alert('Please allow popups to view the menu preview.');
+        console.error('❗❗❗ - [MENU PREVIEW] Failed to open preview window (popup blocked)');
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      // 🟡🟡🟡 - [CLEANUP] Revoke blob URL after window opens
+      previewWindow.addEventListener('load', () => {
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      });
+
+      console.log('✅✅✅ - [MENU PREVIEW] Preview opened successfully');
+    } catch (error) {
+      console.error('❗❗❗ - [MENU PREVIEW] Error generating preview:', error);
+      alert('Error generating preview. Please check the console for details.');
+    }
+  }
+
   // 🟡🟡🟡 - [INITIALIZATION] Initialize editor with menu data
   function initializeEditor(data) {
     console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Initializing custom menu editor');
@@ -2101,8 +2610,13 @@
 
     // 🟡🟡🟡 - [EVENT LISTENERS] Attach event listeners
     // Note: add-section-button removed - now using "+" buttons after each section
+    const previewButton = document.getElementById('preview-menu-button');
     const saveButton = document.getElementById('save-menu-button');
     const resetButton = document.getElementById('reset-menu-button');
+
+    if (previewButton) {
+      previewButton.addEventListener('click', openMenuPreview);
+    }
 
     if (saveButton) {
       saveButton.addEventListener('click', saveMenu);
