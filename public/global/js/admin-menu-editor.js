@@ -158,7 +158,7 @@
         <div class="admin-section-header-right">
           ${hasNested ? '<button class="admin-expand-toggle" data-section-key="' + sectionKey + '">▼</button>' : ''}
           <button class="admin-section-edit" data-section-key="${sectionKey}" title="Edit section">✏️</button>
-          <button class="admin-section-delete" data-section-key="${sectionKey}" title="Delete section">🗑️</button>
+          <button class="admin-section-delete" data-section-key="${sectionKey}" title="Delete section">❌</button>
         </div>
       </div>
       <div class="admin-section-content">
@@ -221,7 +221,7 @@
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${radio.price || 0} ${radio['price-basis'] || ''}</span>
             ${hasPopup ? '<button class="admin-expand-toggle-nested" data-section-key="' + sectionKey + '" data-radio-key="' + radioKey + '">▼</button>' : ''}
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-radio-key="${radioKey}">✏️</button>
-            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-radio-key="${radioKey}">🗑️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-radio-key="${radioKey}">❌</button>
           </div>
           ${radio.description ? '<div class="admin-nested-item-description">' + escapeHtml(radio.description) + '</div>' : ''}
           ${hasPopup ? '<div class="admin-popup-content" data-section-key="' + sectionKey + '" data-radio-key="' + radioKey + '" style="display: none;"></div>' : ''}
@@ -254,10 +254,6 @@
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
-      
-      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'radio', null);
-      container.appendChild(addNestedButtonEnd);
     } else if (htmlType === 'checkbox-group' && section.content) {
       const content = section.content;
       Object.keys(content).forEach(checkboxKey => {
@@ -271,7 +267,7 @@
             <strong>${escapeHtml(checkbox.label || checkboxKey)}</strong>
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${checkbox.price || 0} ${checkbox['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">✏️</button>
-            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">🗑️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-checkbox-key="${checkboxKey}">❌</button>
           </div>
         `;
         
@@ -290,10 +286,6 @@
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
-      
-      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'checkbox', null);
-      container.appendChild(addNestedButtonEnd);
     } else if (htmlType === 'div-group' && section.content) {
       const content = section.content;
       Object.keys(content).forEach(divKey => {
@@ -307,7 +299,7 @@
             <strong>${escapeHtml(div.label || divKey)}</strong>
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${div.price || 0} ${div['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-div-key="${divKey}">✏️</button>
-            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-div-key="${divKey}">🗑️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-div-key="${divKey}">❌</button>
           </div>
         `;
         
@@ -326,10 +318,6 @@
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
-      
-      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'div', null);
-      container.appendChild(addNestedButtonEnd);
     } else if (section['addon-items']) {
       const addons = section['addon-items'];
       Object.keys(addons).forEach(addonKey => {
@@ -343,7 +331,7 @@
             <strong>${escapeHtml(addon.label || addonKey)}</strong>
             <span class="admin-nested-item-price"><img src="/public/dirham.svg" alt="AED" class="admin-dirham-icon" style="width: 1em; height: 1em; vertical-align: middle; display: inline-block; margin-right: 0.25em;">${addon.price || 0} ${addon['price-basis'] || ''}</span>
             <button class="admin-nested-item-edit" data-section-key="${sectionKey}" data-addon-key="${addonKey}">✏️</button>
-            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-addon-key="${addonKey}">🗑️</button>
+            <button class="admin-nested-item-delete" data-section-key="${sectionKey}" data-addon-key="${addonKey}">❌</button>
           </div>
         `;
         
@@ -362,10 +350,6 @@
         container.appendChild(item);
         container.appendChild(addNestedButton);
       });
-      
-      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
-      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'addon', null);
-      container.appendChild(addNestedButtonEnd);
     }
 
     // 🟡🟡🟡 - [NESTED SORTABLE] Initialize SortableJS for nested content container if visible
@@ -875,7 +859,12 @@
           </div>
           <div class="admin-form-group">
             <label>Price Basis:</label>
-            <input type="text" id="new-nested-item-price-basis" class="admin-form-input" placeholder="e.g., Per guest">
+            <select id="new-nested-item-price-basis" class="admin-form-input">
+              <option value="">Select price basis</option>
+              <option value="Per day">Per day</option>
+              <option value="Per event">Per event</option>
+              <option value="Per guest">Per guest</option>
+            </select>
           </div>
           ${itemType === 'radio' ? `
           <div class="admin-form-group">
@@ -1221,7 +1210,12 @@
           </div>
           <div class="admin-form-group">
             <label>Price Basis:</label>
-            <input type="text" id="edit-radio-price-basis" class="admin-form-input" value="${escapeHtml(radio['price-basis'] || '')}" placeholder="e.g., Per guest">
+            <select id="edit-radio-price-basis" class="admin-form-input">
+              <option value="">Select price basis</option>
+              <option value="Per day"${radio['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
+              <option value="Per event"${radio['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
+              <option value="Per guest"${radio['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+            </select>
           </div>
           <div class="admin-form-group">
             <label>Description:</label>
@@ -1312,7 +1306,12 @@
           </div>
           <div class="admin-form-group">
             <label>Price Basis:</label>
-            <input type="text" id="edit-checkbox-price-basis" class="admin-form-input" value="${escapeHtml(checkbox['price-basis'] || '')}" placeholder="e.g., Per guest">
+            <select id="edit-checkbox-price-basis" class="admin-form-input">
+              <option value="">Select price basis</option>
+              <option value="Per day"${checkbox['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
+              <option value="Per event"${checkbox['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
+              <option value="Per guest"${checkbox['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+            </select>
           </div>
         </div>
         <div class="admin-modal-footer">
@@ -1394,7 +1393,12 @@
           </div>
           <div class="admin-form-group">
             <label>Price Basis:</label>
-            <input type="text" id="edit-div-price-basis" class="admin-form-input" value="${escapeHtml(div['price-basis'] || '')}" placeholder="e.g., Per day">
+            <select id="edit-div-price-basis" class="admin-form-input">
+              <option value="">Select price basis</option>
+              <option value="Per day"${div['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
+              <option value="Per event"${div['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
+              <option value="Per guest"${div['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+            </select>
           </div>
         </div>
         <div class="admin-modal-footer">
@@ -1476,7 +1480,12 @@
           </div>
           <div class="admin-form-group">
             <label>Price Basis:</label>
-            <input type="text" id="edit-addon-price-basis" class="admin-form-input" value="${escapeHtml(addon['price-basis'] || '')}" placeholder="e.g., Per guest">
+            <select id="edit-addon-price-basis" class="admin-form-input">
+              <option value="">Select price basis</option>
+              <option value="Per day"${addon['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
+              <option value="Per event"${addon['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
+              <option value="Per guest"${addon['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+            </select>
           </div>
         </div>
         <div class="admin-modal-footer">
@@ -1808,7 +1817,62 @@
     return json;
   }
 
-  // 🟡🟡🟡 - [SAVE MENU] Save menu to server
+  // 🟡🟡🟡 - [SAVE CONFIRMATION POPUP] Show save confirmation popup
+  function showSaveConfirmationPopup(success, message, onRetry) {
+    // 🟡🟡🟡 - [CLEANUP] Remove existing popup if any
+    const existingPopup = document.querySelector('.admin-save-confirmation-popup');
+    if (existingPopup) {
+      document.body.removeChild(existingPopup);
+    }
+
+    const popup = document.createElement('div');
+    popup.className = 'admin-save-confirmation-popup';
+    popup.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+    
+    const buttonText = success ? 'SAVED SUCCESSFULLY!' : 'FAILED TO SAVE, PLEASE TRY AGAIN';
+    const buttonClass = success ? 'admin-button-success' : 'admin-button-retry';
+    const popupClass = success ? 'admin-save-success' : 'admin-save-failed';
+    
+    popup.innerHTML = `
+      <div class="admin-save-confirmation-content" style="background: white; padding: 2rem; border-radius: 8px; max-width: 400px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <div class="admin-save-confirmation-message" style="margin-bottom: 1.5rem; font-size: 1.1rem; color: ${success ? '#28a745' : '#dc3545'};">
+          ${escapeHtml(message)}
+        </div>
+        <button class="${buttonClass}" style="padding: 0.75rem 2rem; font-size: 1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; ${success ? 'background: #28a745; color: white;' : 'background: #dc3545; color: white;'}">
+          ${buttonText}
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(popup);
+
+    const button = popup.querySelector(`.${buttonClass}`);
+    if (button) {
+      button.addEventListener('click', () => {
+        if (success) {
+          // 🟡🟡🟡 - [SUCCESS] Close popup on success
+          document.body.removeChild(popup);
+        } else {
+          // 🟡🟡🟡 - [RETRY] Retry save on failure
+          document.body.removeChild(popup);
+          if (onRetry) {
+            onRetry();
+          }
+        }
+      });
+    }
+
+    // 🟡🟡🟡 - [CLOSE] Close popup on backdrop click (only for success)
+    if (success) {
+      popup.addEventListener('click', (e) => {
+        if (e.target === popup) {
+          document.body.removeChild(popup);
+        }
+      });
+    }
+  }
+
+  // 🟡🟡🟡 - [SAVE MENU] Save menu to server with retry logic
   async function saveMenu() {
     const saveButton = document.getElementById('save-menu-button');
     if (!saveButton) {
@@ -1816,46 +1880,55 @@
       return;
     }
 
-    try {
-      // 🟡🟡🟡 - [JSON OUTPUT] Get current menu state as JSON
-      const menuItems = getMenuJSON();
+    // 🟡🟡🟡 - [SAVE ATTEMPT] Attempt to save menu
+    const attemptSave = async () => {
+      try {
+        // 🟡🟡🟡 - [JSON OUTPUT] Get current menu state as JSON
+        const menuItems = getMenuJSON();
 
-      // 🟡🟡🟡 - [UI STATE] Disable save button and show loading state
-      saveButton.disabled = true;
-      saveButton.textContent = 'Saving...';
-      hideMessage();
+        // 🟡🟡🟡 - [UI STATE] Disable save button and show loading state
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+        hideMessage();
 
-      // 🟡🟡🟡 - [API CALL] Send menu data to server
-      const response = await fetch('/admin/api/menu/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: menuData.menuName || 'Menu',
-          menuItems: menuItems
-        })
-      });
+        // 🟡🟡🟡 - [API CALL] Send menu data to server
+        const response = await fetch('/admin/api/menu/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: menuData.menuName || 'Menu',
+            menuItems: menuItems
+          })
+        });
 
-      const result = await response.json();
+        const result = await response.json();
 
-      if (result.success) {
-        console.log('✅✅✅ - [ADMIN MENU EDITOR] Menu saved successfully');
-        showMessage('Menu saved successfully!', 'success');
-        // 🟡🟡🟡 - [ORIGINAL DATA] Update original data to current state
-        originalMenuData = JSON.parse(JSON.stringify(menuItems));
-      } else {
-        console.error('❗❗❗ - [ADMIN MENU EDITOR] Save failed:', result.message);
-        showMessage(result.message || 'Failed to save menu. Please try again.', 'error');
+        if (result.success) {
+          console.log('✅✅✅ - [ADMIN MENU EDITOR] Menu saved successfully');
+          // 🟡🟡🟡 - [ORIGINAL DATA] Update original data to current state
+          originalMenuData = JSON.parse(JSON.stringify(menuItems));
+          // 🟡🟡🟡 - [SUCCESS POPUP] Show success confirmation popup
+          showSaveConfirmationPopup(true, 'Menu saved successfully to database!', null);
+        } else {
+          console.error('❗❗❗ - [ADMIN MENU EDITOR] Save failed:', result.message);
+          // 🟡🟡🟡 - [FAILURE POPUP] Show failure confirmation popup with retry
+          showSaveConfirmationPopup(false, result.message || 'Failed to save menu to database.', attemptSave);
+        }
+      } catch (err) {
+        console.error('❌❌❌ - [ADMIN MENU EDITOR] Error saving menu:', err);
+        // 🟡🟡🟡 - [ERROR POPUP] Show error confirmation popup with retry
+        showSaveConfirmationPopup(false, 'Error saving menu. Please check your connection and try again.', attemptSave);
+      } finally {
+        // 🟡🟡🟡 - [UI STATE] Re-enable save button
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Menu';
       }
-    } catch (err) {
-      console.error('❌❌❌ - [ADMIN MENU EDITOR] Error saving menu:', err);
-      showMessage('Error saving menu. Please check your connection and try again.', 'error');
-    } finally {
-      // 🟡🟡🟡 - [UI STATE] Re-enable save button
-      saveButton.disabled = false;
-      saveButton.textContent = 'Save Menu';
-    }
+    };
+
+    // 🟡🟡🟡 - [INITIAL SAVE] Start save attempt
+    await attemptSave();
   }
 
   // 🟡🟡🟡 - [RESET MENU] Reset menu to original state

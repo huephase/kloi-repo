@@ -114,12 +114,13 @@
 /* Admin Container Styles */
 .admin-container {
   max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
+  margin: 0 auto 10vh;
+  padding: 0 2rem 2rem;
 }
 
 .admin-header {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
@@ -134,16 +135,15 @@
 }
 
 .admin-header h1 {
-  margin: 0;
+  margin: 0 auto 1rem;
   font-size: 1.75rem;
-  
 }
 
 .admin-header-info {
   display: flex;
-  gap: 1.5rem;
   font-size: 0.875rem;
-  
+  flex-direction: column;
+  margin: 1rem auto 1.5rem;  
 }
 
 .admin-logout-form {
@@ -385,10 +385,10 @@
 
 .admin-section-key {
   font-family: monospace;
+  font-weight: bold;
   font-size: 0.75rem;
-  color: #999;
   padding: 0.25rem 0.5rem;
-  background: #00000038;
+  background: #00000017;
   border-radius: 3px;
 }
 
@@ -421,9 +421,9 @@
 }
 
 .admin-section-preview {
-  
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 400;
 }
 
 /* Nested Content */
@@ -720,13 +720,13 @@
 }
 
 .admin-save-button {
-  padding: 0.75rem 1.5rem;
+  padding: 2rem;
   background: #28a745;
   color: #fff;
   border: none;
   border-radius: 4px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 800;
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -741,13 +741,13 @@
 }
 
 .admin-reset-button {
-  padding: 0.75rem 1.5rem;
+  padding: 2rem;
   background: #6c757d;
   color: #fff;
   border: none;
   border-radius: 4px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 800;
   cursor: pointer;
   transition: background 0.2s;
 }

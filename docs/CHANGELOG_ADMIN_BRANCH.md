@@ -14,6 +14,187 @@
 
 ---
 
+### January 5, 2025 @ 18:12 - Menu Editor UI Improvements: Fixed Add Button Duplication, Price Basis Dropdowns, and Save Confirmation with Retry Logic
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical UI bug with duplicate add buttons in nested content containers, replaced price basis text inputs with standardized dropdowns across all modals, and implemented comprehensive save confirmation popup with automatic retry logic. These changes improve user experience, prevent data entry errors, and ensure reliable menu saving to the database.
+
+**Problem**: 
+- Nested content containers (radio-group, checkbox-group, div-group, addon-items) were displaying an extra "add button at end" in addition to the add buttons after each item, resulting in duplicate buttons
+- Price basis fields were free-text inputs, allowing inconsistent values and potential typos
+- Save operations had no visual confirmation, making it unclear whether saves succeeded or failed
+- Failed saves required manual retry attempts with no automatic recovery mechanism
+
+**Solution**:
+- Removed duplicate "add button at end" from all nested content rendering functions
+- Replaced all price basis text inputs with standardized dropdowns containing three options: "Per day", "Per event", "Per guest"
+- Implemented save confirmation popup system with success/failure states
+- Added automatic retry logic that continues attempting saves until successful
+- Enhanced user feedback with clear visual indicators for save status
+
+#### Major Changes
+
+- **Admin Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js`):
+
+  - **Fixed Add Button Duplication in Nested Content**:
+    - Removed redundant "add button at end" that was being appended after all nested items
+    - **Code Removed** (lines 258-260, 294-296, 330-332, 366-368):
+      ```javascript
+      // 🟡🟡🟡 - [ADD BUTTON] Add "+" button at end of nested list
+      const addNestedButtonEnd = createAddNestedItemButton(sectionKey, 'radio', null);
+      container.appendChild(addNestedButtonEnd);
+      ```
+    - **Impact**: Each nested content container now has exactly one add button per item, eliminating the duplicate button at the end
+    - **Affected Functions**:
+      - `renderNestedContent()` - Removed end button for radio-group, checkbox-group, div-group, and addon-items
+
+  - **Price Basis Field Standardization**:
+    - Replaced all price basis text inputs with dropdown selects
+    - Standardized options: "Per day", "Per event", "Per guest"
+    - **Code Changed** - Add New Nested Item Modal (lines 860-863):
+      ```javascript
+      // Before:
+      <input type="text" id="new-nested-item-price-basis" class="admin-form-input" placeholder="e.g., Per guest">
+      
+      // After:
+      <select id="new-nested-item-price-basis" class="admin-form-input">
+        <option value="">Select price basis</option>
+        <option value="Per day">Per day</option>
+        <option value="Per event">Per event</option>
+        <option value="Per guest">Per guest</option>
+      </select>
+      ```
+    - **Code Changed** - Edit Radio Option Modal (lines 1211-1214):
+      ```javascript
+      // Before:
+      <input type="text" id="edit-radio-price-basis" class="admin-form-input" value="${escapeHtml(radio['price-basis'] || '')}" placeholder="e.g., Per guest">
+      
+      // After:
+      <select id="edit-radio-price-basis" class="admin-form-input">
+        <option value="">Select price basis</option>
+        <option value="Per day"${radio['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
+        <option value="Per event"${radio['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
+        <option value="Per guest"${radio['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+      </select>
+      ```
+    - **Code Changed** - Edit Checkbox Item Modal (lines 1320-1323):
+      ```javascript
+      // Similar dropdown implementation with selected state preservation
+      ```
+    - **Code Changed** - Edit Div Item Modal (lines 1407-1410):
+      ```javascript
+      // Similar dropdown implementation with selected state preservation
+      ```
+    - **Code Changed** - Edit Addon Item Modal (lines 1494-1497):
+      ```javascript
+      // Similar dropdown implementation with selected state preservation
+      ```
+    - **Impact**: 
+      - Prevents data entry errors and typos in price basis fields
+      - Ensures consistent data format across all menu items
+      - Improves user experience with clear, limited options
+      - Preserves existing values when editing items
+
+  - **Save Confirmation Popup with Retry Logic**:
+    - **New Function: `showSaveConfirmationPopup()`** (lines 1820-1873):
+      ```javascript
+      // 🟡🟡🟡 - [SAVE CONFIRMATION POPUP] Show save confirmation popup
+      function showSaveConfirmationPopup(success, message, onRetry) {
+        // Creates modal popup with success/failure state
+        // Success: Green popup with "SAVED SUCCESSFULLY!" button that closes popup
+        // Failure: Red popup with "FAILED TO SAVE, PLEASE TRY AGAIN" button that retries
+      }
+      ```
+    - **Features**:
+      - Success state: Green popup with "SAVED SUCCESSFULLY!" button
+      - Failure state: Red popup with "FAILED TO SAVE, PLEASE TRY AGAIN" button
+      - Automatic cleanup of existing popups before showing new ones
+      - Backdrop click closes popup (success only)
+      - Retry callback mechanism for automatic retry on failure
+    - **Code Changed** - `saveMenu()` Function (lines 1875-1930):
+      ```javascript
+      // 🟡🟡🟡 - [SAVE MENU] Save menu to server with retry logic
+      async function saveMenu() {
+        // 🟡🟡🟡 - [SAVE ATTEMPT] Attempt to save menu
+        const attemptSave = async () => {
+          try {
+            // ... save logic ...
+            if (result.success) {
+              // 🟡🟡🟡 - [SUCCESS POPUP] Show success confirmation popup
+              showSaveConfirmationPopup(true, 'Menu saved successfully to database!', null);
+            } else {
+              // 🟡🟡🟡 - [FAILURE POPUP] Show failure confirmation popup with retry
+              showSaveConfirmationPopup(false, result.message || 'Failed to save menu to database.', attemptSave);
+            }
+          } catch (err) {
+            // 🟡🟡🟡 - [ERROR POPUP] Show error confirmation popup with retry
+            showSaveConfirmationPopup(false, 'Error saving menu. Please check your connection and try again.', attemptSave);
+          }
+        };
+        // 🟡🟡🟡 - [INITIAL SAVE] Start save attempt
+        await attemptSave();
+      }
+      ```
+    - **Retry Logic**:
+      - On failure, popup displays "FAILED TO SAVE, PLEASE TRY AGAIN" button
+      - Clicking the button automatically retries the save operation
+      - Retry continues until save succeeds
+      - On success, popup changes to "SAVED SUCCESSFULLY!" and closes
+    - **Impact**:
+      - Provides clear visual feedback for save operations
+      - Eliminates uncertainty about save status
+      - Automatically handles transient network errors
+      - Ensures data persistence through automatic retry mechanism
+      - Improves reliability of menu saving operations
+
+#### Files Modified
+
+1. **`public/global/js/admin-menu-editor.js`**:
+   - **Lines 258-260**: Removed duplicate add button for radio-group nested content
+   - **Lines 294-296**: Removed duplicate add button for checkbox-group nested content
+   - **Lines 330-332**: Removed duplicate add button for div-group nested content
+   - **Lines 366-368**: Removed duplicate add button for addon-items nested content
+   - **Lines 860-863**: Changed price basis input to dropdown in `showAddNestedItemModal()`
+   - **Lines 1211-1214**: Changed price basis input to dropdown in `showEditRadioModal()`
+   - **Lines 1320-1323**: Changed price basis input to dropdown in `showEditCheckboxModal()`
+   - **Lines 1407-1410**: Changed price basis input to dropdown in `showEditDivModal()`
+   - **Lines 1494-1497**: Changed price basis input to dropdown in `showEditAddonModal()`
+   - **Lines 1820-1873**: Added `showSaveConfirmationPopup()` function
+   - **Lines 1875-1930**: Refactored `saveMenu()` function with retry logic
+
+#### Testing Recommendations
+
+- **Add Button Duplication**:
+  - Verify nested content containers (radio, checkbox, div, addon) show exactly one add button per item
+  - Confirm no duplicate button appears at the end of nested lists
+  - Test with containers containing 0, 1, 2, and multiple items
+
+- **Price Basis Dropdowns**:
+  - Test adding new nested items with all three price basis options
+  - Verify existing price basis values are preserved and selected when editing
+  - Confirm dropdown works in all modal types (add, edit radio, edit checkbox, edit div, edit addon)
+  - Test with items that have no price basis (should show empty selection)
+
+- **Save Confirmation Popup**:
+  - Test successful save operation (should show green "SAVED SUCCESSFULLY!" popup)
+  - Test failed save operation (should show red "FAILED TO SAVE, PLEASE TRY AGAIN" popup)
+  - Verify retry button automatically attempts save again
+  - Confirm retry continues until success
+  - Test network interruption scenarios
+  - Verify popup closes on success button click
+  - Verify popup closes on backdrop click (success only)
+
+#### Breaking Changes
+
+None - All changes are backward compatible and improve existing functionality.
+
+#### Migration Notes
+
+No database migration required. Existing menu data with custom price basis values will continue to work, but new entries will be limited to the three standardized options.
+
+---
+
 ### January 4, 2025 @ 12:10 - Nested Sorting and Real-Time Order Updates: Enhanced Drag-and-Drop Functionality
 
 **Type**: 🟠 MAJOR CHANGE
