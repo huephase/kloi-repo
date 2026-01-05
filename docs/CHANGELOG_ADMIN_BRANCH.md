@@ -18,7 +18,7 @@
 
 **Type**: 🟠 MAJOR CHANGE
 
-**Summary**: Implemented comprehensive image upload restrictions (5MB limit, JPG/PNG only, automatic square cropping) and added a full menu preview feature that opens in a new tab. These changes improve image quality consistency, reduce storage usage, and provide administrators with a real-time preview of how their menu will appear to end users.
+**Summary**: Implemented comprehensive image upload restrictions (5MB limit, JPG/PNG only, automatic square cropping) and added a full menu preview feature that opens in a new tab. These changes improve image quality consistency, reduce storage usage, and provide theme administrators with a real-time preview of how their menu will appear to end users.
 
 **Problem**: 
 - Image uploads had no size restrictions, potentially causing performance issues and excessive storage usage
