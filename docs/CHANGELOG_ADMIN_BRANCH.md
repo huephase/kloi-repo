@@ -14,6 +14,241 @@
 
 ---
 
+### January 6, 2025 @ 18:22 - Image Filename Format, Expanded Section Persistence, and Preview Image Loading Fix
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented three key improvements to the admin menu editor: changed image filename format from UUID-based to human-readable theme-date-time format with random suffix, added persistent expanded state for nested sections that survive re-renders, and fixed preview image loading by converting relative paths to absolute URLs. These changes improve file organization, enhance user experience with persistent UI state, and ensure images display correctly in menu previews.
+
+**Problem**: 
+- Image filenames used UUID format (e.g., `8da369c4-13a1-4440-8ded-3e5d73d51788.jpg`) which was not human-readable and made it difficult to identify when images were uploaded
+- Expanded nested sections collapsed automatically when sections were re-rendered (after edits, saves, etc.), requiring users to manually expand them again
+- Images in menu preview did not load because relative paths (e.g., `/public/menus/default/image.jpg`) don't work in Blob URLs used for preview
+
+**Solution**:
+- Changed image filename format to `{theme}_{day-month-year}_{hourminute}_{randomSuffix}.{ext}` (e.g., `default_6-jan-2026_1714_847.jpg`)
+- Implemented expanded section state tracking using a Set to persist expanded sections across re-renders
+- Added path conversion function to transform relative image paths to absolute URLs for Blob preview compatibility
+
+#### Major Changes
+
+- **Image Upload Service** (`src/services/imageUploadService.ts`):
+
+  - **Updated Filename Generation**:
+    - Changed from UUID-based filenames to human-readable theme-date-time format
+    - Format: `{theme}_{day-month-year}_{hourminute}_{randomSuffix}.{ext}`
+    - Removed dependency on `randomUUID` from crypto module
+    - Added date/time formatting with month abbreviations (jan, feb, mar, etc.)
+    - Added 3-digit random suffix (000-999) to prevent overwrites when multiple files uploaded in same minute
+    - **Code Changed** (lines 70-77):
+      ```typescript
+      // Before:
+      import { randomUUID } from 'crypto';
+      export function generateUniqueFilename(originalName: string, theme: string): string {
+        const ext = path.extname(originalName).toLowerCase();
+        const uuid = randomUUID();
+        const filename = `${uuid}${ext}`;
+        return filename;
+      }
+      
+      // After:
+      export function generateUniqueFilename(originalName: string, theme: string): string {
+        const ext = path.extname(originalName).toLowerCase();
+        const now = new Date();
+        const day = now.getDate();
+        const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const month = monthNames[now.getMonth()];
+        const year = now.getFullYear();
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const dateStamp = `${day}-${month}-${year}`;
+        const timeStamp = `${hours}${minutes}`;
+        const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        const sanitizedTheme = theme.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+        const filename = `${sanitizedTheme}_${dateStamp}_${timeStamp}_${randomSuffix}${ext}`;
+        return filename;
+      }
+      ```
+    - **Impact**: 
+      - Filenames are now human-readable and include upload date/time
+      - Easier to identify when images were uploaded
+      - Theme name included in filename for better organization
+      - Random suffix prevents file overwrites
+
+- **Admin Menu Editor JavaScript** (`public/global/js/admin-menu-editor.js`):
+
+  - **Expanded Section State Persistence**:
+    - Added `expandedSections` Set to track which sections are expanded
+    - Sections remain expanded after re-renders (edits, saves, etc.)
+    - **Code Added** (line 12):
+      ```javascript
+      let expandedSections = new Set(); // 🟡🟡🟡 - [EXPANDED STATE] Track which sections are expanded to persist across re-renders
+      ```
+    - **Code Changed** - `toggleNestedContent()` function (lines 679-720):
+      ```javascript
+      // Before:
+      function toggleNestedContent(sectionKey) {
+        const isVisible = nestedContent.style.display !== 'none';
+        nestedContent.style.display = isVisible ? 'none' : 'block';
+        toggleBtn.textContent = isVisible ? '▼' : '▲';
+        // ... sortable initialization/cleanup
+      }
+      
+      // After:
+      function toggleNestedContent(sectionKey) {
+        const isVisible = nestedContent.style.display !== 'none';
+        
+        if (isVisible) {
+          // Collapsing - remove from expanded set
+          expandedSections.delete(sectionKey);
+          nestedContent.style.display = 'none';
+          toggleBtn.textContent = '▼';
+          // ... cleanup sortable
+        } else {
+          // Expanding - add to expanded set
+          expandedSections.add(sectionKey);
+          nestedContent.style.display = 'block';
+          toggleBtn.textContent = '▲';
+          // ... initialize sortable
+        }
+      }
+      ```
+    - **Code Changed** - `renderSectionCard()` function (lines 159, 166):
+      ```javascript
+      // Before:
+      ${hasNested ? '<button class="admin-expand-toggle" data-section-key="' + sectionKey + '">▼</button>' : ''}
+      ${hasNested ? '<div class="admin-nested-content" data-section-key="' + sectionKey + '" style="display: none;"></div>' : ''}
+      
+      // After:
+      ${hasNested ? '<button class="admin-expand-toggle" data-section-key="' + sectionKey + '">' + (expandedSections.has(sectionKey) ? '▲' : '▼') + '</button>' : ''}
+      ${hasNested ? '<div class="admin-nested-content" data-section-key="' + sectionKey + '" style="' + (expandedSections.has(sectionKey) ? 'display: block;' : 'display: none;') + '"></div>' : ''}
+      ```
+    - **Impact**: 
+      - Expanded sections remain open after re-renders
+      - Better user experience - no need to re-expand sections after edits
+      - Toggle button state (▲/▼) correctly reflects expanded state on render
+
+  - **Preview Image Loading Fix**:
+    - Added function to convert relative image paths to absolute URLs
+    - Images now load correctly in Blob URL preview
+    - **Code Added** - `convertImagePathToAbsolute()` function (lines 2198-2214):
+      ```javascript
+      // 🟡🟡🟡 - [PREVIEW] Convert relative image path to absolute URL for Blob preview
+      function convertImagePathToAbsolute(src) {
+        if (!src) return '';
+        
+        // If already absolute (starts with http:// or https://), return as-is
+        if (src.startsWith('http://') || src.startsWith('https://')) {
+          return src;
+        }
+        
+        // Convert relative path to absolute URL using current origin
+        const cleanPath = src.startsWith('/') ? src : '/' + src;
+        const absoluteUrl = window.location.origin + cleanPath;
+        
+        return absoluteUrl;
+      }
+      ```
+    - **Code Changed** - `renderSectionToHTML()` function (lines 2241-2242):
+      ```javascript
+      // Before:
+      if (src) {
+        html += `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" class="menu-preview-image" onerror="this.style.display='none';">`;
+      }
+      
+      // After:
+      if (src) {
+        // Convert relative path to absolute URL for Blob preview
+        const absoluteSrc = convertImagePathToAbsolute(src);
+        html += `<img src="${escapeHtml(absoluteSrc)}" alt="${escapeHtml(alt)}" class="menu-preview-image" onerror="this.style.display='none';">`;
+      }
+      ```
+    - **Impact**: 
+      - Images now load correctly in menu preview
+      - Works for both regular section images and popup section images
+      - Lightweight solution - only converts paths during HTML generation
+      - No additional network requests or data URI conversion needed
+
+#### Technical Details
+
+**Image Filename Format**:
+- Format: `{theme}_{day-month-year}_{hourminute}_{randomSuffix}.{ext}`
+- Example: `default_6-jan-2026_1714_847.jpg`
+- Theme name is sanitized (special characters replaced with underscores, lowercase)
+- Date format: `day-month-year` (e.g., `6-jan-2026`)
+- Time format: `hourminute` in 24-hour format (e.g., `1714` for 5:14 PM)
+- Random suffix: 3-digit number (000-999) prevents overwrites when multiple files uploaded in same minute
+- Month abbreviations: jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec
+
+**Expanded State Persistence**:
+- Uses JavaScript Set to track expanded section keys
+- State persists across all re-renders (edits, saves, section additions/deletions)
+- Sections only collapse when user manually clicks toggle button
+- Toggle button text (▲/▼) correctly reflects state on initial render
+- Nested sortables are properly initialized for expanded sections after re-render
+
+**Preview Image Path Conversion**:
+- Converts relative paths (e.g., `/public/menus/default/image.jpg`) to absolute URLs (e.g., `https://yourdomain.com/public/menus/default/image.jpg`)
+- Uses `window.location.origin` from current page context
+- Handles paths that are already absolute (http:// or https://)
+- Works for both regular section images and popup section images (since popups use same rendering function)
+- Conversion happens during HTML generation, not at runtime
+
+#### Files Modified
+
+1. **`src/services/imageUploadService.ts`**:
+   - **Lines Changed**: 
+     - Line 6: Removed `import { randomUUID } from 'crypto';`
+     - Lines 70-77: Completely rewrote `generateUniqueFilename()` function
+   - **Impact**: Image filenames now use human-readable theme-date-time format instead of UUIDs
+
+2. **`public/global/js/admin-menu-editor.js`**:
+   - **Lines Changed**:
+     - Line 12: Added `expandedSections` Set state variable
+     - Lines 159, 166: Updated `renderSectionCard()` to check expanded state and set initial display
+     - Lines 679-720: Updated `toggleNestedContent()` to track expanded state in Set
+     - Lines 2198-2214: Added `convertImagePathToAbsolute()` function
+     - Lines 2241-2242: Updated `renderSectionToHTML()` to convert image paths to absolute URLs
+   - **Impact**: 
+     - Expanded sections persist across re-renders
+     - Images load correctly in menu preview
+
+#### Testing Recommendations
+
+- **Image Filename Format**:
+  - Upload multiple images and verify filenames follow format: `{theme}_{date}_{time}_{suffix}.{ext}`
+  - Verify theme name is sanitized (special characters replaced)
+  - Test with different themes to ensure theme name appears correctly
+  - Upload multiple images in same minute - verify random suffix prevents overwrites
+  - Verify date/time format matches server timezone
+
+- **Expanded Section Persistence**:
+  - Expand a nested section (radio-group, checkbox-group, etc.)
+  - Edit the section - verify it remains expanded after save
+  - Add a new section - verify previously expanded sections remain expanded
+  - Delete a section - verify other expanded sections remain expanded
+  - Save menu - verify expanded sections remain expanded after page operations
+  - Manually collapse a section - verify it stays collapsed after re-renders
+
+- **Preview Image Loading**:
+  - Create menu with image sections
+  - Click "Preview Menu" button
+  - Verify all images load correctly in preview
+  - Test with images in popup sections - verify they load
+  - Test with images using relative paths (e.g., `/public/menus/default/image.jpg`)
+  - Test with images using absolute URLs (should work as-is)
+  - Verify images display correctly in preview for all section types
+
+#### Breaking Changes
+
+None - All changes are backward compatible and improve existing functionality.
+
+#### Migration Notes
+
+No database migration required. Existing uploaded images will retain their UUID-based filenames. New uploads will use the new format. The expanded state persistence and preview image fix work immediately without any migration.
+
+---
+
 ### January 5, 2025 @ 20:57 - Image Upload Restrictions and Menu Preview Feature
 
 **Type**: 🟠 MAJOR CHANGE

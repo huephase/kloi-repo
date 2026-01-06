@@ -9,6 +9,7 @@
   let sortableInstance = null;
   let nestedSortableInstances = {}; // 🟡🟡🟡 - [NESTED SORTABLE] Store nested sortable instances by section key
   let currentMenuState = {}; // Current state of menu sections
+  let expandedSections = new Set(); // 🟡🟡🟡 - [EXPANDED STATE] Track which sections are expanded to persist across re-renders
 
   // 🟡🟡🟡 - [INITIALIZATION] Read menu data from DOM data attributes
   function readMenuDataFromDOM() {
@@ -156,14 +157,14 @@
           <span class="admin-section-key">${sectionKey}</span>
         </div>
         <div class="admin-section-header-right">
-          ${hasNested ? '<button class="admin-expand-toggle" data-section-key="' + sectionKey + '">▼</button>' : ''}
+          ${hasNested ? '<button class="admin-expand-toggle" data-section-key="' + sectionKey + '">' + (expandedSections.has(sectionKey) ? '▲' : '▼') + '</button>' : ''}
           <button class="admin-section-edit" data-section-key="${sectionKey}" title="Edit section">✏️</button>
           <button class="admin-section-delete" data-section-key="${sectionKey}" title="Delete section">❌</button>
         </div>
       </div>
       <div class="admin-section-content">
         <div class="admin-section-preview">${escapeHtml(preview)}</div>
-        ${hasNested ? '<div class="admin-nested-content" data-section-key="' + sectionKey + '" style="display: none;"></div>' : ''}
+        ${hasNested ? '<div class="admin-nested-content" data-section-key="' + sectionKey + '" style="' + (expandedSections.has(sectionKey) ? 'display: block;' : 'display: none;') + '"></div>' : ''}
       </div>
     `;
 
@@ -685,20 +686,34 @@
     
     if (nestedContent && toggleBtn) {
       const isVisible = nestedContent.style.display !== 'none';
-      nestedContent.style.display = isVisible ? 'none' : 'block';
-      toggleBtn.textContent = isVisible ? '▼' : '▲';
       
-      // 🟡🟡🟡 - [NESTED SORTABLE] Initialize sortable when expanding, destroy when collapsing
-      if (!isVisible && currentMenuState[sectionKey]) {
-        // 🟡🟡🟡 - [INITIALIZE] Initialize sortable when expanding
-        setTimeout(() => {
-          initializeNestedSortable(nestedContent, sectionKey, currentMenuState[sectionKey]);
-        }, 50); // Small delay to ensure DOM is updated
-      } else if (isVisible && nestedSortableInstances[sectionKey]) {
+      // 🟡🟡🟡 - [EXPANDED STATE] Update expanded state tracking
+      if (isVisible) {
+        // 🟡🟡🟡 - [COLLAPSE] Collapsing - remove from expanded set
+        expandedSections.delete(sectionKey);
+        nestedContent.style.display = 'none';
+        toggleBtn.textContent = '▼';
+        
         // 🟡🟡🟡 - [CLEANUP] Destroy sortable when collapsing
-        nestedSortableInstances[sectionKey].destroy();
-        delete nestedSortableInstances[sectionKey];
+        if (nestedSortableInstances[sectionKey]) {
+          nestedSortableInstances[sectionKey].destroy();
+          delete nestedSortableInstances[sectionKey];
+        }
+      } else {
+        // 🟡🟡🟡 - [EXPAND] Expanding - add to expanded set
+        expandedSections.add(sectionKey);
+        nestedContent.style.display = 'block';
+        toggleBtn.textContent = '▲';
+        
+        // 🟡🟡🟡 - [INITIALIZE] Initialize sortable when expanding
+        if (currentMenuState[sectionKey]) {
+          setTimeout(() => {
+            initializeNestedSortable(nestedContent, sectionKey, currentMenuState[sectionKey]);
+          }, 50); // Small delay to ensure DOM is updated
+        }
       }
+      
+      console.log('🟡🟡🟡 - [ADMIN MENU EDITOR] Toggled nested content for section:', sectionKey, 'expanded:', !isVisible);
     }
   }
 
@@ -2180,6 +2195,24 @@
     }
   }
 
+  // 🟡🟡🟡 - [PREVIEW] Convert relative image path to absolute URL for Blob preview
+  function convertImagePathToAbsolute(src) {
+    if (!src) return '';
+    
+    // 🟡🟡🟡 - [ABSOLUTE URL] If already absolute (starts with http:// or https://), return as-is
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return src;
+    }
+    
+    // 🟡🟡🟡 - [RELATIVE PATH] Convert relative path to absolute URL using current origin
+    // Remove leading slash if present, then add origin
+    const cleanPath = src.startsWith('/') ? src : '/' + src;
+    const absoluteUrl = window.location.origin + cleanPath;
+    
+    console.log('🟡🟡🟡 - [MENU PREVIEW] Converting image path:', src, 'to absolute URL:', absoluteUrl);
+    return absoluteUrl;
+  }
+
   // 🟡🟡🟡 - [PREVIEW] Render a single section to HTML
   function renderSectionToHTML(sectionKey, section) {
     const htmlType = section['html-type'] || 'unknown';
@@ -2205,7 +2238,9 @@
       const caption = section.caption || '';
       html += `<div class="menu-preview-image-container">`;
       if (src) {
-        html += `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" class="menu-preview-image" onerror="this.style.display='none';">`;
+        // 🟡🟡🟡 - [ABSOLUTE URL] Convert relative path to absolute URL for Blob preview
+        const absoluteSrc = convertImagePathToAbsolute(src);
+        html += `<img src="${escapeHtml(absoluteSrc)}" alt="${escapeHtml(alt)}" class="menu-preview-image" onerror="this.style.display='none';">`;
       }
       if (caption) {
         html += `<p class="menu-preview-image-caption">${escapeHtml(caption)}</p>`;

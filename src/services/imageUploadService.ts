@@ -3,7 +3,6 @@
 import { MultipartFile } from '@fastify/multipart';
 import fs from 'fs';
 import path from 'path';
-import { randomUUID } from 'crypto';
 
 // 🟡🟡🟡 - [CONSTANTS] Image upload configuration
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
@@ -67,11 +66,37 @@ export async function validateImageFile(file: MultipartFile, maxSize: number = M
   return { valid: true, buffer: buffer };
 }
 
-// 🟡🟡🟡 - [FILENAME] Generate unique filename with UUID
+// 🟡🟡🟡 - [FILENAME] Generate unique filename with theme name and date-time stamp
 export function generateUniqueFilename(originalName: string, theme: string): string {
   const ext = path.extname(originalName).toLowerCase();
-  const uuid = randomUUID();
-  const filename = `${uuid}${ext}`;
+  
+  // 🟡🟡🟡 - [DATE] Get current server date and time
+  const now = new Date();
+  const day = now.getDate(); // Day of month (1-31)
+  const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const month = monthNames[now.getMonth()]; // 3-letter month abbreviation (lowercase)
+  const year = now.getFullYear(); // Full year (e.g., 2026)
+  const hours = now.getHours().toString().padStart(2, '0'); // Hours (00-23)
+  const minutes = now.getMinutes().toString().padStart(2, '0'); // Minutes (00-59)
+  
+  // 🟡🟡🟡 - [TIMESTAMP] Format date-time stamp: day-month-year_hourminute
+  // Format matches user request: {theme}_{day-month-year_hourminute}_{randomSuffix}.{ext}
+  // Example: default_6-jan-2026_1714_847.jpg
+  const dateStamp = `${day}-${month}-${year}`;
+  const timeStamp = `${hours}${minutes}`;
+  const dateTimeStamp = `${dateStamp}_${timeStamp}`;
+  
+  // 🟡🟡🟡 - [RANDOM SUFFIX] Generate random 3-digit suffix to prevent overwrites
+  // Ensures uniqueness even if multiple files uploaded in same minute
+  const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  
+  // 🟡🟡🟡 - [SANITIZE] Sanitize theme name to ensure filesystem-safe filename
+  // Remove any characters that might cause issues in filenames
+  const sanitizedTheme = theme.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+  
+  // 🟡🟡🟡 - [FILENAME] Generate filename: {theme}_{date-time-stamp}_{randomSuffix}.{ext}
+  const filename = `${sanitizedTheme}_${dateTimeStamp}_${randomSuffix}${ext}`;
+  
   console.log('🟡🟡🟡 - [IMAGE UPLOAD] Generated unique filename:', filename, 'for theme:', theme);
   return filename;
 }
