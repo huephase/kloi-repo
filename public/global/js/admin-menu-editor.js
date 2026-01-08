@@ -2569,11 +2569,186 @@
       height: 20px;
       cursor: pointer;
     }
+    .menu-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    .menu-preview-title {
+      margin: 0;
+      color: #0066cc;
+    }
+    .menu-preview-print-button {
+      padding: 0.75rem 1.5rem;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: background 0.2s;
+    }
+    .menu-preview-print-button:hover {
+      background: #0052a3;
+    }
+    .menu-preview-print-button:active {
+      transform: translateY(1px);
+    }
+    /* 🟡🟡🟡 - [PRINT STYLES] Print-optimized styles for A4 paper */
+    @media print {
+      * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+      body {
+        background: white;
+        padding: 0.5cm;
+        font-size: 10pt;
+        line-height: 1.2 !important;
+        color: #000;
+      }
+      .menu-preview-container {
+        padding: 0;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      .menu-preview-header {
+        display: none;
+      }
+      .menu-preview-section {
+        margin-bottom: 0.5rem;
+        page-break-inside: avoid;
+      }
+      .menu-preview-h1 {
+        font-size: 18pt;
+        margin-bottom: 0.3rem;
+        margin-top: 0.5rem;
+        line-height: 1.2;
+        page-break-after: avoid;
+      }
+      .menu-preview-h2 {
+        font-size: 14pt;
+        margin-bottom: 0.3rem;
+        margin-top: 0.8rem;
+        line-height: 1.2;
+        page-break-after: avoid;
+      }
+      .menu-preview-p {
+        font-size: 10pt;
+        margin-bottom: 0.3rem;
+        line-height: 1.2;
+      }
+      .menu-preview-image-container {
+        margin: 0.5rem 0;
+        page-break-inside: avoid;
+      }
+      .menu-preview-image {
+        max-width: 100%;
+        max-height: 4cm;
+        object-fit: contain;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .menu-preview-image-caption {
+        margin-top: 0.2rem;
+        font-size: 8pt;
+        line-height: 1.2;
+      }
+      .menu-preview-list {
+        margin: 0.3rem 0;
+        padding-left: 1.2rem;
+      }
+      .menu-preview-list li {
+        margin-bottom: 0.2rem;
+        font-size: 10pt;
+        line-height: 1.2;
+      }
+      .menu-preview-radio-group,
+      .menu-preview-checkbox-group,
+      .menu-preview-div-group,
+      .menu-preview-addon-group {
+        margin: 0.5rem 0;
+      }
+      .menu-preview-radio-item,
+      .menu-preview-checkbox-item,
+      .menu-preview-div-item,
+      .menu-preview-addon-item {
+        padding: 0.3rem 0.5rem;
+        margin-bottom: 0.3rem;
+        border: 1px solid #ccc;
+        border-radius: 0;
+        background: white;
+        page-break-inside: avoid;
+      }
+      .menu-preview-radio-header {
+        gap: 0.5rem;
+      }
+      .menu-preview-radio-label,
+      .menu-preview-checkbox-label,
+      .menu-preview-div-label,
+      .menu-preview-addon-label {
+        font-size: 10pt;
+        line-height: 1.2;
+      }
+      .menu-preview-radio-price,
+      .menu-preview-checkbox-price,
+      .menu-preview-div-price,
+      .menu-preview-addon-price {
+        font-size: 10pt;
+        line-height: 1.2;
+      }
+      .menu-preview-radio-description {
+        margin-top: 0.2rem;
+        font-size: 9pt;
+        line-height: 1.2;
+      }
+      .menu-preview-popup-toggle {
+        display: none !important;
+      }
+      .menu-preview-popup-content {
+        display: block !important;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 0;
+        page-break-inside: avoid;
+      }
+      .menu-preview-popup-sections {
+        gap: 0.3rem;
+      }
+      .menu-preview-radio-input,
+      .menu-preview-checkbox-input {
+        width: 14px;
+        height: 14px;
+      }
+      /* 🟡🟡🟡 - [PRINT OPTIMIZATION] Prevent page breaks in awkward places */
+      h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+      }
+      img {
+        page-break-inside: avoid;
+        page-break-after: avoid;
+      }
+      /* 🟡🟡🟡 - [PRINT OPTIMIZATION] Optimize for A4 (210mm x 297mm) */
+      @page {
+        size: A4;
+        margin: 1cm;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="menu-preview-container">
-    <h1 style="margin-bottom: 2rem; color: #0066cc;">Menu Preview</h1>
+    <div class="menu-preview-header">
+      <h1 class="menu-preview-title">Menu Preview</h1>
+      <button class="menu-preview-print-button" onclick="handlePrintMenu()">🖨️ Print Menu</button>
+    </div>
     ${sectionsHTML}
   </div>
   <script>
@@ -2592,6 +2767,32 @@
         });
       });
     });
+
+    // 🟡🟡🟡 - [PRINT HANDLER] Handle print menu functionality
+    function handlePrintMenu() {
+      console.log('🟡🟡🟡 - [PRINT MENU] Preparing menu for printing');
+      
+      // 🟡🟡🟡 - [EXPAND POPUPS] Expand all collapsed popups before printing
+      const popups = document.querySelectorAll('.menu-preview-popup-content');
+      let expandedCount = 0;
+      popups.forEach(popup => {
+        if (popup.style.display === 'none') {
+          popup.style.display = 'block';
+          expandedCount++;
+        }
+      });
+      
+      if (expandedCount > 0) {
+        console.log('✅✅✅ - [PRINT MENU] Expanded', expandedCount, 'collapsed popups for printing');
+      }
+      
+      // 🟡🟡🟡 - [PRINT] Trigger browser print dialog
+      // Small delay to ensure DOM updates are applied
+      setTimeout(() => {
+        window.print();
+        console.log('✅✅✅ - [PRINT MENU] Print dialog opened');
+      }, 100);
+    }
   </script>
 </body>
 </html>`;
