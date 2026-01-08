@@ -165,9 +165,9 @@
 
 
 .view-details-btn {
-    background: var(--kloi-background);
-    color: var(--kloi-accent);
-    border: none;
+    background: var(--kloi-accent);
+    color: var(--kloi-text);
+    border: 1px solid var(--kloi-text);
     padding: 10px 20px;
     border-radius: 6px;
     cursor: pointer;
