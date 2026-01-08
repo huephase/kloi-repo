@@ -165,7 +165,7 @@
 
 
 .view-details-btn {
-    background: var(--kloi-white);
+    background: var(--kloi-background);
     color: var(--kloi-accent);
     border: none;
     padding: 10px 20px;

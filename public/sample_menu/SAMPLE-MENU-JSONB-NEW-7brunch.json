@@ -1,0 +1,194 @@
+{
+  "section1": {
+    "order": 1,
+    "content": "7Brunch Event Menu",
+    "html-type": "h1"
+  },
+  "section2": {
+    "order": 2,
+    "content": "Finest Coffee Selections",
+    "html-type": "p"
+  },
+  "section3": {
+    "alt": "Specialty Coffee and Brunch",
+    "src": "/public/themes/7brunch/images/7brunch-hero.jpg",
+    "order": 3,
+    "caption": "",
+    "html-type": "image"
+  },
+  "section4": {
+    "order": 4,
+    "content": "Please select your menu",
+    "html-type": "h2"
+  },
+  "section5": {
+    "order": 6,
+    "content": {
+      "radio1": {
+        "label": "Speciality Coffee Only",
+        "popup": {
+          "section1": {
+            "alt": "7Brunch Espresso",
+            "src": "/public/menus/7brunch/7brunch_7-jan-2026_1106_975.jpg",
+            "caption": "",
+            "html-type": "image"
+          },
+          "section2": {
+            "content": "Our curated selection of specialty coffees, crafted with precision and passion. From robust, espresso-forward creations to smooth, creamy blends, every cup is designed to highlight the character of our beans and the art of perfect extraction. Whether you prefer your coffee hot or cold, bold or balanced.",
+            "html-type": "p"
+          },
+          "section3": {
+            "content": [
+              "Signature Latte",
+              "Spanish Latte",
+              "Espresso",
+              "Long Black",
+              "Latte, Cappuccino, Flat White, Piccolo, Cortado",
+              "Cold Drip"
+            ],
+            "html-type": "unordered-list"
+          }
+        },
+        "price": 28,
+        "description": "Black and Milk-based Coffee Selections",
+        "price-basis": "Per guest"
+      },
+      "radio2": {
+        "label": "Coffee and Specialty Drinks",
+        "popup": {
+          "section1": {
+            "alt": "",
+            "src": "",
+            "caption": "",
+            "html-type": "image"
+          },
+          "section2": {
+            "content": "Includes specialty Coffee, Matcha, and fine Teas",
+            "html-type": "p"
+          },
+          "section3": {
+            "content": [
+              "Full Specialty Coffee Menu",
+              "Matcha and Teas Menu",
+              "Fresh juice",
+              "Premium Water"
+            ],
+            "html-type": "unordered-list"
+          }
+        },
+        "price": 30,
+        "description": "Full selection of Specialty Coffee and Teas",
+        "price-basis": "Per guest"
+      },
+      "radio3": {
+        "label": "Specialty Coffee & Pastries",
+        "popup": {
+          "section1": {
+            "alt": "",
+            "src": "",
+            "caption": "",
+            "html-type": "image"
+          },
+          "section2": {
+            "content": "Coffee and pastries go hand in hand — this menu brings you the complete coffee experience, paired with our selection of fine pastries that everyone loves.",
+            "html-type": "p"
+          },
+          "section3": {
+            "content": [
+              "Full Specialty Coffee Menu",
+              "Matcha and Teas Menu",
+              "Fresh juice",
+              "Premium Water",
+              "Mini Brownie",
+              "Mini Date Bites"
+            ],
+            "html-type": "unordered-list"
+          }
+        },
+        "price": 36,
+        "description": "Our Specialty Coffee Menu with Small Bites",
+        "price-basis": "Per guest"
+      }
+    },
+    "html-type": "radio-group"
+  },
+  "section6": {
+    "order": 7,
+    "content": "Add Ons",
+    "html-type": "h2",
+    "addon-items": {
+      "F7": {
+        "label": "F7 Premium Beans",
+        "price": 77,
+        "price-basis": "Per guest"
+      },
+      "Pastry": {
+        "label": "Creme Brulee",
+        "price": 35,
+        "price-basis": "Per guest"
+      },
+      "Cookies": {
+        "label": "Premium Cookies (Hazelnut, Kinder, Oreo, Pistachio, Red Velvet)",
+        "price": 16,
+        "price-basis": "Per guest"
+      },
+      "Pastry 2": {
+        "label": "Lemon or Marble Cake",
+        "price": 12,
+        "price-basis": "Per guest"
+      },
+      "zero-sugar": {
+        "label": "Croissant (Plain / Almond)",
+        "price": 15,
+        "price-basis": "Per guest"
+      },
+      "seasonal-offer": {
+        "label": "Cinnamon Roll",
+        "price": 20,
+        "price-basis": "Per guest"
+      }
+    }
+  },
+  "section7": {
+    "order": 8,
+    "content": "Select Your Upgrades Below",
+    "html-type": "h2"
+  },
+  "section8": {
+    "order": 9,
+    "content": {
+      "checbox2": {
+        "label": "Kids Menu",
+        "price": 15,
+        "price-basis": "Per guest"
+      },
+      "checkbox3": {
+        "label": "Non-Dairy options Almond / Coconut / Oatly / Low Fat / Lactose Free",
+        "price": 4,
+        "price-basis": "Per guest"
+      },
+      "checkbox4": {
+        "label": "Live DJ",
+        "price": 1500,
+        "price-basis": "Per day"
+      }
+    },
+    "html-type": "checkbox-group"
+  },
+  "section9": {
+    "order": 10,
+    "content": {
+      "minimum-value-per-day": {
+        "label": "Minimum Order Per Day",
+        "price": 3500,
+        "price-basis": "Per day"
+      },
+      "minimum-value-per-event": {
+        "label": "Minimum Order Per Event",
+        "price": 0,
+        "price-basis": "Per event"
+      }
+    },
+    "html-type": "div-group"
+  }
+}

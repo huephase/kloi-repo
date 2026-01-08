@@ -89,6 +89,40 @@
     return `section${maxNum + 1}`;
   }
 
+  // 🟡🟡🟡 2025-01-08 - [AUTO-GENERATE KEY] Get next available nested item key
+  function generateNextNestedItemKey(sectionKey, itemType) {
+    console.log('🟡🟡🟡 - [AUTO-GENERATE KEY] Generating key for section:', sectionKey, 'itemType:', itemType);
+    
+    const section = currentMenuState[sectionKey];
+    if (!section) {
+      console.error('❗❗❗ - [AUTO-GENERATE KEY] Section not found:', sectionKey);
+      return `${itemType}1`;
+    }
+
+    // 🟡🟡🟡 2025-01-08 - Get existing keys based on item type
+    let existingKeys = [];
+    if (itemType === 'addon') {
+      existingKeys = section['addon-items'] ? Object.keys(section['addon-items']) : [];
+    } else {
+      existingKeys = section.content ? Object.keys(section.content) : [];
+    }
+
+    // 🟡🟡🟡 2025-01-08 - Find the highest number for this item type
+    const numbers = existingKeys
+      .map(key => {
+        // Match patterns like "radio1", "checkbox2", "checbox3" (note typo in original data)
+        const match = key.match(new RegExp(`^${itemType}(\\d+)$`, 'i'));
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => num > 0);
+
+    const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+    const newKey = `${itemType}${maxNum + 1}`;
+    
+    console.log('✅✅✅ - [AUTO-GENERATE KEY] Generated key:', newKey, 'from existing keys:', existingKeys);
+    return newKey;
+  }
+
   // 🟡🟡🟡 - [SECTION RENDERING] Get preview text for section
   function getSectionPreview(section) {
     const htmlType = section['html-type'] || 'unknown';
@@ -751,13 +785,13 @@
       { value: 'unordered-list', label: 'Unordered List' }
     ];
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content">
         <div class="admin-modal-header">
           <h3>Add New Section</h3>
-          <button class="admin-modal-close">&times;</button>
         </div>
         <div class="admin-modal-body">
           <div class="admin-form-group">
@@ -776,21 +810,18 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       const htmlType = document.getElementById('new-section-html-type').value;
       createNewSection(htmlType, insertAfterSectionKey);
       closeModal();
-    });
-
-    // Close on backdrop click
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
     });
   }
 
@@ -851,19 +882,16 @@
       return;
     }
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
+    // 🟡🟡🟡 2025-01-08 - [AUTO-GENERATE KEY] Item key is auto-generated, no longer shown to user
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content">
         <div class="admin-modal-header">
           <h3>Add New ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Item</h3>
-          <button class="admin-modal-close">&times;</button>
         </div>
         <div class="admin-modal-body">
-          <div class="admin-form-group">
-            <label>Item Key (identifier):</label>
-            <input type="text" id="new-nested-item-key" class="admin-form-input" placeholder="e.g., option1, item1">
-          </div>
           <div class="admin-form-group">
             <label>Label:</label>
             <input type="text" id="new-nested-item-label" class="admin-form-input" placeholder="Item label">
@@ -875,10 +903,9 @@
           <div class="admin-form-group">
             <label>Price Basis:</label>
             <select id="new-nested-item-price-basis" class="admin-form-input">
-              <option value="">Select price basis</option>
               <option value="Per day">Per day</option>
               <option value="Per event">Per event</option>
-              <option value="Per guest">Per guest</option>
+              <option value="Per guest" selected>Per guest</option>
             </select>
           </div>
           ${itemType === 'radio' ? `
@@ -897,30 +924,32 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
-      const itemKey = document.getElementById('new-nested-item-key').value.trim();
       const label = document.getElementById('new-nested-item-label').value.trim();
       const price = parseFloat(document.getElementById('new-nested-item-price').value) || 0;
-      const priceBasis = document.getElementById('new-nested-item-price-basis').value.trim();
+      // ⚠️⚠️⚠️ 2025-01-08 - [PRICE BASIS] Default to "Per guest" if empty to prevent invalid data
+      const priceBasis = document.getElementById('new-nested-item-price-basis').value.trim() || 'Per guest';
       const description = itemType === 'radio' ? document.getElementById('new-nested-item-description').value.trim() : '';
 
-      if (!itemKey) {
-        alert('Please enter an item key');
+      // 🟡🟡🟡 2025-01-08 - [AUTO-GENERATE KEY] Generate unique item key automatically
+      const itemKey = generateNextNestedItemKey(sectionKey, itemType);
+      console.log('✅✅✅ - [ADMIN MENU EDITOR] Auto-generated item key:', itemKey);
+
+      if (!label) {
+        alert('Please enter a label');
         return;
       }
 
       createNewNestedItem(sectionKey, itemType, itemKey, { label, price, 'price-basis': priceBasis, description }, insertAfterItemKey);
       closeModal();
-    });
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
     });
   }
 
@@ -946,10 +975,11 @@
     }
 
     // 🟡🟡🟡 - [CREATE] Create new item object
+    // ⚠️⚠️⚠️ 2025-01-08 - [PRICE BASIS] Default to "Per guest" if empty to prevent invalid data
     const newItem = {
       label: itemData.label || itemKey,
       price: itemData.price || 0,
-      'price-basis': itemData['price-basis'] || ''
+      'price-basis': itemData['price-basis'] || 'Per guest'
     };
 
     if (itemType === 'radio' && itemData.description) {
@@ -1098,13 +1128,13 @@
       `;
     }
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content admin-modal-large">
         <div class="admin-modal-header">
           <h3>Edit Section: ${sectionKey} (${htmlType})</h3>
-          <button class="admin-modal-close">&times;</button>
         </div>
         <div class="admin-modal-body">
           ${modalContent}
@@ -1118,12 +1148,14 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       saveSectionChanges(sectionKey, section, htmlType, modal);
       closeModal();
@@ -1150,10 +1182,6 @@
         });
       }
     }
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
-    });
   }
 
   // 🟡🟡🟡 - [SECTION MANAGEMENT] Save section changes
@@ -1205,14 +1233,14 @@
   }
 
   // 🟡🟡🟡 - [MODAL] Show edit radio modal
+  // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
   function showEditRadioModal(sectionKey, radioKey, radio) {
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content admin-modal-large">
         <div class="admin-modal-header">
-          <h3>Edit Radio Option: ${radioKey}</h3>
-          <button class="admin-modal-close">&times;</button>
+          <h3>Edit Radio Option</h3>
         </div>
         <div class="admin-modal-body">
           <div class="admin-form-group">
@@ -1226,10 +1254,9 @@
           <div class="admin-form-group">
             <label>Price Basis:</label>
             <select id="edit-radio-price-basis" class="admin-form-input">
-              <option value="">Select price basis</option>
               <option value="Per day"${radio['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
               <option value="Per event"${radio['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
-              <option value="Per guest"${radio['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+              <option value="Per guest"${radio['price-basis'] === 'Per guest' || !radio['price-basis'] ? ' selected' : ''}>Per guest</option>
             </select>
           </div>
           <div class="admin-form-group">
@@ -1246,12 +1273,14 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       const labelInput = modal.querySelector('#edit-radio-label');
       const priceInput = modal.querySelector('#edit-radio-price');
@@ -1260,7 +1289,8 @@
 
       if (labelInput) radio.label = labelInput.value.trim();
       if (priceInput) radio.price = parseFloat(priceInput.value) || 0;
-      if (priceBasisInput) radio['price-basis'] = priceBasisInput.value.trim();
+      // ⚠️⚠️⚠️ 2025-01-08 - [PRICE BASIS] Default to "Per guest" if empty to prevent invalid data
+      if (priceBasisInput) radio['price-basis'] = priceBasisInput.value.trim() || 'Per guest';
       if (descriptionInput) radio.description = descriptionInput.value.trim();
 
       // Preserve popup if it exists
@@ -1270,10 +1300,6 @@
       renderSections();
       closeModal();
       console.log('✅✅✅ - [ADMIN MENU EDITOR] Radio option updated:', radioKey);
-    });
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
     });
   }
 
@@ -1301,14 +1327,14 @@
   }
 
   // 🟡🟡🟡 - [MODAL] Show edit checkbox modal
+  // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
   function showEditCheckboxModal(sectionKey, checkboxKey, checkbox) {
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content">
         <div class="admin-modal-header">
-          <h3>Edit Checkbox Item: ${checkboxKey}</h3>
-          <button class="admin-modal-close">&times;</button>
+          <h3>Edit Checkbox Item</h3>
         </div>
         <div class="admin-modal-body">
           <div class="admin-form-group">
@@ -1322,10 +1348,9 @@
           <div class="admin-form-group">
             <label>Price Basis:</label>
             <select id="edit-checkbox-price-basis" class="admin-form-input">
-              <option value="">Select price basis</option>
               <option value="Per day"${checkbox['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
               <option value="Per event"${checkbox['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
-              <option value="Per guest"${checkbox['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+              <option value="Per guest"${checkbox['price-basis'] === 'Per guest' || !checkbox['price-basis'] ? ' selected' : ''}>Per guest</option>
             </select>
           </div>
         </div>
@@ -1338,12 +1363,14 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       const labelInput = modal.querySelector('#edit-checkbox-label');
       const priceInput = modal.querySelector('#edit-checkbox-price');
@@ -1351,16 +1378,13 @@
 
       if (labelInput) checkbox.label = labelInput.value.trim();
       if (priceInput) checkbox.price = parseFloat(priceInput.value) || 0;
-      if (priceBasisInput) checkbox['price-basis'] = priceBasisInput.value.trim();
+      // ⚠️⚠️⚠️ 2025-01-08 - [PRICE BASIS] Default to "Per guest" if empty to prevent invalid data
+      if (priceBasisInput) checkbox['price-basis'] = priceBasisInput.value.trim() || 'Per guest';
 
       currentMenuState[sectionKey].content[checkboxKey] = checkbox;
       renderSections();
       closeModal();
       console.log('✅✅✅ - [ADMIN MENU EDITOR] Checkbox item updated:', checkboxKey);
-    });
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
     });
   }
 
@@ -1388,14 +1412,14 @@
   }
 
   // 🟡🟡🟡 - [MODAL] Show edit div modal
+  // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
   function showEditDivModal(sectionKey, divKey, div) {
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content">
         <div class="admin-modal-header">
-          <h3>Edit Div Item: ${divKey}</h3>
-          <button class="admin-modal-close">&times;</button>
+          <h3>Edit Div Item</h3>
         </div>
         <div class="admin-modal-body">
           <div class="admin-form-group">
@@ -1409,10 +1433,9 @@
           <div class="admin-form-group">
             <label>Price Basis:</label>
             <select id="edit-div-price-basis" class="admin-form-input">
-              <option value="">Select price basis</option>
               <option value="Per day"${div['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
               <option value="Per event"${div['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
-              <option value="Per guest"${div['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+              <option value="Per guest"${div['price-basis'] === 'Per guest' || !div['price-basis'] ? ' selected' : ''}>Per guest</option>
             </select>
           </div>
         </div>
@@ -1425,12 +1448,14 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       const labelInput = modal.querySelector('#edit-div-label');
       const priceInput = modal.querySelector('#edit-div-price');
@@ -1438,16 +1463,13 @@
 
       if (labelInput) div.label = labelInput.value.trim();
       if (priceInput) div.price = parseFloat(priceInput.value) || 0;
-      if (priceBasisInput) div['price-basis'] = priceBasisInput.value.trim();
+      // ⚠️⚠️⚠️ 2025-01-08 - [PRICE BASIS] Default to "Per guest" if empty to prevent invalid data
+      if (priceBasisInput) div['price-basis'] = priceBasisInput.value.trim() || 'Per guest';
 
       currentMenuState[sectionKey].content[divKey] = div;
       renderSections();
       closeModal();
       console.log('✅✅✅ - [ADMIN MENU EDITOR] Div item updated:', divKey);
-    });
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
     });
   }
 
@@ -1475,14 +1497,14 @@
   }
 
   // 🟡🟡🟡 - [MODAL] Show edit addon modal
+  // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
   function showEditAddonModal(sectionKey, addonKey, addon) {
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content">
         <div class="admin-modal-header">
-          <h3>Edit Addon Item: ${addonKey}</h3>
-          <button class="admin-modal-close">&times;</button>
+          <h3>Edit Addon Item</h3>
         </div>
         <div class="admin-modal-body">
           <div class="admin-form-group">
@@ -1496,10 +1518,9 @@
           <div class="admin-form-group">
             <label>Price Basis:</label>
             <select id="edit-addon-price-basis" class="admin-form-input">
-              <option value="">Select price basis</option>
               <option value="Per day"${addon['price-basis'] === 'Per day' ? ' selected' : ''}>Per day</option>
               <option value="Per event"${addon['price-basis'] === 'Per event' ? ' selected' : ''}>Per event</option>
-              <option value="Per guest"${addon['price-basis'] === 'Per guest' ? ' selected' : ''}>Per guest</option>
+              <option value="Per guest"${addon['price-basis'] === 'Per guest' || !addon['price-basis'] ? ' selected' : ''}>Per guest</option>
             </select>
           </div>
         </div>
@@ -1512,12 +1533,14 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       const labelInput = modal.querySelector('#edit-addon-label');
       const priceInput = modal.querySelector('#edit-addon-price');
@@ -1525,16 +1548,13 @@
 
       if (labelInput) addon.label = labelInput.value.trim();
       if (priceInput) addon.price = parseFloat(priceInput.value) || 0;
-      if (priceBasisInput) addon['price-basis'] = priceBasisInput.value.trim();
+      // ⚠️⚠️⚠️ 2025-01-08 - [PRICE BASIS] Default to "Per guest" if empty to prevent invalid data
+      if (priceBasisInput) addon['price-basis'] = priceBasisInput.value.trim() || 'Per guest';
 
       currentMenuState[sectionKey]['addon-items'][addonKey] = addon;
       renderSections();
       closeModal();
       console.log('✅✅✅ - [ADMIN MENU EDITOR] Addon item updated:', addonKey);
-    });
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
     });
   }
 
@@ -1619,13 +1639,13 @@
       `;
     }
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Modal can only be closed via Cancel or Confirm buttons to prevent accidental data loss
     const modal = document.createElement('div');
     modal.className = 'admin-modal';
     modal.innerHTML = `
       <div class="admin-modal-content admin-modal-large">
         <div class="admin-modal-header">
           <h3>Edit Popup Section: ${popupSectionKey} (${htmlType})</h3>
-          <button class="admin-modal-close">&times;</button>
         </div>
         <div class="admin-modal-body">
           ${modalContent}
@@ -1639,12 +1659,14 @@
 
     document.body.appendChild(modal);
 
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Close modal function - only called by Cancel or Confirm buttons
     const closeModal = () => {
       document.body.removeChild(modal);
     };
 
-    modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Cancel button discards changes and closes modal
     modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+    // ⚠️⚠️⚠️ 2025-01-XX - [MODAL] Confirm button saves changes and closes modal
     modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
       savePopupSectionChanges(sectionKey, radioKey, popupSectionKey, popupSection, htmlType, modal);
       closeModal();
@@ -1671,10 +1693,6 @@
         });
       }
     }
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
-    });
   }
 
   // 🟡🟡🟡 - [POPUP SECTIONS] Save popup section changes

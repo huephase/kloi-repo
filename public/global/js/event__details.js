@@ -508,26 +508,46 @@ function initializeFieldValidation() {
     }
     
     // Email field validation (always visible, optional but needs format validation)
+    // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Fixed to properly update validation state when email is corrected
     const emailInput = document.getElementById('email');
     if (emailInput) {
+        // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Real-time validation that updates HTML5 validation state
         emailInput.addEventListener('input', function() {
+            const value = this.value.trim();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Always clear custom validity on input
+            // This ensures the browser can re-evaluate the field's validity state
+            this.setCustomValidity('');
+            
+            // Update visual styling
             validateEmail(this);
+            
+            // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] If email is empty or valid, ensure no validation blocks submission
+            if (value === '' || emailRegex.test(value)) {
+                // Force browser to recognize field as valid by clearing any remaining validity issues
+                this.setCustomValidity('');
+            }
         });
+        
         emailInput.addEventListener('blur', function() {
             validateEmail(this);
+            // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Ensure validity is updated on blur
+            const value = this.value.trim();
+            if (value === '' || this.validity.valid) {
+                this.setCustomValidity(''); // Clear any custom validity message
+            }
         });
         
         // 🟡🟡🟡 - [CUSTOM VALIDATION] Custom validation for email format (only once)
         if (!emailInput.hasAttribute('data-custom-validation-applied')) {
             emailInput.addEventListener('invalid', function() {
-                if (this.validity.typeMismatch) {
+                // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Only set custom message if email is actually invalid
+                if (this.validity.typeMismatch && this.value.trim() !== '') {
                     this.setCustomValidity('📧 Please enter a valid email address (example@domain.com)');
-                }
-            });
-            
-            emailInput.addEventListener('input', function() {
-                if (this.validity.valid) {
-                    this.setCustomValidity(''); // Clear custom message when email becomes valid
+                } else {
+                    // If empty, don't block - email is optional
+                    this.setCustomValidity('');
                 }
             });
             
@@ -727,6 +747,7 @@ function validateStreet(input) {
 }
 
 // 🟡🟡🟡 - [VALIDATION] Email: Standard email validation
+// ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Updated to properly clear HTML5 validation state when email is corrected
 function validateEmail(input) {
     const value = input.value.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -734,8 +755,19 @@ function validateEmail(input) {
     // Remove validation styling first
     input.classList.remove('invalid-email');
     
-    if (value !== '' && !emailRegex.test(value)) {
+    // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Clear custom validity when email is empty or valid
+    // This ensures the form can be submitted when email is corrected from invalid to valid
+    if (value === '' || emailRegex.test(value)) {
+        input.setCustomValidity(''); // Clear custom validity message
+        input.classList.remove('invalid-email');
+    } else {
+        // Email has value but is invalid format
         input.classList.add('invalid-email');
+        // Only set custom validity if the browser's native validation also considers it invalid
+        // This prevents blocking submission when email is corrected
+        if (input.validity.typeMismatch) {
+            input.setCustomValidity('📧 Please enter a valid email address (example@domain.com)');
+        }
     }
 }
 

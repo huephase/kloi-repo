@@ -14,6 +14,340 @@
 
 ---
 
+### January 8, 2026 @ 20:04 - Admin Menu Editor UX Improvements & Email Validation Fix
+
+**Type**: 🟢 DIRECTION CHANGE
+
+**Summary**: Improved admin menu editor user experience by preventing accidental data loss, simplifying item creation workflow, and fixing email validation behavior. All modals now only close via explicit Cancel or Save buttons (removed close buttons and click-outside handlers). Item keys are now auto-generated and hidden from users. Price basis validation now defaults to "Per guest" and prevents empty values. Fixed email validation in event details form to properly update when invalid emails are corrected.
+
+#### Major Changes
+
+- **Modal Closing Behavior Fix** (`public/global/js/admin-menu-editor.js`):
+  - **Removed Close Buttons and Click-Outside Handlers** (8 modals affected):
+    - **Root Cause**: Modals were closing when clicking outside or using the × button, causing users to lose their work
+    - **Fix Applied**: Removed all close buttons and click-outside event handlers from all modals
+    - **Modals Updated**:
+      1. **Add New Section Modal** (Lines 788-825):
+         - Removed: `<button class="admin-modal-close">&times;</button>` (Line 760)
+         - Removed: `modal.querySelector('.admin-modal-close').addEventListener('click', closeModal)` (Line 783)
+         - Removed: `modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); })` (Lines 791-794)
+         - **Impact**: Users can only close via Cancel or Add Section buttons
+      2. **Add New Nested Item Modal** (Lines 877-954):
+         - Removed: Close button from header (Line 860)
+         - Removed: Close button event listener (Line 904)
+         - Removed: Click-outside handler (Lines 922-924)
+         - **Impact**: Users can only close via Cancel or Add Item buttons
+      3. **Edit Section Modal** (Lines 1066-1184):
+         - Removed: Close button from header (Line 1107)
+         - Removed: Close button event listener (Line 1125)
+         - Removed: Click-outside handler (Lines 1154-1156)
+         - **Impact**: Users can only close via Cancel or Save Changes buttons
+      4. **Edit Radio Option Modal** (Lines 1234-1303):
+         - Removed: Close button from header (Line 1215)
+         - Removed: Close button event listener (Line 1253)
+         - Removed: Click-outside handler (Lines 1275-1277)
+         - **Impact**: Users can only close via Cancel or Save Changes buttons
+      5. **Edit Checkbox Item Modal** (Lines 1328-1388):
+         - Removed: Close button from header (Line 1311)
+         - Removed: Close button event listener (Line 1345)
+         - Removed: Click-outside handler (Lines 1362-1364)
+         - **Impact**: Users can only close via Cancel or Save Changes buttons
+      6. **Edit Div Item Modal** (Lines 1413-1473):
+         - Removed: Close button from header (Line 1398)
+         - Removed: Close button event listener (Line 1432)
+         - Removed: Click-outside handler (Lines 1449-1451)
+         - **Impact**: Users can only close via Cancel or Save Changes buttons
+      7. **Edit Addon Item Modal** (Lines 1498-1558):
+         - Removed: Close button from header (Line 1485)
+         - Removed: Close button event listener (Line 1519)
+         - Removed: Click-outside handler (Lines 1536-1538)
+         - **Impact**: Users can only close via Cancel or Save Changes buttons
+      8. **Edit Popup Section Modal** (Lines 1587-1695):
+         - Removed: Close button from header (Line 1628)
+         - Removed: Close button event listener (Line 1646)
+         - Removed: Click-outside handler (Lines 1675-1677)
+         - **Impact**: Users can only close via Cancel or Save Changes buttons
+    - **Code Pattern Applied**:
+      ```javascript
+      // Before
+      <button class="admin-modal-close">&times;</button>
+      modal.querySelector('.admin-modal-close').addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      
+      // After
+      // Close button removed from HTML
+      // Only Cancel and Confirm buttons remain
+      modal.querySelector('.admin-modal-cancel').addEventListener('click', closeModal);
+      modal.querySelector('.admin-modal-confirm').addEventListener('click', () => {
+        // Save logic here
+        closeModal();
+      });
+      ```
+    - **Impact**: Prevents accidental data loss when users click outside modals or accidentally click close buttons
+
+- **User-Friendly Modal Headers** (`public/global/js/admin-menu-editor.js`):
+  - **Removed Item Keys from Edit Modal Headers**:
+    - **Root Cause**: Headers showed technical keys like "Edit Checkbox Item: checkbox3" which were not user-friendly
+    - **Fix Applied**: Removed item key display from all edit modal headers
+    - **Modals Updated**:
+      1. **Edit Radio Option Modal** (Line 1242):
+         - **Before**: `<h3>Edit Radio Option: ${radioKey}</h3>`
+         - **After**: `<h3>Edit Radio Option</h3>`
+      2. **Edit Checkbox Item Modal** (Line 1336):
+         - **Before**: `<h3>Edit Checkbox Item: ${checkboxKey}</h3>`
+         - **After**: `<h3>Edit Checkbox Item</h3>`
+      3. **Edit Div Item Modal** (Line 1421):
+         - **Before**: `<h3>Edit Div Item: ${divKey}</h3>`
+         - **After**: `<h3>Edit Div Item</h3>`
+      4. **Edit Addon Item Modal** (Line 1506):
+         - **Before**: `<h3>Edit Addon Item: ${addonKey}</h3>`
+         - **After**: `<h3>Edit Addon Item</h3>`
+    - **Impact**: Cleaner, more user-friendly modal headers without technical identifiers
+
+- **Auto-Generated Item Keys** (`public/global/js/admin-menu-editor.js`):
+  - **Removed Manual Item Key Input Field**:
+    - **Root Cause**: Users had to manually enter item keys (e.g., "checkbox1", "radio2") which was error-prone and not user-friendly
+    - **Fix Applied**: Item keys are now auto-generated behind the scenes
+    - **Add New Nested Item Modal** (Lines 877-954):
+      - **Removed**: Item Key input field and label (Lines 860-863):
+        ```html
+        <!-- Removed -->
+        <div class="admin-form-group">
+          <label>Item Key (identifier):</label>
+          <input type="text" id="new-nested-item-key" class="admin-form-input" placeholder="e.g., option1, item1">
+        </div>
+        ```
+      - **Added**: Auto-generation logic (Lines 942-944):
+        ```javascript
+        // 🟡🟡🟡 2025-01-08 - [AUTO-GENERATE KEY] Generate unique item key automatically
+        const itemKey = generateNextNestedItemKey(sectionKey, itemType);
+        console.log('✅✅✅ - [ADMIN MENU EDITOR] Auto-generated item key:', itemKey);
+        ```
+      - **Updated Validation**: Changed from checking item key to checking label (Lines 946-949):
+        ```javascript
+        // Before
+        if (!itemKey) {
+          alert('Please enter an item key');
+          return;
+        }
+        
+        // After
+        if (!label) {
+          alert('Please enter a label');
+          return;
+        }
+        ```
+    - **New Helper Function** (Lines 92-124):
+      - **Function**: `generateNextNestedItemKey(sectionKey, itemType)`
+      - **Purpose**: Automatically generates unique item keys like `radio1`, `radio2`, `checkbox1`, etc.
+      - **Logic**:
+        - Finds all existing keys for the item type in the section
+        - Extracts numeric suffixes (handles typos like "checbox3")
+        - Finds the highest number and increments it
+        - Returns new unique key (e.g., if `radio1`, `radio2` exist, returns `radio3`)
+      - **Code Added**:
+        ```javascript
+        function generateNextNestedItemKey(sectionKey, itemType) {
+          const section = currentMenuState[sectionKey];
+          if (!section) {
+            return `${itemType}1`;
+          }
+          
+          let existingKeys = [];
+          if (itemType === 'addon') {
+            existingKeys = section['addon-items'] ? Object.keys(section['addon-items']) : [];
+          } else {
+            existingKeys = section.content ? Object.keys(section.content) : [];
+          }
+          
+          const numbers = existingKeys
+            .map(key => {
+              const match = key.match(new RegExp(`^${itemType}(\\d+)$`, 'i'));
+              return match ? parseInt(match[1], 10) : 0;
+            })
+            .filter(num => num > 0);
+          
+          const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+          return `${itemType}${maxNum + 1}`;
+        }
+        ```
+      - **Updated**: `createNewNestedItem` function (Line 981):
+        - **Before**: `'price-basis': itemData['price-basis'] || ''`
+        - **After**: `'price-basis': itemData['price-basis'] || 'Per guest'`
+    - **Impact**: Simplified user workflow - users no longer need to think about technical keys, system handles it automatically
+
+- **Price Basis Validation Fix** (`public/global/js/admin-menu-editor.js`):
+  - **Removed Empty "Select price basis" Option**:
+    - **Root Cause**: Empty price basis values were causing issues as the app doesn't handle empty price basis
+    - **Fix Applied**: Removed empty option and set "Per guest" as default
+    - **Modals Updated** (5 modals):
+      1. **Add New Nested Item Modal** (Lines 903-911):
+         - **Before**: 
+           ```html
+           <option value="">Select price basis</option>
+           <option value="Per day">Per day</option>
+           <option value="Per event">Per event</option>
+           <option value="Per guest">Per guest</option>
+           ```
+         - **After**:
+           ```html
+           <option value="Per day">Per day</option>
+           <option value="Per event">Per event</option>
+           <option value="Per guest" selected>Per guest</option>
+           ```
+      2. **Edit Radio Option Modal** (Lines 1253-1261):
+         - Removed empty option
+         - Added default selection logic: `${radio['price-basis'] === 'Per guest' || !radio['price-basis'] ? ' selected' : ''}`
+      3. **Edit Checkbox Item Modal** (Lines 1347-1355):
+         - Removed empty option
+         - Added default selection logic: `${checkbox['price-basis'] === 'Per guest' || !checkbox['price-basis'] ? ' selected' : ''}`
+      4. **Edit Div Item Modal** (Lines 1432-1440):
+         - Removed empty option
+         - Added default selection logic: `${div['price-basis'] === 'Per guest' || !div['price-basis'] ? ' selected' : ''}`
+      5. **Edit Addon Item Modal** (Lines 1517-1525):
+         - Removed empty option
+         - Added default selection logic: `${addon['price-basis'] === 'Per guest' || !addon['price-basis'] ? ' selected' : ''}`
+    - **Save Logic Updates** (5 save handlers):
+      1. **Add New Nested Item** (Line 939):
+         - **Before**: `const priceBasis = document.getElementById('new-nested-item-price-basis').value.trim();`
+         - **After**: `const priceBasis = document.getElementById('new-nested-item-price-basis').value.trim() || 'Per guest';`
+      2. **Edit Radio Option** (Line 1292):
+         - **Before**: `if (priceBasisInput) radio['price-basis'] = priceBasisInput.value.trim();`
+         - **After**: `if (priceBasisInput) radio['price-basis'] = priceBasisInput.value.trim() || 'Per guest';`
+      3. **Edit Checkbox Item** (Line 1381):
+         - **Before**: `if (priceBasisInput) checkbox['price-basis'] = priceBasisInput.value.trim();`
+         - **After**: `if (priceBasisInput) checkbox['price-basis'] = priceBasisInput.value.trim() || 'Per guest';`
+      4. **Edit Div Item** (Line 1466):
+         - **Before**: `if (priceBasisInput) div['price-basis'] = priceBasisInput.value.trim();`
+         - **After**: `if (priceBasisInput) div['price-basis'] = priceBasisInput.value.trim() || 'Per guest';`
+      5. **Edit Addon Item** (Line 1551):
+         - **Before**: `if (priceBasisInput) addon['price-basis'] = priceBasisInput.value.trim();`
+         - **After**: `if (priceBasisInput) addon['price-basis'] = priceBasisInput.value.trim() || 'Per guest';`
+    - **Impact**: Prevents invalid empty price basis values, ensures all items have a valid price basis (defaults to "Per guest")
+
+- **Email Validation Fix** (`public/global/js/event__details.js`):
+  - **Fixed Email Validation State Update**:
+    - **Root Cause**: When an invalid email was entered, validation correctly blocked submission. However, when the email was corrected, the HTML5 validation state wasn't being updated, causing the form to remain blocked even with a valid email.
+    - **Fix Applied**: Updated email validation to properly clear HTML5 validation state when email is corrected
+    - **Email Input Event Listener** (Lines 511-530):
+      - **Added**: Immediate custom validity clearing on input (Line 519):
+        ```javascript
+        // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Always clear custom validity on input
+        this.setCustomValidity('');
+        ```
+      - **Added**: Real-time validation check (Lines 525-528):
+        ```javascript
+        // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] If email is empty or valid, ensure no validation blocks submission
+        if (value === '' || emailRegex.test(value)) {
+          this.setCustomValidity('');
+        }
+        ```
+      - **Impact**: Validation state updates immediately when user types, allowing form submission once email becomes valid
+    - **Updated validateEmail Function** (Lines 729-750):
+      - **Added**: Custom validity clearing for valid/empty emails (Lines 741-743):
+        ```javascript
+        // ⚠️⚠️⚠️ 2025-01-08 - [EMAIL VALIDATION] Clear custom validity when email is empty or valid
+        if (value === '' || emailRegex.test(value)) {
+          input.setCustomValidity(''); // Clear custom validity message
+        }
+        ```
+      - **Updated**: Only set custom validity if email has value and is invalid (Lines 744-750):
+        ```javascript
+        } else {
+          // Email has value but is invalid format
+          input.classList.add('invalid-email');
+          // Only set custom validity if the browser's native validation also considers it invalid
+          if (input.validity.typeMismatch) {
+            input.setCustomValidity('📧 Please enter a valid email address (example@domain.com)');
+          }
+        }
+        ```
+      - **Impact**: Prevents validation state from getting stuck, ensures form can be submitted when email is corrected
+    - **Updated Invalid Event Listener** (Lines 533-543):
+      - **Added**: Check for empty email (Line 537):
+        ```javascript
+        if (this.validity.typeMismatch && this.value.trim() !== '') {
+          this.setCustomValidity('📧 Please enter a valid email address (example@domain.com)');
+        } else {
+          // If empty, don't block - email is optional
+          this.setCustomValidity('');
+        }
+        ```
+      - **Impact**: Empty emails don't block submission (email is optional field)
+    - **Code Pattern Applied**:
+      ```javascript
+      // Before
+      emailInput.addEventListener('input', function() {
+        validateEmail(this);
+        if (this.validity.valid) {
+          this.setCustomValidity(''); // Only cleared if already valid
+        }
+      });
+      
+      // After
+      emailInput.addEventListener('input', function() {
+        const value = this.value.trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        // Always clear custom validity on input
+        this.setCustomValidity('');
+        
+        validateEmail(this);
+        
+        // If email is empty or valid, ensure no validation blocks submission
+        if (value === '' || emailRegex.test(value)) {
+          this.setCustomValidity('');
+        }
+      });
+      ```
+    - **Impact**: Email validation now properly updates when invalid emails are corrected, allowing form submission once email becomes valid
+
+#### Files Modified
+
+1. **`public/global/js/admin-menu-editor.js`**:
+   - Lines 754-795: Add New Section Modal (removed close button and click-outside handler)
+   - Lines 877-954: Add New Nested Item Modal (removed close button, click-outside handler, and item key input field)
+   - Lines 92-124: Added `generateNextNestedItemKey()` helper function
+   - Lines 1066-1184: Edit Section Modal (removed close button and click-outside handler)
+   - Lines 1234-1303: Edit Radio Option Modal (removed close button, click-outside handler, and item key from header)
+   - Lines 1328-1388: Edit Checkbox Item Modal (removed close button, click-outside handler, and item key from header)
+   - Lines 1413-1473: Edit Div Item Modal (removed close button, click-outside handler, and item key from header)
+   - Lines 1498-1558: Edit Addon Item Modal (removed close button, click-outside handler, and item key from header)
+   - Lines 1587-1695: Edit Popup Section Modal (removed close button and click-outside handler)
+   - Lines 903-911, 1253-1261, 1347-1355, 1432-1440, 1517-1525: Price basis select dropdowns (removed empty option, set "Per guest" as default)
+   - Lines 939, 1292, 1381, 1466, 1551: Save handlers (added default "Per guest" fallback)
+   - Line 981: `createNewNestedItem` function (changed default price-basis from empty string to "Per guest")
+
+2. **`public/global/js/event__details.js`**:
+   - Lines 511-543: Email input event listeners (updated to properly clear validation state)
+   - Lines 729-750: `validateEmail()` function (updated to clear custom validity for valid/empty emails)
+
+#### Testing Recommendations
+
+1. **Modal Closing Behavior**:
+   - Test that clicking outside modals does not close them
+   - Test that all modals only close via Cancel or Save/Add buttons
+   - Verify no data loss occurs when accidentally clicking outside
+
+2. **Item Key Auto-Generation**:
+   - Test creating new radio, checkbox, div, and addon items
+   - Verify keys are auto-generated correctly (radio1, radio2, checkbox1, etc.)
+   - Verify no duplicate keys are created
+
+3. **Price Basis Validation**:
+   - Test that new items default to "Per guest"
+   - Test that editing items with empty price basis defaults to "Per guest"
+   - Verify no empty price basis values can be saved
+
+4. **Email Validation**:
+   - Test entering invalid email → form should block submission
+   - Test correcting invalid email to valid → form should allow submission
+   - Test leaving email empty → form should allow submission (email is optional)
+
+---
+
 ### December 23, 2025 @ 00:05 - Stripe Payment Integration: Migration to Payment Element + Appearance API
 
 **Type**: 🟠 MAJOR CHANGE
