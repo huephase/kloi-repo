@@ -4,7 +4,7 @@
 import { MultipartFile } from '@fastify/multipart';
 import fs from 'fs';
 import path from 'path';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 
 // 🟡🟡🟡 - [CONSTANTS] Image upload configuration
@@ -48,7 +48,7 @@ class LocalStorage implements StorageAdapter {
       writeStream.end();
       
       writeStream.on('finish', () => {
-        console.log('✅✅✅ - [LOCAL STORAGE] File saved successfully:', filePath);
+        console.log('✅✅✅ - [LOCAL STORAGE] File saved successfully:', filePath, 'Content-Type:', contentType);
         resolve();
       });
       
