@@ -14,6 +14,241 @@
 
 ---
 
+### January 9, 2026 @ 16:40 - S3 Image Upload Migration
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Migrated image upload service from local filesystem storage to Amazon S3 to prevent folder structure destruction during deployments. Implemented storage abstraction layer supporting both local (development) and S3 (production) storage based on `STORAGE_TYPE` environment variable. This ensures uploaded menu images persist across deployments and are accessible via public S3 URLs.
+
+**Problem**: 
+- The `/public/menus/` folder structure gets destroyed on every deployment to Render via GitHub auto-deployment
+- Uploaded images are lost after each deployment, requiring re-upload of all menu images
+- Local filesystem storage is not suitable for production environments with ephemeral file systems
+- No persistent storage solution for uploaded assets
+
+**Solution**:
+- Implemented storage abstraction layer with `StorageAdapter` interface for DRY principles
+- Created `LocalStorage` class for filesystem operations (development)
+- Created `S3Storage` class for Amazon S3 operations (production)
+- Added environment variable-based storage selection (`STORAGE_TYPE=local` or `STORAGE_TYPE=s3`)
+- Refactored `saveImageFile()` and `deleteImageFile()` to use storage abstraction
+- Maintained backward compatibility with existing validation and filename generation logic
+- Added comprehensive error handling and fallback mechanisms
+
+#### Major Changes
+
+- **Package Dependencies** (`package.json`):
+  - **Added AWS SDK v3 Dependencies**:
+    - `@aws-sdk/client-s3` (^3.700.0) - S3 client for upload/delete operations
+    - `@aws-sdk/lib-storage` (^3.700.0) - Multipart upload support for large files
+    - **Code Added** (lines 42-43):
+      ```json
+      "@aws-sdk/client-s3": "^3.700.0",
+      "@aws-sdk/lib-storage": "^3.700.0",
+      ```
+    - **Impact**: Enables S3 storage operations with modern AWS SDK v3
+
+- **Image Upload Service** (`src/services/imageUploadService.ts`):
+  - **Storage Abstraction Interface**:
+    - Created `StorageAdapter` interface defining `save()`, `delete()`, and `getUrl()` methods
+    - Enables seamless switching between storage backends
+    - **Code Added** (lines 18-22):
+      ```typescript
+      interface StorageAdapter {
+        save(buffer: Buffer, key: string, contentType: string): Promise<string>;
+        delete(key: string): Promise<void>;
+        getUrl(key: string): string;
+      }
+      ```
+    - **Impact**: Provides clean abstraction for multiple storage implementations
+
+  - **LocalStorage Implementation**:
+    - Implements `StorageAdapter` interface for local filesystem operations
+    - Maintains existing directory structure (`public/menus/{theme}/`)
+    - Creates directories recursively as needed
+    - Returns relative paths for backward compatibility
+    - **Code Added** (lines 24-75):
+      ```typescript
+      class LocalStorage implements StorageAdapter {
+        private baseDir: string;
+        async save(buffer: Buffer, key: string, contentType: string): Promise<string>
+        async delete(key: string): Promise<void>
+        getUrl(key: string): string
+      }
+      ```
+    - **Impact**: Preserves existing local storage functionality for development
+
+  - **S3Storage Implementation**:
+    - Implements `StorageAdapter` interface for Amazon S3 operations
+    - Loads configuration from environment variables:
+      - `AWS_S3_BUCKET` - S3 bucket ARN or name
+      - `AWS_S3_REGION` - AWS region (e.g., `us-east-2`)
+      - `AWS_S3_ACCESS_KEY_ID` - AWS access key
+      - `AWS_S3_SECRET_ACCESS_KEY` - AWS secret key
+      - `AWS_S3_PUBLIC_BASE_URL` - Public URL base for uploaded images
+    - Extracts bucket name from ARN format (`arn:aws:s3:::bucket-name`)
+    - Uses `@aws-sdk/lib-storage` Upload for efficient multipart uploads
+    - Sets `ACL: 'public-read'` for uploaded images
+    - Returns full public S3 URLs for uploaded files
+    - **Code Added** (lines 77-161):
+      ```typescript
+      class S3Storage implements StorageAdapter {
+        private s3Client: S3Client;
+        private bucketName: string;
+        private publicBaseUrl: string;
+        async save(buffer: Buffer, key: string, contentType: string): Promise<string>
+        async delete(key: string): Promise<void>
+        getUrl(key: string): string
+      }
+      ```
+    - **Impact**: Enables persistent cloud storage for production deployments
+
+  - **Storage Factory Function**:
+    - `getStorageAdapter()` - Selects storage implementation based on `STORAGE_TYPE` env var
+    - Falls back to local storage if S3 initialization fails (with error logging)
+    - Lazy initialization pattern for storage adapter instance
+    - **Code Added** (lines 163-189):
+      ```typescript
+      function getStorageAdapter(): StorageAdapter {
+        const storageType = process.env.STORAGE_TYPE || 'local';
+        if (storageType === 's3') {
+          try {
+            return new S3Storage();
+          } catch (error) {
+            // Fallback to local storage
+            return new LocalStorage();
+          }
+        } else {
+          return new LocalStorage();
+        }
+      }
+      ```
+    - **Impact**: Provides flexible storage selection with graceful fallback
+
+  - **Refactored `saveImageFile()` Function**:
+    - Now uses storage abstraction instead of direct filesystem operations
+    - Constructs storage key as `menus/{theme}/{filename}` (same structure for both storage types)
+    - Returns appropriate path based on storage type:
+      - Local: Relative path like `/public/menus/{theme}/{filename}`
+      - S3: Full public URL like `{AWS_S3_PUBLIC_BASE_URL}/menus/{theme}/{filename}`
+    - Maintains backward compatibility with existing API signature
+    - **Code Changed** (lines 391-440):
+      ```typescript
+      // Before:
+      export async function saveImageFile(file: MultipartFile, theme: string) {
+        const themeDir = ensureThemeDirectory(theme);
+        const filePath = path.join(themeDir, filename);
+        // Direct filesystem write...
+        return { filePath, relativePath: `/public/${MENUS_DIR}/${theme}/${filename}` };
+      }
+      
+      // After:
+      export async function saveImageFile(file: MultipartFile, theme: string) {
+        const storage = getStorage();
+        const storageKey = `${MENUS_DIR}/${theme}/${filename}`;
+        const url = await storage.save(buffer, storageKey, mimeType);
+        // Returns S3 URL or local path based on storage type
+        return { filePath, relativePath: url };
+      }
+      ```
+    - **Impact**: Single function works with both storage backends transparently
+
+  - **Refactored `deleteImageFile()` Function**:
+    - Now uses storage abstraction for deletion
+    - Handles both local file paths and S3 keys
+    - Converts local file paths to storage keys automatically
+    - Changed from synchronous to async function
+    - **Code Changed** (lines 442-470):
+      ```typescript
+      // Before:
+      export function deleteImageFile(filePath: string): void {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+      
+      // After:
+      export async function deleteImageFile(filePath: string): Promise<void> {
+        const storage = getStorage();
+        const storageKey = /* determine key based on storage type */;
+        await storage.delete(storageKey);
+      }
+      ```
+    - **Impact**: Unified deletion interface for both storage types
+
+  - **Environment Variable Validation**:
+    - Validates all required S3 environment variables on initialization
+    - Provides clear error messages listing missing variables
+    - Throws descriptive errors if S3 configuration is incomplete
+    - **Code Added** (lines 89-108):
+      ```typescript
+      if (!region || !accessKeyId || !secretAccessKey || !bucketArn || !publicBaseUrl) {
+        const missing = [];
+        // Collect missing variables...
+        throw new Error(`S3 storage configuration incomplete. Missing: ${missing.join(', ')}`);
+      }
+      ```
+    - **Impact**: Prevents runtime errors from missing configuration
+
+  - **Updated Comments and Logging**:
+    - Added timestamped comment header (2026-01-09T16:40:00Z)
+    - Enhanced logging with storage type information
+    - Added emoji-prefixed logs for S3 operations (✅✅✅, ❗❗❗, 🟡🟡🟡)
+    - **Code Changed**: Throughout file, added comprehensive logging
+    - **Impact**: Better debugging and monitoring of storage operations
+
+#### Technical Details
+
+**Storage Key Structure**:
+- Format: `menus/{theme}/{filename}`
+- Example: `menus/default/default_9-jan-2026_1640_123.jpg`
+- Maintains same structure for both local and S3 storage
+- Theme name is sanitized (special characters replaced with underscores, lowercase)
+
+**S3 Configuration**:
+- Bucket ARN format: `arn:aws:s3:::bucket-name` (automatically extracts bucket name)
+- Bucket name format: `bucket-name` (used directly if not ARN)
+- Public base URL: Must not end with trailing slash (automatically trimmed)
+- Region: AWS region code (e.g., `us-east-2`)
+- ACL: All uploaded images set to `public-read` for public access
+
+**Backward Compatibility**:
+- `validateImageFile()` - Unchanged, maintains existing validation logic
+- `generateUniqueFilename()` - Unchanged, maintains existing filename format
+- `saveImageFile()` - Same signature, return value adapts to storage type
+- `deleteImageFile()` - Changed to async, but maintains same usage pattern
+- Existing image paths in database continue to work (local paths remain valid)
+
+**Error Handling**:
+- S3 initialization failures fall back to local storage with error logging
+- Missing environment variables throw descriptive errors
+- S3 upload/delete errors are caught and re-thrown with context
+- All errors include emoji-prefixed logging for easy identification
+
+**Files Affected**:
+- `package.json` - Added AWS SDK dependencies
+- `src/services/imageUploadService.ts` - Complete refactor with storage abstraction
+- `src/routes/admin/index.ts` - No changes needed (uses existing `saveImageFile()` API)
+- `docs/CHANGELOG_ADMIN_BRANCH.md` - This entry
+
+**Migration Notes**:
+- Existing images in database may have local paths (`/public/menus/...`) - these will continue to work for local storage
+- New uploads will automatically use S3 when `STORAGE_TYPE=s3` is set
+- Frontend JavaScript already handles absolute URLs, so S3 URLs will work without changes
+- To migrate existing images to S3, a separate migration script would be needed
+
+**Environment Variables Required for S3**:
+```bash
+STORAGE_TYPE="s3"
+AWS_S3_BUCKET="arn:aws:s3:::kloi-s3-bucket"
+AWS_S3_REGION="us-east-2"
+AWS_S3_ACCESS_KEY_ID="your-access-key"
+AWS_S3_SECRET_ACCESS_KEY="your-secret-key"
+AWS_S3_PUBLIC_BASE_URL="https://your-bucket.s3.amazonaws.com"
+```
+
+---
+
 ### January 8, 2026 @ 22:31 - Menu Preview Print Feature with Auto-Expand and A4 Optimization
 
 **Type**: 🟠 MAJOR CHANGE
