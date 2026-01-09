@@ -139,6 +139,8 @@ class S3Storage implements StorageAdapter {
 
   async save(buffer: Buffer, key: string, contentType: string): Promise<string> {
     // 🟡🟡🟡 - [UPLOAD] Upload file to S3 using multipart upload for better performance
+    // ⚠️⚠️⚠️ - [ACL] ACL parameter removed - bucket policy handles public access
+    // Bucket policy should allow public read access for the menus/* prefix
     const upload = new Upload({
       client: this.s3Client,
       params: {
@@ -146,8 +148,8 @@ class S3Storage implements StorageAdapter {
         Key: key,
         Body: buffer,
         ContentType: contentType,
-        // 🟡🟡🟡 - [ACL] Set public read access for uploaded images
-        ACL: 'public-read',
+        // 🟡🟡🟡 - [NOTE] ACL not used - bucket policy handles public access
+        // Ensure bucket policy allows s3:GetObject for public/* or menus/* prefix
       },
     });
 

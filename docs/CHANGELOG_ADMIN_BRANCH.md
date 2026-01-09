@@ -88,8 +88,9 @@
       - `AWS_S3_PUBLIC_BASE_URL` - Public URL base for uploaded images
     - Extracts bucket name from ARN format (`arn:aws:s3:::bucket-name`)
     - Uses `@aws-sdk/lib-storage` Upload for efficient multipart uploads
-    - Sets `ACL: 'public-read'` for uploaded images
+    - **ACL removed**: No ACL parameter in upload (bucket policy handles public access)
     - Returns full public S3 URLs for uploaded files
+    - **Note**: Bucket must have ACLs disabled and bucket policy configured for public read access
     - **Code Added** (lines 77-161):
       ```typescript
       class S3Storage implements StorageAdapter {
@@ -210,7 +211,22 @@
 - Bucket name format: `bucket-name` (used directly if not ARN)
 - Public base URL: Must not end with trailing slash (automatically trimmed)
 - Region: AWS region code (e.g., `us-east-2`)
-- ACL: All uploaded images set to `public-read` for public access
+- **ACL**: Removed from upload - bucket policy handles public access (bucket must have ACLs disabled)
+- **Bucket Policy Required**: Bucket policy must allow public read access for `menus/*` prefix:
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "AllowPublicReadForMenusFolder",
+        "Effect": "Allow",
+        "Principal": "*",
+        "Action": "s3:GetObject",
+        "Resource": "arn:aws:s3:::kloi-s3-bucket/menus/*"
+      }
+    ]
+  }
+  ```
 
 **Backward Compatibility**:
 - `validateImageFile()` - Unchanged, maintains existing validation logic
