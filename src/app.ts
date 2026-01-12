@@ -13,6 +13,7 @@ import formbody from '@fastify/formbody';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
+import fastifyCsrfProtection from '@fastify/csrf-protection';
 import { fastifyConfig } from './config';
 import { detectThemeFromSubdomain } from './lib/themeDetector';
 import { createRedisStore } from './lib/session-store';
@@ -169,6 +170,24 @@ app.register(fastifySession, {
   saveUninitialized: false,
   rolling: true
 });
+
+// 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Register CSRF protection plugin
+// ⚠️⚠️⚠️ - [CSRF] SECURITY FIX: Protect against Cross-Site Request Forgery attacks
+// CSRF protection must be registered after cookie and session plugins
+console.log('🟡🟡🟡 - [app.ts] Registering CSRF protection plugin');
+app.register(fastifyCsrfProtection, {
+  // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Use session secret for CSRF token generation
+  // This ensures CSRF tokens are bound to the session
+  secret: process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat',
+  // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Cookie options for CSRF token storage
+  cookieOpts: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production' && process.env.SESSION_COOKIE_SECURE === 'true',
+    sameSite: 'lax',
+    path: '/'
+  }
+});
+console.log('✅✅✅ - [app.ts] CSRF protection plugin registered successfully');
 
 // Add a hook to check if session is working
 app.addHook('onRequest', (req, _reply, done) => {

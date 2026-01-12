@@ -16,42 +16,19 @@ import { validateAdminSession, requireEditorOrAbove, requireSuperAdmin, requireA
 import { generatePageClass } from '../../lib/pageClass';
 import { saveImageFile, validateImageFile } from '../../services/imageUploadService';
 import { performHealthCheck } from '../healthCheck';
+import { generateCsrfToken } from '../../lib/csrf';
+import { checkRateLimit, incrementRateLimit, resetRateLimit } from '../../lib/rateLimiter';
 
-// 🟡🟡🟡 - [RATE LIMITING] Simple in-memory rate limiter for admin login
-// ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Prevent brute force attacks on login endpoint
-const loginRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+// 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Rate limiting constants
+// ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Rate limiting now uses Redis for multi-instance support
 const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 5; // 5 failed attempts per 15 minutes per IP
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [RATE LIMITING] Rate limiter for sign-up endpoint
-const signUpRateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const SIGNUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const SIGNUP_RATE_LIMIT_MAX_ATTEMPTS = 3; // 3 sign-ups per hour per IP
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [RATE LIMITING] Rate limiter for resend verification
-const resendVerificationRateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RESEND_VERIFICATION_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RESEND_VERIFICATION_RATE_LIMIT_MAX_ATTEMPTS = 3; // 3 requests per hour per email
-
-// 🟡🟡🟡 - [RATE LIMITING] Cleanup old entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of loginRateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      loginRateLimitMap.delete(key);
-    }
-  }
-  for (const [key, value] of signUpRateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      signUpRateLimitMap.delete(key);
-    }
-  }
-  for (const [key, value] of resendVerificationRateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      resendVerificationRateLimitMap.delete(key);
-    }
-  }
-}, 60000); // Cleanup every minute
 
 export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   console.log('🟡🟡🟡 - [ADMIN ROUTES] Registering admin routes');
@@ -68,39 +45,37 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     const templatePath = 'admin/login';
     const page_class = generatePageClass(templatePath);
 
+    // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for login form
+    const csrfToken = await generateCsrfToken(reply);
+
     return reply.view(templatePath, {
       theme,
       error,
+      csrfToken,
       page_class
     });
   });
 
   // POST /admin/login - Authenticate admin
-  app.post('/admin/login', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/admin/login', {
+    preHandler: [app.csrfProtection]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN ROUTE] POST /admin/login');
     
     const theme = (request as any).theme || 'default';
     
-    // 🟡🟡🟡 - [RATE LIMITING] Check rate limit before processing login
+    // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Check rate limit using Redis
     const clientIp = request.ip || 'unknown';
-    const now = Date.now();
     const rateLimitKey = `admin-login-${clientIp}`;
-    const rateLimit = loginRateLimitMap.get(rateLimitKey);
+    const rateLimitResult = await checkRateLimit(rateLimitKey, LOGIN_RATE_LIMIT_WINDOW_MS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS);
     
-    if (rateLimit) {
-      if (now > rateLimit.resetTime) {
-        // Reset window
-        loginRateLimitMap.set(rateLimitKey, { count: 0, resetTime: now + LOGIN_RATE_LIMIT_WINDOW_MS });
-      } else if (rateLimit.count >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
-        console.warn(`❗❗❗ - [ADMIN LOGIN ${new Date().toISOString()}] Rate limit exceeded for IP`, clientIp);
-        return reply.status(429).send({
-          success: false,
-          message: 'Too many login attempts. Please wait 15 minutes and try again.',
-          retryAfter: Math.ceil((rateLimit.resetTime - now) / 1000)
-        });
-      }
-    } else {
-      loginRateLimitMap.set(rateLimitKey, { count: 0, resetTime: now + LOGIN_RATE_LIMIT_WINDOW_MS });
+    if (!rateLimitResult.allowed) {
+      console.warn(`❗❗❗ - [ADMIN LOGIN ${new Date().toISOString()}] Rate limit exceeded for IP`, clientIp);
+      return reply.status(429).send({
+        success: false,
+        message: 'Too many login attempts. Please wait 15 minutes and try again.',
+        retryAfter: rateLimitResult.retryAfter
+      });
     }
 
     try {
@@ -131,18 +106,20 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       const admin = await AdminService.authenticateAdmin(username, password, theme);
 
       if (!admin) {
-        // Increment rate limit counter on failed login
-        const currentLimit = loginRateLimitMap.get(rateLimitKey);
-        if (currentLimit) {
-          currentLimit.count++;
-        }
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Increment rate limit counter on failed login using Redis
+        await incrementRateLimit(rateLimitKey, LOGIN_RATE_LIMIT_WINDOW_MS);
         
         console.log('❗❗❗ - [ADMIN LOGIN] Authentication failed for username:', username);
         const templatePath = 'admin/login';
         const page_class = generatePageClass(templatePath);
+        
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for error response
+        const csrfToken = await generateCsrfToken(reply);
+        
         return reply.view(templatePath, {
           theme,
           error: 'Invalid username or password',
+          csrfToken,
           page_class
         });
       }
@@ -151,8 +128,8 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       (request.session as any).adminId = admin.id;
       (request.session as any).adminTheme = admin.theme;
 
-      // Reset rate limit on successful login
-      loginRateLimitMap.delete(rateLimitKey);
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Reset rate limit on successful login using Redis
+      await resetRateLimit(rateLimitKey);
 
       console.log('✅✅✅ - [ADMIN LOGIN] Admin authenticated successfully:', admin.id.substring(0, 8));
       return reply.redirect(`/admin/menu-editor?theme=${theme}`);
@@ -160,16 +137,23 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       console.error('❗❗❗ - [ADMIN LOGIN] Error during login:', error);
       const templatePath = 'admin/login';
       const page_class = generatePageClass(templatePath);
+      
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for error response
+      const csrfToken = await generateCsrfToken(reply);
+      
       return reply.view(templatePath, {
         theme,
         error: 'Login failed. Please try again.',
+        csrfToken,
         page_class
       });
     }
   });
 
   // POST /admin/logout - Clear admin session
-  app.post('/admin/logout', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/admin/logout', {
+    preHandler: [app.csrfProtection]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN ROUTE] POST /admin/logout');
     
     const theme = (request as any).theme || 'default';
@@ -205,53 +189,58 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
           token: token
         };
       } else {
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for error response
+        const csrfToken = await generateCsrfToken(reply);
         return reply.view(templatePath, {
           theme,
           error: 'Invalid or expired invitation link. Please contact your administrator for a new invitation.',
+          csrfToken,
           page_class
         });
       }
     } else {
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for error response
+      const csrfToken = await generateCsrfToken(reply);
       return reply.view(templatePath, {
         theme,
         error: 'Invitation token is required. Please use the invitation link sent to your email.',
+        csrfToken,
         page_class
       });
     }
+
+    // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for signup form
+    const csrfToken = await generateCsrfToken(reply);
 
     return reply.view(templatePath, {
       theme,
       error,
       invitationData,
+      csrfToken,
       page_class
     });
   });
 
   // POST /admin/signup - Process sign-up
-  app.post('/admin/signup', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/admin/signup', {
+    preHandler: [app.csrfProtection]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN ROUTE] POST /admin/signup');
     
     const theme = (request as any).theme || 'default';
     const clientIp = request.ip || 'unknown';
     
-    // 🟡🟡🟡 - [RATE LIMITING] Check rate limit for sign-up
-    const now = Date.now();
+    // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Check rate limit for sign-up using Redis
     const rateLimitKey = `admin-signup-${clientIp}`;
-    const rateLimit = signUpRateLimitMap.get(rateLimitKey);
+    const rateLimitResult = await checkRateLimit(rateLimitKey, SIGNUP_RATE_LIMIT_WINDOW_MS, SIGNUP_RATE_LIMIT_MAX_ATTEMPTS);
     
-    if (rateLimit) {
-      if (now > rateLimit.resetTime) {
-        signUpRateLimitMap.set(rateLimitKey, { count: 0, resetTime: now + SIGNUP_RATE_LIMIT_WINDOW_MS });
-      } else if (rateLimit.count >= SIGNUP_RATE_LIMIT_MAX_ATTEMPTS) {
-        console.warn(`❗❗❗ - [ADMIN SIGNUP ${new Date().toISOString()}] Rate limit exceeded for IP`, clientIp);
-        return reply.status(429).send({
-          success: false,
-          message: 'Too many sign-up attempts. Please wait 1 hour and try again.',
-          retryAfter: Math.ceil((rateLimit.resetTime - now) / 1000)
-        });
-      }
-    } else {
-      signUpRateLimitMap.set(rateLimitKey, { count: 0, resetTime: now + SIGNUP_RATE_LIMIT_WINDOW_MS });
+    if (!rateLimitResult.allowed) {
+      console.warn(`❗❗❗ - [ADMIN SIGNUP ${new Date().toISOString()}] Rate limit exceeded for IP`, clientIp);
+      return reply.status(429).send({
+        success: false,
+        message: 'Too many sign-up attempts. Please wait 1 hour and try again.',
+        retryAfter: rateLimitResult.retryAfter
+      });
     }
 
     try {
@@ -285,10 +274,14 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
           }
         }
         
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for error response
+        const csrfToken = await generateCsrfToken(reply);
+        
         return reply.view(templatePath, {
           theme,
           error: 'Please check your input and try again.',
           invitationData,
+          csrfToken,
           page_class
         });
       }
@@ -298,19 +291,16 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       // Process sign-up
       const result = await AdminService.signUpAdmin(invitationToken, firstName, lastName, phone, password);
 
-      // Reset rate limit on successful sign-up
-      signUpRateLimitMap.delete(rateLimitKey);
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Reset rate limit on successful sign-up using Redis
+      await resetRateLimit(rateLimitKey);
 
       console.log('✅✅✅ - [ADMIN SIGNUP] Sign-up completed successfully for:', result.admin.id.substring(0, 8));
       
       // Redirect to verification sent page
       return reply.redirect(`/admin/verification-sent?theme=${theme}&email=${encodeURIComponent(result.admin.email || '')}`);
     } catch (error: any) {
-      // Increment rate limit counter on failed sign-up
-      const currentLimit = signUpRateLimitMap.get(rateLimitKey);
-      if (currentLimit) {
-        currentLimit.count++;
-      }
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Increment rate limit counter on failed sign-up using Redis
+      await incrementRateLimit(rateLimitKey, SIGNUP_RATE_LIMIT_WINDOW_MS);
       
       console.error('❗❗❗ - [ADMIN SIGNUP] Error during sign-up:', error);
       const templatePath = 'admin/signup';
@@ -329,10 +319,14 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
         }
       }
       
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for error response
+      const csrfToken = await generateCsrfToken(reply);
+      
       return reply.view(templatePath, {
         theme,
         error: error.message || 'Sign-up failed. Please try again.',
         invitationData,
+        csrfToken,
         page_class
       });
     }
@@ -402,7 +396,9 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   });
 
   // POST /admin/resend-verification - Resend verification email
-  app.post('/admin/resend-verification', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/admin/resend-verification', {
+    preHandler: [app.csrfProtection]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN ROUTE] POST /admin/resend-verification');
     
     try {
@@ -420,24 +416,17 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
 
       const { email } = validationResult.data;
 
-      // 🟡🟡🟡 - [RATE LIMITING] Check rate limit for resend verification
-      const now = Date.now();
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Check rate limit for resend verification using Redis
       const rateLimitKey = `admin-resend-verification-${email}`;
-      const rateLimit = resendVerificationRateLimitMap.get(rateLimitKey);
+      const rateLimitResult = await checkRateLimit(rateLimitKey, RESEND_VERIFICATION_RATE_LIMIT_WINDOW_MS, RESEND_VERIFICATION_RATE_LIMIT_MAX_ATTEMPTS);
       
-      if (rateLimit) {
-        if (now > rateLimit.resetTime) {
-          resendVerificationRateLimitMap.set(rateLimitKey, { count: 0, resetTime: now + RESEND_VERIFICATION_RATE_LIMIT_WINDOW_MS });
-        } else if (rateLimit.count >= RESEND_VERIFICATION_RATE_LIMIT_MAX_ATTEMPTS) {
-          console.warn(`❗❗❗ - [ADMIN RESEND VERIFICATION ${new Date().toISOString()}] Rate limit exceeded for email`, email);
-          return reply.status(429).send({
-            success: false,
-            message: 'Too many verification email requests. Please wait 1 hour and try again.',
-            retryAfter: Math.ceil((rateLimit.resetTime - now) / 1000)
-          });
-        }
-      } else {
-        resendVerificationRateLimitMap.set(rateLimitKey, { count: 0, resetTime: now + RESEND_VERIFICATION_RATE_LIMIT_WINDOW_MS });
+      if (!rateLimitResult.allowed) {
+        console.warn(`❗❗❗ - [ADMIN RESEND VERIFICATION ${new Date().toISOString()}] Rate limit exceeded for email`, email);
+        return reply.status(429).send({
+          success: false,
+          message: 'Too many verification email requests. Please wait 1 hour and try again.',
+          retryAfter: rateLimitResult.retryAfter
+        });
       }
 
       // Find admin by email
@@ -461,11 +450,8 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       const result = await AdminService.resendVerificationEmail(admin.id);
       
       if (result.success) {
-        // Increment rate limit counter
-        const currentLimit = resendVerificationRateLimitMap.get(rateLimitKey);
-        if (currentLimit) {
-          currentLimit.count++;
-        }
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Increment rate limit counter using Redis
+        await incrementRateLimit(rateLimitKey, RESEND_VERIFICATION_RATE_LIMIT_WINDOW_MS);
         
         return reply.send({
           success: true,
@@ -519,10 +505,14 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       const templatePath = 'admin/menu-editor';
       const page_class = generatePageClass(templatePath);
 
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for menu editor (for AJAX requests)
+      const csrfToken = await generateCsrfToken(reply);
+
       return reply.view(templatePath, {
         theme,
         menu: menuData,
         adminUsername: admin.username,
+        csrfToken,
         page_class
       });
     } catch (error) {
@@ -570,7 +560,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
 
   // POST /admin/api/menu/save - Save menu JSON to database
   app.post('/admin/api/menu/save', {
-    preHandler: [requireEditorOrAbove()]
+    preHandler: [app.csrfProtection, requireEditorOrAbove()]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/api/menu/save');
     
@@ -633,7 +623,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
 
   // POST /admin/api/upload-image - Upload image file for menu editor
   app.post('/admin/api/upload-image', {
-    preHandler: [requireEditorOrAbove()]
+    preHandler: [app.csrfProtection, requireEditorOrAbove()]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/api/upload-image');
     
@@ -746,7 +736,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
 
   // POST /admin/invitations/create - Create new invitation (SUPER_ADMIN only, admin subdomain only)
   app.post('/admin/invitations/create', {
-    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
+    preHandler: [app.csrfProtection, requireAdminSubdomain(), requireSuperAdmin()]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/invitations/create');
     
@@ -791,7 +781,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
 
   // POST /admin/approve - Approve and assign role to admin (SUPER_ADMIN only, admin subdomain only)
   app.post('/admin/approve', {
-    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
+    preHandler: [app.csrfProtection, requireAdminSubdomain(), requireSuperAdmin()]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/approve');
     

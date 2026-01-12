@@ -14,6 +14,152 @@
 
 ---
 
+### January 12, 2026 @ 19:10 - CSRF Protection, Redis Rate Limiting, and Health Check Security Hardening
+
+**Type**: 🔴 BREAKING CHANGE
+
+**Summary**: Implemented comprehensive security improvements to address critical vulnerabilities: added CSRF protection to all admin POST/PUT/DELETE routes, migrated rate limiting from in-memory Maps to Redis for multi-instance support, and hardened health check endpoint to prevent information leakage. These changes prevent Cross-Site Request Forgery attacks, ensure rate limiting works correctly in clustered deployments (critical for Render platform), and prevent system information disclosure.
+
+#### Security Improvements
+
+- **CSRF Protection Implementation**:
+  - **Package Added**: `@fastify/csrf-protection` (v6.3.0+) installed in `package.json`
+  - **Plugin Registration** (`src/app.ts`):
+    - Registered `@fastify/csrf-protection` plugin after cookie and session plugins (lines 172-188)
+    - Configured with session secret for token generation
+    - Cookie options set to match session cookie security settings
+    - **Code Added**:
+      ```typescript
+      app.register(fastifyCsrfProtection, {
+        secret: process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat',
+        cookieOpts: {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production' && process.env.SESSION_COOKIE_SECURE === 'true',
+          sameSite: 'lax',
+          path: '/'
+        }
+      });
+      ```
+  - **CSRF Utility Module** (`src/lib/csrf.ts` - **NEW FILE**):
+    - `generateCsrfToken(reply)` - Generate CSRF token for forms
+    - `getCsrfTokenFromRequest(request)` - Extract CSRF token from request (for AJAX)
+    - Centralized CSRF token handling
+  - **Protected Routes** (`src/routes/admin/index.ts`):
+    - All POST routes now protected with `preHandler: [app.csrfProtection]`:
+      - `POST /admin/login` (line 79)
+      - `POST /admin/logout` (line 172)
+      - `POST /admin/signup` (line 231)
+      - `POST /admin/resend-verification` (line 405)
+      - `POST /admin/api/menu/save` (line 572)
+      - `POST /admin/api/upload-image` (line 635)
+      - `POST /admin/invitations/create` (line 748)
+      - `POST /admin/approve` (line 793)
+    - CSRF tokens generated for all GET routes that render forms
+  - **View Templates Updated**:
+    - `src/views/admin/login.hbs` - Added hidden CSRF token input field
+    - `src/views/admin/signup.hbs` - Added hidden CSRF token input field
+    - `src/views/admin/menu-editor.hbs` - Added CSRF token to data attribute for AJAX requests and logout form
+  - **JavaScript Updated** (`public/global/js/admin-menu-editor.js`):
+    - AJAX requests now include CSRF token in `X-CSRF-Token` header
+    - Updated `/admin/api/menu/save` fetch call (line 1945)
+    - Updated `/admin/api/upload-image` fetch calls (lines 1796, 2170)
+    - CSRF token read from `data-csrf-token` attribute on menu editor container
+    - **Code Pattern**:
+      ```javascript
+      const container = document.getElementById('menu-editor-container');
+      const csrfToken = container ? container.getAttribute('data-csrf-token') : null;
+      const headers = {};
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+      fetch('/admin/api/menu/save', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(data)
+      });
+      ```
+  - **Impact**: Prevents attackers from executing unauthorized actions (menu overwrites, invitation creation, admin approval) on behalf of logged-in administrators
+
+- **Redis-Based Rate Limiting**:
+  - **Rate Limiter Utility Module** (`src/lib/rateLimiter.ts` - **NEW FILE**):
+    - `checkRateLimit(key, windowMs, maxAttempts)` - Check if request is within rate limit
+    - `incrementRateLimit(key, windowMs)` - Increment counter for failed attempts
+    - `resetRateLimit(key)` - Reset counter on successful operation
+    - Uses Redis keys with TTL for automatic expiration (e.g., `ratelimit:admin-login:{ip}`)
+    - Fail-open behavior: allows requests if Redis is unavailable (prevents blocking legitimate users)
+  - **Admin Routes Updated** (`src/routes/admin/index.ts`):
+    - **Removed**: In-memory Maps (`loginRateLimitMap`, `signUpRateLimitMap`, `resendVerificationRateLimitMap`)
+    - **Removed**: Cleanup `setInterval` (lines 36-54) - no longer needed with Redis TTL
+    - **Updated**: All rate limiting logic now uses Redis:
+      - `POST /admin/login` (lines 84-104, 135-138, 155) - Login rate limiting
+      - `POST /admin/signup` (lines 237-255, 302, 309-313) - Sign-up rate limiting
+      - `POST /admin/resend-verification` (lines 423-441, 464-468) - Resend verification rate limiting
+    - **Code Pattern**:
+      ```typescript
+      // Before (in-memory Map)
+      const rateLimit = loginRateLimitMap.get(rateLimitKey);
+      if (rateLimit && rateLimit.count >= MAX_ATTEMPTS) {
+        return reply.status(429).send({...});
+      }
+      loginRateLimitMap.set(rateLimitKey, { count: 0, resetTime: now + WINDOW_MS });
+      
+      // After (Redis)
+      const rateLimitResult = await checkRateLimit(rateLimitKey, WINDOW_MS, MAX_ATTEMPTS);
+      if (!rateLimitResult.allowed) {
+        return reply.status(429).send({
+          retryAfter: rateLimitResult.retryAfter
+        });
+      }
+      await incrementRateLimit(rateLimitKey, WINDOW_MS);
+      ```
+  - **Impact**: Rate limiting now works correctly across multiple server instances (critical for Render platform and other clustered deployments). Attackers can no longer bypass rate limits by cycling through different instances.
+
+- **Health Check Security Hardening**:
+  - **Render Health Check Endpoint** (`src/routes/healthCheck.ts`):
+    - **Before**: Returned JSON with `status`, `timestamp`, and potentially `error` fields
+    - **After**: Returns only HTTP 200 OK with empty response body
+    - Database check still performed internally but errors not exposed in response
+    - **Code Changed** (lines 587-616):
+      ```typescript
+      // Before
+      return reply.status(200).send({
+        status: 'ok',
+        timestamp: new Date().toISOString()
+      });
+      
+      // After
+      return reply.status(200).send('');
+      ```
+    - Errors logged internally but not exposed to prevent information leakage
+  - **Impact**: Prevents information disclosure that could aid attackers. Health check endpoint no longer leaks system details, timestamps, or error messages.
+
+#### Files Modified
+
+1. `package.json` - Added `@fastify/csrf-protection` dependency
+2. `src/app.ts` - Registered CSRF protection plugin (lines 172-188)
+3. `src/lib/csrf.ts` - **NEW FILE** - CSRF utility functions
+4. `src/lib/rateLimiter.ts` - **NEW FILE** - Redis-based rate limiter
+5. `src/routes/admin/index.ts` - Applied CSRF protection, migrated rate limiting to Redis
+6. `src/views/admin/login.hbs` - Added CSRF token input field
+7. `src/views/admin/signup.hbs` - Added CSRF token input field
+8. `src/views/admin/menu-editor.hbs` - Added CSRF token to data attribute and logout form
+9. `public/global/js/admin-menu-editor.js` - Added CSRF token to AJAX request headers (lines 1796, 1945, 2170)
+10. `src/routes/healthCheck.ts` - Hardened Render health check response (lines 587-616)
+
+#### Security Benefits
+
+1. **CSRF Protection**: Prevents attackers from tricking logged-in administrators into executing unauthorized actions via malicious websites
+2. **Redis Rate Limiting**: Prevents bypassing rate limits in multi-instance deployments (critical for Render platform)
+3. **Health Check Hardening**: Prevents information disclosure that could aid attackers in reconnaissance
+
+#### Breaking Changes
+
+- **Admin Forms**: All admin forms now require CSRF tokens. Forms submitted without valid CSRF tokens will be rejected with 403 Forbidden.
+- **AJAX Requests**: All AJAX requests to admin endpoints must include CSRF token in `X-CSRF-Token` header.
+- **Rate Limiting**: Rate limiting state is now stored in Redis. If Redis is unavailable, rate limiting will fail-open (allow requests) to prevent blocking legitimate users.
+
+---
+
 ### January 8, 2026 @ 20:04 - Admin Menu Editor UX Improvements & Email Validation Fix
 
 **Type**: 🟢 DIRECTION CHANGE

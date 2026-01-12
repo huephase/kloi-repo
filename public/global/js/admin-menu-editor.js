@@ -1792,9 +1792,19 @@
       const formData = new FormData();
       formData.append('image', processedFile);
 
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Get CSRF token from container data attribute
+      const container = document.getElementById('menu-editor-container');
+      const csrfToken = container ? container.getAttribute('data-csrf-token') : null;
+      
       // 🟡🟡🟡 - [API CALL] Upload file to server
+      const headers = {};
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+      
       const response = await fetch('/admin/api/upload-image', {
         method: 'POST',
+        headers: headers,
         body: formData
       });
 
@@ -1941,12 +1951,21 @@
         saveButton.textContent = 'Saving...';
         hideMessage();
 
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Get CSRF token from container data attribute
+        const container = document.getElementById('menu-editor-container');
+        const csrfToken = container ? container.getAttribute('data-csrf-token') : null;
+        
         // 🟡🟡🟡 - [API CALL] Send menu data to server
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (csrfToken) {
+          headers['X-CSRF-Token'] = csrfToken;
+        }
+        
         const response = await fetch('/admin/api/menu/save', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: headers,
           body: JSON.stringify({
             name: menuData.menuName || 'Menu',
             menuItems: menuItems
@@ -2157,9 +2176,19 @@
       const formData = new FormData();
       formData.append('image', processedFile);
 
+      // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Get CSRF token from container data attribute
+      const container = document.getElementById('menu-editor-container');
+      const csrfToken = container ? container.getAttribute('data-csrf-token') : null;
+      
       // 🟡🟡🟡 - [API CALL] Upload file to server
+      const headers = {};
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+      
       const response = await fetch('/admin/api/upload-image', {
         method: 'POST',
+        headers: headers,
         body: formData
       });
 

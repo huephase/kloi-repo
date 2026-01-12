@@ -9,6 +9,9 @@
       <h1>Menu Editor</h1>
     </div>
     <form method="POST" action="/admin/logout" class="admin-logout-form">
+      {{#if csrfToken}}
+      <input type="hidden" name="_csrf" value="{{csrfToken}}" />
+      {{/if}}
       <button type="submit" class="admin-logout-button">Logout</button>
     </form>
   </header>
@@ -24,11 +27,13 @@
     </div>
 
     {{! 🟡🟡🟡 - [MENU DATA] Store menu data in data attribute for JavaScript access }}
+    {{! 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Store CSRF token in data attribute for AJAX requests }}
     <div id="menu-editor-container" 
          class="admin-menu-editor-container"
          data-menu-items="{{#if menu}}{{json menu.menuItems}}{{else}}null{{/if}}"
          data-menu-name="{{#if menu}}{{menu.name}}{{else}}null{{/if}}"
-         data-theme="{{theme}}">
+         data-theme="{{theme}}"
+         {{#if csrfToken}}data-csrf-token="{{csrfToken}}"{{/if}}>
       <div id="sections-list" class="admin-sections-list"></div>
     </div>
 

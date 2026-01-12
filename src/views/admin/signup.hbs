@@ -97,6 +97,9 @@
 
         <input type="hidden" name="invitationToken" value="{{invitationData.token}}" />
         <input type="hidden" name="theme" value="{{theme}}" />
+        {{#if csrfToken}}
+        <input type="hidden" name="_csrf" value="{{csrfToken}}" />
+        {{/if}}
 
         <button type="submit" class="admin-login-button">
           Sign Up

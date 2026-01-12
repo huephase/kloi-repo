@@ -583,12 +583,13 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
                                 hostname.includes('render.com') ||
                                 userAgent.includes('got'); // Render uses 'got' library
     
-    // ⚠️⚠️⚠️ - 2026-01-02 - [RENDER HEALTH CHECK] If it's Render's health check, return simple 200 OK
+    // 2026-01-12T19:10:00Z ⚠️⚠️⚠️ - [RENDER HEALTH CHECK] If it's Render's health check, return minimal 200 OK
+    // ⚠️⚠️⚠️ - [SECURITY] Do not leak system/environment details in health check response
     if (isRenderHealthCheck) {
-      console.log('🟡🟡🟡 - [RENDER HEALTH CHECK] Render internal health check detected, returning quick response');
+      console.log('🟡🟡🟡 - [RENDER HEALTH CHECK] Render internal health check detected, returning minimal response');
       
       try {
-        // ⚠️⚠️⚠️ - 2026-01-02 - [RENDER HEALTH CHECK] Quick database ping with timeout
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RENDER HEALTH CHECK] Quick database ping with timeout
         const dbCheck = Promise.race([
           prisma.$queryRaw`SELECT 1 as health`,
           new Promise((_, reject) => 
@@ -599,19 +600,15 @@ export default async function healthCheck(app: FastifyInstance, _opts: FastifyPl
         await dbCheck;
         console.log('✅✅✅ - [RENDER HEALTH CHECK] Quick health check passed');
         
-        return reply.status(200).send({
-          status: 'ok',
-          timestamp: new Date().toISOString()
-        });
+        // 2026-01-12T19:10:00Z ⚠️⚠️⚠️ - [SECURITY] Return minimal response - no system details
+        // Return only HTTP 200 OK with empty body to prevent information leakage
+        return reply.status(200).send('');
       } catch (error) {
+        // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RENDER HEALTH CHECK] Log error internally but don't expose details
         console.error('❗❗❗ - [RENDER HEALTH CHECK] Quick health check failed:', error);
-        // ⚠️⚠️⚠️ - 2026-01-02 - [RENDER HEALTH CHECK] Still return 200 to prevent service restart
-        // The detailed health check will show the actual error
-        return reply.status(200).send({
-          status: 'degraded',
-          timestamp: new Date().toISOString(),
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        // ⚠️⚠️⚠️ - [SECURITY] Still return 200 to prevent service restart, but don't leak error details
+        // The detailed health check (admin-only) will show the actual error
+        return reply.status(200).send('');
       }
     }
     

@@ -43,6 +43,9 @@
       </div>
 
       <input type="hidden" name="theme" value="{{theme}}" />
+      {{#if csrfToken}}
+      <input type="hidden" name="_csrf" value="{{csrfToken}}" />
+      {{/if}}
 
       <button type="submit" class="admin-login-button">
         Sign In
