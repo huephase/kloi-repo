@@ -147,8 +147,11 @@ app.register(fastifyMultipart, {
 });
 
 // Register cookie plugin - required by the session plugin
+// 2026-01-12T19:10:00Z 🟡🟡🟡 - [COOKIE] Register cookie plugin with secret for CSRF token signing
 // console.log('🟡🟡🟡 - [app.ts] Registering cookie plugin');
-app.register(fastifyCookie);
+app.register(fastifyCookie, {
+  secret: process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat'
+});
 
 // Configure session
 // console.log('⚪⚪⚪ - [app.ts] Registering session with Redis storage');
@@ -174,17 +177,17 @@ app.register(fastifySession, {
 // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Register CSRF protection plugin
 // ⚠️⚠️⚠️ - [CSRF] SECURITY FIX: Protect against Cross-Site Request Forgery attacks
 // CSRF protection must be registered after cookie and session plugins
+// The secret is provided via @fastify/cookie plugin, not directly to CSRF protection
 console.log('🟡🟡🟡 - [app.ts] Registering CSRF protection plugin');
 app.register(fastifyCsrfProtection, {
-  // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Use session secret for CSRF token generation
-  // This ensures CSRF tokens are bound to the session
-  secret: process.env.REDIS_SESSION_SECRET || 'keyboardcatkeyboardcatkeyboardcatkeyboardcat',
   // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Cookie options for CSRF token storage
+  // The secret for signing is provided by @fastify/cookie plugin above
   cookieOpts: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production' && process.env.SESSION_COOKIE_SECURE === 'true',
     sameSite: 'lax',
-    path: '/'
+    path: '/',
+    signed: true // 2026-01-12T19:10:00Z 🟡🟡🟡 - [CSRF] Sign CSRF cookie using cookie plugin secret
   }
 });
 console.log('✅✅✅ - [app.ts] CSRF protection plugin registered successfully');
