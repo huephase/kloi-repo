@@ -101,6 +101,13 @@
           <input type="text" id="cardholder-name" placeholder="Name on card" />
         </div>
 
+        {{!-- Email (Required) --}}
+        <div class="form-group">
+          <label for="checkout-email">Email <span style="color: red;">*</span></label>
+          <input type="email" id="checkout-email" name="email" value="{{eventDetails.email}}" placeholder="your.email@example.com" required />
+          <div id="email-error" class="form-error" style="display: none;"></div>
+        </div>
+
         {{!-- Payment Button --}}
         <button type="submit" id="submit-button" class="pill-bt primary">
           <span id="button-text">Pay {{currency}} {{order.totalAmountFormatted}}</span>
@@ -116,6 +123,8 @@
 
 {{!-- Stripe.js Library --}}
 <script src="https://js.stripe.com/v3/"></script>
+{{!-- 🟡🟡🟡 - [WIZARD PROGRESS] Include wizard progress module for email autosave --}}
+<script src="/public/global/js/wizard__progress.js"></script>
 
 <script>
   // 🟡🟡🟡 - [2025-01-XX] Stripe Payment Element + Appearance API integration
@@ -136,6 +145,129 @@
     }
 
     const stripe = Stripe(stripePublishableKey);
+
+    // 🟡🟡🟡 - [EMAIL VALIDATION] Initialize email validation and button state management
+    const emailInput = document.getElementById('checkout-email');
+    const emailError = document.getElementById('email-error');
+    const submitButton = document.getElementById('submit-button');
+    const buttonText = document.getElementById('button-text');
+    const currency = '{{currency}}';
+    const totalAmountFormatted = '{{order.totalAmountFormatted}}';
+    
+    // 🟡🟡🟡 - [EMAIL STATE] Get initial email from session/eventDetails
+    const initialEmail = emailInput ? emailInput.value.trim() : '';
+    let currentEmail = initialEmail;
+    
+    console.log('🟡🟡🟡 - [CHECKOUT] Initial email from session:', initialEmail ? 'Present' : 'Missing');
+    
+    // 🟡🟡🟡 - [EMAIL VALIDATION] Email validation function
+    function validateEmail(email) {
+      if (!email || email.trim() === '') {
+        return { valid: false, message: 'Email is required to continue payment' };
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        return { valid: false, message: 'Please enter a valid email address' };
+      }
+      return { valid: true, message: '' };
+    }
+    
+    // 🟡🟡🟡 - [BUTTON STATE] Update submit button state based on email validity
+    function updateSubmitButtonState() {
+      const emailValidation = validateEmail(currentEmail);
+      const isEmailValid = emailValidation.valid;
+      
+      if (submitButton && buttonText) {
+        if (isEmailValid) {
+          // ✅✅✅ - [BUTTON STATE] Email is valid, enable submit and show payment text
+          submitButton.disabled = false;
+          buttonText.textContent = 'Pay ' + currency + ' ' + totalAmountFormatted;
+          console.log('✅✅✅ - [CHECKOUT] Email valid, submit button enabled');
+        } else {
+          // ⚠️⚠️⚠️ - [BUTTON STATE] Email is missing/invalid, disable submit and show prompt text
+          submitButton.disabled = true;
+          buttonText.textContent = 'Provide your email to continue payment';
+          console.log('⚠️⚠️⚠️ - [CHECKOUT] Email missing/invalid, submit button disabled');
+        }
+      }
+      
+      // 🟡🟡🟡 - [EMAIL ERROR] Show/hide email error message
+      if (emailError) {
+        if (!isEmailValid && currentEmail.trim() !== '') {
+          emailError.textContent = emailValidation.message;
+          emailError.style.display = 'block';
+        } else {
+          emailError.textContent = '';
+          emailError.style.display = 'none';
+        }
+      }
+    }
+    
+    // 🟡🟡🟡 - [EMAIL SAVE] Save email to session when provided (using wizard progress module)
+    function saveEmailToSession(email) {
+      if (!email || email.trim() === '') {
+        return;
+      }
+      
+      // 🟡🟡🟡 - [EMAIL SAVE] Only save if email has changed
+      if (email.trim() === initialEmail) {
+        console.log('🟡🟡🟡 - [CHECKOUT] Email unchanged, skipping save');
+        return;
+      }
+      
+      console.log('🟡🟡🟡 - [CHECKOUT] Saving email to session via event-details step');
+      
+      // 🟡🟡🟡 - [EMAIL SAVE] Use wizard progress module to save email to eventDetails session
+      if (window.KloiWizardProgress && window.KloiWizardProgress.saveWizardStep) {
+        const emailPayload = { email: email.trim() };
+        // 🟡🟡🟡 - [EMAIL SAVE] saveWizardStep is async, handle promise
+        window.KloiWizardProgress.saveWizardStep('event-details', emailPayload, { autosave: true })
+          .then(function(result) {
+            if (result && result.ok) {
+              console.log('✅✅✅ - [CHECKOUT] Email saved to session successfully');
+            } else {
+              console.warn('⚠️⚠️⚠️ - [CHECKOUT] Email save to session failed:', result?.json?.message || 'Unknown error');
+            }
+          })
+          .catch(function(error) {
+            console.error('❗❗❗ - [CHECKOUT] Error saving email to session:', error);
+          });
+      } else {
+        console.warn('⚠️⚠️⚠️ - [CHECKOUT] Wizard progress module not available, cannot save email');
+      }
+    }
+    
+    // 🟡🟡🟡 - [EMAIL INPUT] Set up email input event listeners
+    if (emailInput) {
+      // 🟡🟡🟡 - [EMAIL INPUT] Handle input changes with debounce for autosave
+      let emailSaveTimeout;
+      emailInput.addEventListener('input', function() {
+        currentEmail = this.value.trim();
+        updateSubmitButtonState();
+        
+        // 🟡🟡🟡 - [EMAIL SAVE] Debounce email save to avoid excessive API calls
+        clearTimeout(emailSaveTimeout);
+        emailSaveTimeout = setTimeout(function() {
+          if (validateEmail(currentEmail).valid) {
+            saveEmailToSession(currentEmail);
+          }
+        }, 1000); // 🟡🟡🟡 - [EMAIL SAVE] Wait 1 second after user stops typing
+      });
+      
+      // 🟡🟡🟡 - [EMAIL INPUT] Handle blur event for immediate validation feedback
+      emailInput.addEventListener('blur', function() {
+        currentEmail = this.value.trim();
+        updateSubmitButtonState();
+        
+        // 🟡🟡🟡 - [EMAIL SAVE] Save immediately on blur if valid
+        if (validateEmail(currentEmail).valid) {
+          saveEmailToSession(currentEmail);
+        }
+      });
+      
+      // 🟡🟡🟡 - [EMAIL INPUT] Initial button state update
+      updateSubmitButtonState();
+    }
 
     // 🟡🟡🟡 - [3D SECURE RETURN] Handle return from 3D Secure authentication
     const urlParams = new URLSearchParams(window.location.search);
@@ -212,9 +344,24 @@
 
       console.log('🟡🟡🟡 - [CHECKOUT] Payment form submitted');
 
+      // 🟡🟡🟡 - [EMAIL VALIDATION] Validate email before proceeding with payment
+      const emailValue = emailInput ? emailInput.value.trim() : '';
+      const emailValidation = validateEmail(emailValue);
+      
+      if (!emailValidation.valid) {
+        console.error('❗❗❗ - [CHECKOUT] Email validation failed:', emailValidation.message);
+        if (emailError) {
+          emailError.textContent = emailValidation.message;
+          emailError.style.display = 'block';
+        }
+        updateSubmitButtonState();
+        return;
+      }
+      
+      // 🟡🟡🟡 - [EMAIL SAVE] Ensure email is saved to session before payment
+      saveEmailToSession(emailValue);
+
       // 🟡🟡🟡 - [UI STATE] Disable submit button and show loading state
-      const submitButton = document.getElementById('submit-button');
-      const buttonText = document.getElementById('button-text');
       const buttonSpinner = document.getElementById('button-spinner');
       const paymentError = document.getElementById('payment-error');
 
@@ -244,6 +391,9 @@
 
         // 🟡🟡🟡 - [STRIPE CONFIRM] Get cardholder name if provided
         const cardholderName = document.getElementById('cardholder-name').value;
+        
+        // 🟡🟡🟡 - [STRIPE CONFIRM] Get email for billing details (required for confirmations)
+        const customerEmail = emailInput ? emailInput.value.trim() : '';
 
         // 🟡🟡🟡 - [STRIPE CONFIRM] Build return URL for 3D Secure redirects
         const returnUrl = window.location.origin + window.location.pathname + '?order=' + orderId;
@@ -258,6 +408,7 @@
             payment_method_data: {
               billing_details: {
                 name: cardholderName || undefined,
+                email: customerEmail || undefined, // 🟡🟡🟡 - [EMAIL] Include email in billing details for confirmations
               },
             },
           },

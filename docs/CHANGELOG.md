@@ -14,6 +14,148 @@
 
 ---
 
+### January 12, 2026 @ 20:12 - Mandatory Email Collection on Checkout Page
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented mandatory email collection on the checkout page to ensure customer confirmations can be sent. Email input is now required before payment submission, with smart pre-population from session data, real-time validation, automatic session persistence, and integration with Stripe billing details. The submit button is disabled until a valid email is provided, with clear messaging to guide users.
+
+#### Email Collection Implementation
+
+- **Required Email Input Field** (`src/views/wizard/checkout.hbs`):
+  - **Added** email input field after cardholder-name field (lines 104-109):
+    ```handlebars
+    {{!-- Email (Required) --}}
+    <div class="form-group">
+      <label for="checkout-email">Email <span style="color: red;">*</span></label>
+      <input type="email" id="checkout-email" name="email" value="{{eventDetails.email}}" placeholder="your.email@example.com" required />
+      <div id="email-error" class="form-error" style="display: none;"></div>
+    </div>
+    ```
+  - **Smart Pre-population**: Email field automatically pre-populates from `eventDetails.email` if available in session/state
+  - **Visual Indicator**: Red asterisk (*) indicates required field
+  - **Error Display**: Dedicated error container for email validation messages
+
+- **Wizard Progress Module Integration** (`src/views/wizard/checkout.hbs`):
+  - **Added** script include for wizard progress module (line 127):
+    ```handlebars
+    {{!-- 🟡🟡🟡 - [WIZARD PROGRESS] Include wizard progress module for email autosave --}}
+    <script src="/public/global/js/wizard__progress.js"></script>
+    ```
+  - Enables automatic email persistence to session using existing DRY patterns
+
+- **Email Validation and Button State Management** (`src/views/wizard/checkout.hbs`):
+  - **Added** comprehensive email validation system (lines 149-237):
+    - **Email Validation Function** (lines 164-173):
+      - Validates email format using regex pattern `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`
+      - Returns validation result with appropriate error messages
+      - Handles empty email case with specific message: "Email is required to continue payment"
+    - **Button State Management** (lines 176-204):
+      - `updateSubmitButtonState()` function updates submit button based on email validity
+      - **When email is valid**: Button enabled, text shows "Pay [currency] [amount]"
+      - **When email is missing/invalid**: Button disabled, text shows "Provide your email to continue payment"
+      - Real-time error message display in dedicated error container
+    - **Email Input Event Listeners** (lines 238-256):
+      - **Input event**: Debounced autosave (1 second delay) when user types
+      - **Blur event**: Immediate validation feedback and save on field exit
+      - Updates button state in real-time as user types
+    - **Initial State Setup**: Button state initialized on page load based on pre-populated email
+
+- **Session Persistence** (`src/views/wizard/checkout.hbs`):
+  - **Email Save Function** (lines 207-237):
+    - `saveEmailToSession(email)` function saves email to session via wizard progress module
+    - Uses `event-details` step with autosave mode for lenient server handling
+    - Only saves if email has changed from initial value (prevents unnecessary API calls)
+    - Saves email to `eventDetails` session key (consistent with existing wizard flow)
+    - **Code Pattern**:
+      ```javascript
+      if (window.KloiWizardProgress && window.KloiWizardProgress.saveWizardStep) {
+        const emailPayload = { email: email.trim() };
+        window.KloiWizardProgress.saveWizardStep('event-details', emailPayload, { autosave: true })
+          .then(function(result) {
+            if (result && result.ok) {
+              console.log('✅✅✅ - [CHECKOUT] Email saved to session successfully');
+            }
+          });
+      }
+      ```
+
+- **Form Submission Integration** (`src/views/wizard/checkout.hbs`):
+  - **Email Validation Before Payment** (lines 347-359):
+    - Validates email before proceeding with Stripe payment submission
+    - Blocks payment if email is missing or invalid
+    - Shows error message and updates button state if validation fails
+    - **Code Added**:
+      ```javascript
+      // 🟡🟡🟡 - [EMAIL VALIDATION] Validate email before proceeding with payment
+      const emailValue = emailInput ? emailInput.value.trim() : '';
+      const emailValidation = validateEmail(emailValue);
+      
+      if (!emailValidation.valid) {
+        console.error('❗❗❗ - [CHECKOUT] Email validation failed:', emailValidation.message);
+        if (emailError) {
+          emailError.textContent = emailValidation.message;
+          emailError.style.display = 'block';
+        }
+        updateSubmitButtonState();
+        return;
+      }
+      
+      // 🟡🟡🟡 - [EMAIL SAVE] Ensure email is saved to session before payment
+      saveEmailToSession(emailValue);
+      ```
+  - **Stripe Billing Details Integration** (lines 395-411):
+    - Email included in Stripe payment confirmation billing details
+    - Enables Stripe to send payment confirmations to customers
+    - **Code Updated**:
+      ```javascript
+      // 🟡🟡🟡 - [STRIPE CONFIRM] Get email for billing details (required for confirmations)
+      const customerEmail = emailInput ? emailInput.value.trim() : '';
+      
+      // ... in confirmPayment call ...
+      payment_method_data: {
+        billing_details: {
+          name: cardholderName || undefined,
+          email: customerEmail || undefined, // 🟡🟡🟡 - [EMAIL] Include email in billing details for confirmations
+        },
+      },
+      ```
+
+#### Technical Details
+
+- **Session Key**: Email saved to `eventDetails.email` in session (consistent with existing wizard step configuration)
+- **API Endpoint**: Uses existing `/api/session/event-details` endpoint with autosave mode
+- **Validation**: Client-side validation with real-time feedback, server-side validation handled by existing event-details schema
+- **User Experience**: 
+  - Clear visual feedback (button state, error messages)
+  - Smart pre-population from session (no duplicate entry if already provided)
+  - Debounced autosave prevents excessive API calls
+  - Immediate save on blur ensures data persistence
+
+#### Files Modified
+
+- `src/views/wizard/checkout.hbs`:
+  - Added email input field (lines 104-109)
+  - Added wizard progress script include (line 127)
+  - Added email validation and button state management (lines 149-256)
+  - Updated form submission handler with email validation (lines 347-362)
+  - Updated Stripe payment confirmation with email in billing details (lines 395-411)
+
+#### Impact
+
+- **Breaking Change**: None - email collection is additive, existing flows continue to work
+- **User Impact**: Users must provide email before completing payment (required for confirmations)
+- **Developer Impact**: Email is now guaranteed to be available in session and Stripe billing details for all completed payments
+- **Business Impact**: Enables reliable customer confirmation emails for all orders
+
+#### Dependencies
+
+- Requires `wizard__progress.js` module (already included in project)
+- Uses existing `/api/session/event-details` endpoint with autosave support
+- Integrates with existing Stripe Payment Element implementation
+
+---
+
 ### January 12, 2026 @ 19:10 - CSRF Protection, Redis Rate Limiting, and Health Check Security Hardening
 
 **Type**: 🔴 BREAKING CHANGE
