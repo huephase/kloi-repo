@@ -33,7 +33,7 @@
   min-width: 120px;
   padding: 0.75rem 1.25rem;
   border-radius: 999px;
-  border: 1px solid var(--kloi-text);
+  border: 4px solid var(--kloi-text);
   cursor: pointer;
   font-weight: 800;
   height: 45px;
@@ -43,7 +43,6 @@
 .city-option.is-active {
   font-weight: 300;
   background: var(--kloi-accent);
-  color: #fff;
 }
 
 .sublocality-workflow {
