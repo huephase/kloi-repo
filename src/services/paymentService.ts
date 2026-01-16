@@ -350,6 +350,55 @@ class PaymentService {
           if (customerId) {
             console.log('✅✅✅ - [PAYMENT SERVICE] Order linked to customer:', customerId);
           }
+          
+          // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Send order confirmation email after successful payment
+          try {
+            console.log('🟡🟡🟡 - [PAYMENT SERVICE] Preparing to send order confirmation email for order:', order.orderNumber);
+            
+            // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Fetch full order details including all JSON fields for email
+            const fullOrder = await prisma.kloiOrdersTable.findUnique({
+              where: { id: order.id },
+              select: {
+                orderNumber: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                email: true,
+                totalAmount: true,
+                paidAt: true,
+                createdAt: true,
+                location: true,
+                eventDetails: true,
+                eventSetup: true,
+              }
+            });
+            
+            if (!fullOrder) {
+              console.error('❗❗❗ - [PAYMENT SERVICE] Could not fetch order details for email:', order.id);
+            } else if (!fullOrder.email) {
+              console.warn('⚠️⚠️⚠️ - [PAYMENT SERVICE] Skipping email - customer email not available for order:', order.orderNumber);
+            } else {
+              // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Import email service dynamically to avoid circular dependencies
+              const { sendOrderConfirmationEmail } = await import('./emailService');
+              const currency = (process.env.DEFAULT_CURRENCY || 'AED');
+              
+              const emailResult = await sendOrderConfirmationEmail(fullOrder, currency);
+              
+              if (emailResult.success) {
+                console.log('✅✅✅ - [PAYMENT SERVICE] Order confirmation email sent successfully for order:', order.orderNumber);
+              } else {
+                console.error('❗❗❗ - [PAYMENT SERVICE] Failed to send order confirmation email for order:', order.orderNumber, emailResult.error);
+                // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Email failure should not block payment processing
+                // Payment is already confirmed, email is a notification
+              }
+            }
+          } catch (emailError) {
+            // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Handle email errors gracefully - don't fail webhook processing
+            console.error('❗❗❗ - [PAYMENT SERVICE] Error sending order confirmation email:', emailError);
+            console.error('❗❗❗ - [PAYMENT SERVICE] Payment was successful, but email notification failed. Order:', order.orderNumber);
+            // Continue processing - payment is already confirmed
+          }
+          
           break;
 
         case 'payment_intent.payment_failed':

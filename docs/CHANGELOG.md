@@ -14,6 +14,262 @@
 
 ---
 
+### January 16, 2026 @ 17:25 - Order Confirmation Email Implementation
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented order confirmation email functionality that automatically sends confirmation emails to customers after successful payment, with automatic CC to an admin email address configured via `ADMIN_CC_EMAIL` environment variable. This fulfills the promise made on the final confirmation page that customers will receive a confirmation email shortly after payment completion.
+
+#### Email Service Enhancements
+
+- **SendGrid Configuration Update** (`src/config/sendgrid.ts`):
+  - **Added** `ADMIN_CC_EMAIL` environment variable reading (lines 8-9):
+    ```typescript
+    // 2026-01-16T17:25:00Z 🟡🟡🟡 - [SENDGRID CONFIG] Admin CC email for all outgoing emails
+    const ADMIN_CC_EMAIL = process.env.ADMIN_CC_EMAIL;
+    ```
+  - **Added** validation warning if `ADMIN_CC_EMAIL` is not configured (lines 18-20):
+    ```typescript
+    if (!ADMIN_CC_EMAIL) {
+      console.warn('⚠️⚠️⚠️ - [SENDGRID CONFIG] ADMIN_CC_EMAIL not found in environment variables - emails will not be CCed to admin');
+    }
+    ```
+  - **Exported** `ADMIN_CC_EMAIL` constant for use in email service (line 22)
+  - **Impact**: All emails sent by the application can now be automatically CCed to an admin email address
+
+- **Core Email Function Enhancement** (`src/services/emailService.ts`):
+  - **Updated** `sendEmail()` function signature to accept optional `cc` parameter (line 9):
+    ```typescript
+    export async function sendEmail(
+      to: string,
+      subject: string,
+      htmlContent: string,
+      textContent?: string,
+      cc?: string | string[]
+    ): Promise<{ success: boolean; messageId?: string; error?: string }>
+    ```
+  - **Added** automatic CC list building logic (lines 15-28):
+    - Accepts explicit CC addresses if provided
+    - Automatically includes `ADMIN_CC_EMAIL` if configured (avoids duplicates)
+    - Logs CC recipients for debugging
+  - **Updated** SendGrid message format to include `cc` field when CC recipients exist (lines 30-33)
+  - **Enhanced** logging to include CC information (lines 40-42)
+  - **Code Added**:
+    ```typescript
+    // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Build CC list - always include ADMIN_CC_EMAIL if configured
+    const ccList: string[] = [];
+    
+    // Add explicit CC addresses if provided
+    if (cc) {
+      if (Array.isArray(cc)) {
+        ccList.push(...cc);
+      } else {
+        ccList.push(cc);
+      }
+    }
+    
+    // Always add ADMIN_CC_EMAIL if configured (avoid duplicates)
+    if (ADMIN_CC_EMAIL && !ccList.includes(ADMIN_CC_EMAIL)) {
+      ccList.push(ADMIN_CC_EMAIL);
+      console.log('🟡🟡🟡 - [EMAIL SERVICE] Adding ADMIN_CC_EMAIL to CC list:', ADMIN_CC_EMAIL);
+    }
+    ```
+  - **Impact**: All emails sent through `sendEmail()` are now automatically CCed to admin if `ADMIN_CC_EMAIL` is configured
+
+- **Order Confirmation Email Function** (`src/services/emailService.ts` - **NEW FUNCTION**):
+  - **Added** `sendOrderConfirmationEmail()` function (lines 325-600+):
+    - Accepts order data with all required fields (orderNumber, customer info, location, eventDetails, eventSetup, pricing)
+    - Validates customer email exists before sending
+    - Generates comprehensive HTML email template with:
+      - Order number and confirmation message
+      - Customer information (name, phone, email)
+      - Delivery location details (full address, additional directions)
+      - Event details (dates, times, property type)
+      - Menu selections summary (from calculator breakdown if available)
+      - Price breakdown (subtotal, surcharge, total)
+      - Payment confirmation details (status, dates)
+    - Generates plain text version for email clients
+    - Follows existing email template patterns (HTML structure, styling, footer)
+    - Uses consistent formatting utilities for dates and amounts
+  - **Template Features**:
+    - Professional HTML email with responsive styling
+    - Success box highlighting order confirmation
+    - Organized sections for customer info, delivery location, event details, order summary, and payment info
+    - Menu breakdown with itemized pricing
+    - Clear total amount display
+    - "What's Next?" information box
+    - Footer with automated message notice
+  - **Data Processing**:
+    - Parses JSON fields (location, eventDetails, eventSetup)
+    - Formats dates for display (order date, payment date, event dates)
+    - Formats amounts with currency symbol
+    - Builds location address from components or fullAddress
+    - Builds event details address from property information
+    - Generates menu breakdown from calculator data
+  - **Code Pattern**:
+    ```typescript
+    export async function sendOrderConfirmationEmail(
+      order: {
+        orderNumber: number;
+        firstName: string;
+        lastName: string;
+        phone: string;
+        email: string | null;
+        totalAmount: any;
+        paidAt: Date | null;
+        createdAt: Date;
+        location: any;
+        eventDetails: any;
+        eventSetup: any;
+      },
+      currency: string = 'AED'
+    ): Promise<{ success: boolean; error?: string }>
+    ```
+  - **Impact**: Customers now receive detailed confirmation emails automatically after successful payment
+
+#### Payment Webhook Integration
+
+- **Email Sending in Payment Webhook** (`src/services/paymentService.ts`):
+  - **Added** order confirmation email sending after `payment_intent.succeeded` processing (lines 353-395):
+    - Executes after order status is updated to COMPLETED
+    - Fetches full order details from database (including all JSON fields)
+    - Calls `sendOrderConfirmationEmail()` with order data and currency
+    - Handles email sending errors gracefully (logs but doesn't fail webhook processing)
+    - Skips email if customer email is missing (logs warning)
+  - **Error Handling**:
+    - Email failures are logged but do not block payment processing
+    - Payment is already confirmed before email is sent
+    - Uses try-catch to ensure webhook processing continues even if email fails
+  - **Code Added**:
+    ```typescript
+    // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Send order confirmation email after successful payment
+    try {
+      console.log('🟡🟡🟡 - [PAYMENT SERVICE] Preparing to send order confirmation email for order:', order.orderNumber);
+      
+      // Fetch full order details including all JSON fields for email
+      const fullOrder = await prisma.kloiOrdersTable.findUnique({
+        where: { id: order.id },
+        select: {
+          orderNumber: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          email: true,
+          totalAmount: true,
+          paidAt: true,
+          createdAt: true,
+          location: true,
+          eventDetails: true,
+          eventSetup: true,
+        }
+      });
+      
+      if (!fullOrder) {
+        console.error('❗❗❗ - [PAYMENT SERVICE] Could not fetch order details for email:', order.id);
+      } else if (!fullOrder.email) {
+        console.warn('⚠️⚠️⚠️ - [PAYMENT SERVICE] Skipping email - customer email not available for order:', order.orderNumber);
+      } else {
+        // Import email service dynamically to avoid circular dependencies
+        const { sendOrderConfirmationEmail } = await import('./emailService');
+        const currency = (process.env.DEFAULT_CURRENCY || 'AED');
+        
+        const emailResult = await sendOrderConfirmationEmail(fullOrder, currency);
+        
+        if (emailResult.success) {
+          console.log('✅✅✅ - [PAYMENT SERVICE] Order confirmation email sent successfully for order:', order.orderNumber);
+        } else {
+          console.error('❗❗❗ - [PAYMENT SERVICE] Failed to send order confirmation email for order:', order.orderNumber, emailResult.error);
+        }
+      }
+    } catch (emailError) {
+      // Handle email errors gracefully - don't fail webhook processing
+      console.error('❗❗❗ - [PAYMENT SERVICE] Error sending order confirmation email:', emailError);
+      console.error('❗❗❗ - [PAYMENT SERVICE] Payment was successful, but email notification failed. Order:', order.orderNumber);
+    }
+    ```
+  - **Impact**: Order confirmation emails are automatically sent immediately after successful payment processing
+
+#### Technical Details
+
+- **Email Template Structure**:
+  - HTML email with inline CSS for maximum compatibility
+  - Responsive design with max-width container
+  - Color-coded sections (green header for success, blue info boxes)
+  - Professional styling consistent with existing admin emails
+  - Plain text fallback for email clients that don't support HTML
+
+- **Data Formatting**:
+  - Dates formatted using `toLocaleString()` and `toLocaleDateString()`
+  - Amounts formatted to 2 decimal places with currency symbol
+  - Address components intelligently combined
+  - Event dates handle single-day and multi-day events
+  - Menu breakdown displays itemized pricing from calculator
+
+- **Error Handling**:
+  - Email validation before sending (checks for customer email)
+  - Graceful degradation if email sending fails (payment still succeeds)
+  - Comprehensive logging for debugging
+  - No blocking of payment processing for email failures
+
+- **DRY Principles**:
+  - Reuses existing `sendEmail()` function pattern
+  - Follows existing email template structure from admin emails
+  - Uses consistent logging conventions (emoji-prefixed logs)
+  - Maintains code consistency with existing codebase patterns
+
+#### Files Modified
+
+- `src/config/sendgrid.ts`:
+  - Added `ADMIN_CC_EMAIL` environment variable reading (lines 8-9)
+  - Added validation warning (lines 18-20)
+  - Exported `ADMIN_CC_EMAIL` constant (line 22)
+
+- `src/services/emailService.ts`:
+  - Updated `sendEmail()` function signature to accept `cc` parameter (line 9)
+  - Added CC list building logic (lines 15-28)
+  - Updated SendGrid message format to include `cc` field (lines 30-33)
+  - Enhanced logging for CC information (lines 40-42)
+  - Added `sendOrderConfirmationEmail()` function (lines 325-600+)
+
+- `src/services/paymentService.ts`:
+  - Added order confirmation email sending in webhook handler (lines 353-395)
+  - Integrated email sending after order status update to COMPLETED
+  - Added error handling for email failures
+
+#### Environment Variable
+
+- `ADMIN_CC_EMAIL`: Admin email address to CC on all emails (optional but recommended)
+  - If not set, emails still send to customers but without admin CC
+  - Warning logged at startup if not configured
+  - Should be set to admin email address for order monitoring
+
+#### Impact
+
+- **Breaking Change**: None - email sending is additive, existing flows continue to work
+- **User Impact**: 
+  - Customers now receive confirmation emails automatically after successful payment
+  - Email includes complete order details, delivery location, event information, and payment confirmation
+  - Fulfills promise made on final confirmation page: "You will receive a confirmation email shortly"
+- **Developer Impact**: 
+  - All emails sent through `sendEmail()` are automatically CCed to admin if `ADMIN_CC_EMAIL` is configured
+  - New `sendOrderConfirmationEmail()` function available for manual order confirmation emails if needed
+  - Email sending failures don't block payment processing
+- **Business Impact**: 
+  - Improved customer experience with automatic order confirmations
+  - Admin visibility into all customer orders via CC emails
+  - Professional email communication enhances brand image
+  - Reduces customer support inquiries about order status
+
+#### Dependencies
+
+- Requires `ADMIN_CC_EMAIL` environment variable (optional but recommended)
+- Uses existing SendGrid configuration (`SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME`)
+- Depends on email collection on checkout page (implemented in January 12, 2026 change)
+- Integrates with existing payment webhook handler
+- Uses existing email service infrastructure
+
+---
+
 ### January 12, 2026 @ 20:12 - Mandatory Email Collection on Checkout Page
 
 **Type**: 🟠 MAJOR CHANGE
