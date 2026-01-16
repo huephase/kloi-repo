@@ -209,7 +209,11 @@ export class StripeProcessor implements PaymentProcessor {
    * Verify and parse webhook event from Stripe
    */
   async handleWebhook(payload: string | Buffer, signature: string): Promise<WebhookVerificationResult> {
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [STRIPE PROCESSOR] Handling webhook with enhanced logging
     console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Handling webhook');
+    console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Payload type:', typeof payload, 'Length:', payload instanceof Buffer ? payload.length : payload.length);
+    console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Signature present:', !!signature, 'Length:', signature?.length || 0);
+    console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Webhook secret configured:', !!this.webhookSecret);
 
     try {
       // 🟡🟡🟡 - [STRIPE WEBHOOK] Verify webhook signature
@@ -221,9 +225,14 @@ export class StripeProcessor implements PaymentProcessor {
         };
       }
 
-      // 🟡🟡🟡 - [STRIPE WEBHOOK] Construct event from payload and signature
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [STRIPE WEBHOOK] Ensure payload is string (Stripe requires string for signature verification)
+      // If Buffer, convert to string. If already string, use as-is.
+      const payloadString = payload instanceof Buffer ? payload.toString('utf8') : payload;
+      
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [STRIPE WEBHOOK] Construct event from payload and signature
+      // Stripe's constructEvent requires the exact raw body string (with original formatting)
       const event = this.stripe.webhooks.constructEvent(
-        payload,
+        payloadString,
         signature,
         this.webhookSecret
       );

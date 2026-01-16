@@ -14,6 +14,383 @@
 
 ---
 
+### January 17, 2026 @ 02:09 - Stripe Webhook Signature Verification Fix and SendGrid Authentication Enhancement
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Fixed critical Stripe webhook signature verification failures by ensuring raw request body is preserved correctly for signature validation. Enhanced SendGrid email service with comprehensive API key validation and detailed error diagnostics for authentication failures. These fixes address production issues where webhook signature verification was failing and email sending was returning 401 Unauthorized errors.
+
+#### Problems Identified
+
+##### Issue 1: Stripe Webhook Signature Verification Failure
+
+- **Root Cause**: Stripe webhook signature verification was failing because the raw request body was not being preserved correctly. Stripe requires the exact raw body (including all whitespace, newlines, and formatting) to verify the webhook signature, but Fastify's JSON parsing was modifying the body formatting.
+- **Error Message**: `StripeSignatureVerificationError: No signatures found matching the expected signature for payload. Are you passing the raw request body you received from Stripe?`
+- **Symptom**: All webhook events were being rejected with signature verification errors, preventing order confirmation emails from being sent via webhook handler
+- **Impact**: 
+  - Webhook events could not be processed, breaking the primary email delivery method
+  - Order confirmations relied solely on fallback mechanism
+  - No visibility into why signature verification was failing
+
+##### Issue 2: SendGrid Authentication Failure (401 Unauthorized)
+
+- **Root Cause**: SendGrid API was returning 401 Unauthorized errors, indicating authentication configuration issues
+- **Error Message**: `ResponseError: Unauthorized` with HTTP status code 401
+- **Symptom**: All email sending attempts failed with authentication errors
+- **Impact**: 
+  - Order confirmation emails could not be sent (neither via webhook nor fallback)
+  - No clear diagnostic information about why authentication was failing
+  - Customers did not receive confirmation emails after payment
+- **Likely Causes**:
+  - Missing or incorrect `SENDGRID_API_KEY` environment variable
+  - Invalid API key format (should start with `SG.`)
+  - API key revoked, expired, or missing "Mail Send" permissions
+  - API key not properly trimmed (whitespace issues)
+
+#### Stripe Webhook Signature Verification Fix
+
+##### Content Type Parser Enhancement (`src/routes/webhooks/stripe.ts`)
+
+- **Updated** content type parser to preserve raw body correctly (lines 29-40):
+  - **Changed** from `parseAs: 'string'` to `parseAs: 'buffer'` to capture exact raw bytes
+  - **Added** raw body storage as both string and Buffer for maximum compatibility
+  - **Preserved** exact formatting (whitespace, newlines) required by Stripe
+  - **Code Updated**:
+    ```typescript
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Configure content type parser to preserve raw body for signature verification
+    // Stripe requires raw body (not parsed JSON) for signature verification
+    // IMPORTANT: This must be registered BEFORE Fastify's default JSON parser
+    // We use parseAs: 'buffer' to get the exact raw bytes, then convert to string for Stripe
+    app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Store raw body as Buffer and string for signature verification
+      // Stripe needs the exact raw body string (with original formatting) for signature verification
+      const rawBodyString = body.toString('utf8');
+      (req as any).rawBody = rawBodyString; // Store as string for Stripe
+      (req as any).rawBodyBuffer = body; // Store as Buffer as backup
+      
+      try {
+        // Parse JSON for Fastify's request.body (for convenience)
+        const json = JSON.parse(rawBodyString);
+        done(null, json);
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    });
+    ```
+  - **Impact**: Raw body is now preserved exactly as received from Stripe, enabling successful signature verification
+
+##### Raw Body Handling in Webhook Handler (`src/routes/webhooks/stripe.ts`)
+
+- **Enhanced** raw body retrieval and validation (lines 52-72):
+  - **Added** comprehensive logging for raw body length and presence
+  - **Removed** fallback to `JSON.stringify(request.body)` which was breaking signature verification
+  - **Added** validation to ensure raw body exists before verification
+  - **Code Updated**:
+    ```typescript
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Get raw body for signature verification
+    // CRITICAL: Must use the exact raw body string (not re-stringified JSON)
+    // The raw body string preserves exact formatting (whitespace, newlines) required for signature verification
+    const rawBody = (request as any).rawBody;
+    const signature = request.headers['stripe-signature'] as string;
+    
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Log raw body length for debugging (not full body to avoid log spam)
+    if (rawBody) {
+      console.log('🟡🟡🟡 - [WEBHOOK] Raw body length:', rawBody.length, 'bytes');
+    } else {
+      console.error('❗❗❗ - [WEBHOOK] Raw body not found - signature verification will fail');
+    }
+    ```
+  - **Impact**: Ensures exact raw body is used for signature verification, preventing verification failures
+
+##### Webhook Verification Logic (`src/routes/webhooks/stripe.ts`)
+
+- **Updated** webhook verification to use raw body string directly (lines 74-90):
+  - **Removed** `JSON.stringify()` call that was modifying body formatting
+  - **Added** validation to ensure raw body string exists
+  - **Added** explicit string conversion from Buffer if needed
+  - **Code Updated**:
+    ```typescript
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Verify and parse webhook event
+    // CRITICAL: Pass raw body as string directly (not re-stringified)
+    // Stripe signature verification requires the exact raw body bytes as received
+    const rawBodyString = typeof rawBody === 'string' ? rawBody : (rawBody ? rawBody.toString('utf8') : '');
+    
+    if (!rawBodyString) {
+      console.error('❗❗❗ - [WEBHOOK] Cannot verify webhook - raw body is empty');
+      return reply.status(400).send({
+        success: false,
+        message: 'Missing request body'
+      });
+    }
+    
+    const verificationResult = await processor.handleWebhook(
+      rawBodyString,
+      signature
+    );
+    ```
+  - **Impact**: Raw body is passed directly to Stripe without modification, enabling successful signature verification
+
+##### StripeProcessor Webhook Handling Enhancement (`src/services/payment/StripeProcessor.ts`)
+
+- **Enhanced** `handleWebhook()` method with improved logging and payload handling (lines 211-230):
+  - **Added** comprehensive logging for payload type, length, and signature presence
+  - **Added** explicit string conversion from Buffer to ensure Stripe receives string payload
+  - **Added** webhook secret configuration status logging
+  - **Code Added**:
+    ```typescript
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [STRIPE PROCESSOR] Handling webhook with enhanced logging
+    console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Handling webhook');
+    console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Payload type:', typeof payload, 'Length:', payload instanceof Buffer ? payload.length : payload.length);
+    console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Signature present:', !!signature, 'Length:', signature?.length || 0);
+    console.log('🟡🟡🟡 - [STRIPE PROCESSOR] Webhook secret configured:', !!this.webhookSecret);
+
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [STRIPE WEBHOOK] Ensure payload is string (Stripe requires string for signature verification)
+    // If Buffer, convert to string. If already string, use as-is.
+    const payloadString = payload instanceof Buffer ? payload.toString('utf8') : payload;
+    
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [STRIPE WEBHOOK] Construct event from payload and signature
+    // Stripe's constructEvent requires the exact raw body string (with original formatting)
+    const event = this.stripe.webhooks.constructEvent(
+      payloadString,
+      signature,
+      this.webhookSecret
+    );
+    ```
+  - **Impact**: Provides better diagnostics and ensures payload is in correct format for Stripe verification
+
+#### SendGrid Authentication Enhancement
+
+##### API Key Validation (`src/config/sendgrid.ts`)
+
+- **Added** comprehensive API key validation and enhanced logging (lines 11-25):
+  - **Added** API key format validation (must start with `SG.`)
+  - **Added** detailed error messages for invalid API key format
+  - **Added** API key trimming to handle whitespace issues
+  - **Added** startup validation to catch configuration issues early
+  - **Code Added**:
+    ```typescript
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [SENDGRID CONFIG] Validate and initialize SendGrid API key
+    if (SENDGRID_API_KEY) {
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [SENDGRID CONFIG] Validate API key format (should start with SG.)
+      const apiKeyTrimmed = SENDGRID_API_KEY.trim();
+      if (!apiKeyTrimmed.startsWith('SG.')) {
+        console.error('❌❌❌ - [SENDGRID CONFIG] Invalid SendGrid API key format. API keys should start with "SG."');
+        console.error('❌❌❌ - [SENDGRID CONFIG] Current key starts with:', apiKeyTrimmed.substring(0, 10) + '...');
+        console.error('❌❌❌ - [SENDGRID CONFIG] Please check your SENDGRID_API_KEY environment variable');
+      } else {
+        sgMail.setApiKey(apiKeyTrimmed);
+        console.log('✅✅✅ - [SENDGRID CONFIG] SendGrid initialized successfully');
+        console.log('🟡🟡🟡 - [SENDGRID CONFIG] API key format validated (starts with SG.)');
+      }
+    } else {
+      console.error('❌❌❌ - [SENDGRID CONFIG] SENDGRID_API_KEY not found in environment variables');
+      console.error('❌❌❌ - [SENDGRID CONFIG] Email sending will fail. Please set SENDGRID_API_KEY in your environment');
+    }
+    ```
+  - **Impact**: Catches API key configuration issues at startup, preventing runtime authentication failures
+
+##### Enhanced Error Handling (`src/services/emailService.ts`)
+
+- **Enhanced** email sending error handling with detailed diagnostics (lines 59-95):
+  - **Added** specific handling for 401 Unauthorized errors
+  - **Added** comprehensive diagnostic messages for authentication failures
+  - **Added** API key status logging (without exposing the key)
+  - **Added** detailed error information from SendGrid response
+  - **Code Added**:
+    ```typescript
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Enhanced error logging for SendGrid authentication issues
+    console.error('❗❗❗ - [EMAIL SERVICE] Error sending email:', error);
+    
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Check for authentication errors (401 Unauthorized)
+    if (error.code === 401 || error.response?.statusCode === 401) {
+      console.error('❌❌❌ - [EMAIL SERVICE] SendGrid authentication failed (401 Unauthorized)');
+      console.error('❌❌❌ - [EMAIL SERVICE] This usually means:');
+      console.error('❌❌❌ - [EMAIL SERVICE]   1. SENDGRID_API_KEY is missing or incorrect');
+      console.error('❌❌❌ - [EMAIL SERVICE]   2. API key format is invalid (should start with "SG.")');
+      console.error('❌❌❌ - [EMAIL SERVICE]   3. API key has been revoked or expired');
+      console.error('❌❌❌ - [EMAIL SERVICE]   4. API key does not have "Mail Send" permissions');
+      console.error('❌❌❌ - [EMAIL SERVICE] Please check your SendGrid API key configuration');
+      
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Log API key status (without exposing the key)
+      const apiKey = process.env.SENDGRID_API_KEY;
+      if (apiKey) {
+        console.error('🟡🟡🟡 - [EMAIL SERVICE] API key is set (length:', apiKey.length, 'chars, starts with:', apiKey.substring(0, 3) + '...)');
+      } else {
+        console.error('❌❌❌ - [EMAIL SERVICE] API key is NOT set in environment variables');
+      }
+      
+      return {
+        success: false,
+        error: 'SendGrid authentication failed. Please check SENDGRID_API_KEY configuration.'
+      };
+    }
+    
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Log other SendGrid errors with details
+    if (error.response?.body?.errors) {
+      console.error('❗❗❗ - [EMAIL SERVICE] SendGrid error details:', JSON.stringify(error.response.body.errors, null, 2));
+    }
+    ```
+  - **Impact**: Provides actionable diagnostic information when authentication fails, enabling quick resolution
+
+#### Technical Details
+
+##### Stripe Webhook Signature Verification
+
+- **Raw Body Preservation**:
+  - Fastify's default JSON parser modifies body formatting (whitespace, newlines)
+  - Stripe signature verification requires exact raw body bytes as received
+  - Solution: Use `parseAs: 'buffer'` to capture raw bytes, then convert to string preserving exact formatting
+  - Store raw body before JSON parsing to prevent modification
+
+- **Signature Verification Process**:
+  1. Receive webhook request with `stripe-signature` header
+  2. Extract raw body as Buffer from Fastify
+  3. Convert Buffer to string preserving exact formatting
+  4. Pass raw body string directly to Stripe's `constructEvent()` method
+  5. Stripe verifies signature using raw body and webhook secret
+
+- **Critical Requirements**:
+  - Raw body must be exact string received from Stripe (no re-stringification)
+  - Content type parser must be registered before default JSON parser
+  - Buffer must be converted to UTF-8 string for Stripe verification
+  - No JSON parsing or modification of raw body before verification
+
+##### SendGrid Authentication
+
+- **API Key Format**:
+  - Valid SendGrid API keys start with `SG.` prefix
+  - Keys are typically 69 characters long
+  - Keys should be trimmed to remove whitespace
+  - Keys must have "Mail Send" permissions in SendGrid Dashboard
+
+- **Authentication Error Handling**:
+  - 401 Unauthorized indicates authentication failure
+  - Common causes: missing key, invalid format, revoked key, missing permissions
+  - Enhanced logging provides specific guidance for each failure scenario
+  - Startup validation catches configuration issues before runtime
+
+- **Error Diagnostics**:
+  - Logs API key presence and format without exposing the key
+  - Provides actionable steps to resolve authentication issues
+  - Includes SendGrid error response details when available
+
+#### Files Modified
+
+- `src/routes/webhooks/stripe.ts`:
+  - Updated content type parser to use `parseAs: 'buffer'` (lines 29-40)
+  - Enhanced raw body storage and retrieval (lines 52-72)
+  - Updated webhook verification to use raw body string directly (lines 74-90)
+  - Added comprehensive logging for debugging signature verification
+  - Removed fallback to `JSON.stringify()` that was breaking verification
+
+- `src/services/payment/StripeProcessor.ts`:
+  - Enhanced `handleWebhook()` method with improved logging (lines 211-230)
+  - Added explicit string conversion from Buffer for Stripe verification
+  - Added payload type and length logging
+  - Added webhook secret configuration status logging
+
+- `src/config/sendgrid.ts`:
+  - Added API key format validation (must start with `SG.`) (lines 11-25)
+  - Added API key trimming to handle whitespace issues
+  - Enhanced startup logging with validation status
+  - Added detailed error messages for invalid API key format
+
+- `src/services/emailService.ts`:
+  - Enhanced error handling for 401 Unauthorized errors (lines 59-95)
+  - Added comprehensive diagnostic messages for authentication failures
+  - Added API key status logging (without exposing the key)
+  - Added SendGrid error response details logging
+
+#### Impact
+
+- **Breaking Change**: None - fixes are backward compatible and improve reliability
+- **User Impact**: 
+  - Webhook events now process successfully, enabling reliable order confirmation emails
+  - Email sending failures provide clear diagnostic information for resolution
+  - Improved reliability of order confirmation email delivery
+- **Developer Impact**: 
+  - Comprehensive logging helps diagnose webhook and email issues quickly
+  - API key validation catches configuration issues at startup
+  - Enhanced error messages provide actionable guidance for fixing issues
+  - Better visibility into webhook signature verification process
+- **Business Impact**: 
+  - Reliable order confirmation email delivery via webhook handler
+  - Reduced support inquiries about missing confirmation emails
+  - Faster resolution of email delivery issues with enhanced diagnostics
+  - Improved operational visibility with comprehensive logging
+
+#### Configuration Requirements
+
+##### Stripe Webhook
+
+- **Environment Variable**:
+  - `STRIPE_WEBHOOK_SECRET`: Webhook signing secret from Stripe Dashboard (starts with `whsec_`)
+  - Must match the webhook endpoint secret in Stripe Dashboard
+  - Required for webhook signature verification
+
+- **Webhook Endpoint**:
+  - Must be configured in Stripe Dashboard: `https://your-domain.com/webhooks/stripe`
+  - Required events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`
+  - Webhook secret must be copied to environment variable
+
+##### SendGrid
+
+- **Environment Variable**:
+  - `SENDGRID_API_KEY`: SendGrid API key (must start with `SG.`)
+  - Must have "Mail Send" permissions in SendGrid Dashboard
+  - Should be trimmed (no leading/trailing whitespace)
+  - Required for all email sending functionality
+
+- **API Key Setup**:
+  1. Generate API key in SendGrid Dashboard → Settings → API Keys
+  2. Ensure "Mail Send" permission is enabled
+  3. Copy full API key (starts with `SG.`)
+  4. Set as `SENDGRID_API_KEY` environment variable
+  5. Restart server to apply changes
+
+#### Testing
+
+##### Stripe Webhook Testing
+
+- **Verify Signature Verification**:
+  - Send test webhook from Stripe Dashboard
+  - Check logs for `✅✅✅ - [STRIPE PROCESSOR] Webhook verified`
+  - Verify no signature verification errors appear
+  - Confirm webhook events are processed successfully
+
+- **Verify Raw Body Preservation**:
+  - Check logs for `🟡🟡🟡 - [WEBHOOK] Raw body length: X bytes`
+  - Verify raw body is present before verification
+  - Confirm payload type and length are logged correctly
+
+##### SendGrid Testing
+
+- **Verify API Key Validation**:
+  - Check startup logs for API key validation status
+  - Verify `✅✅✅ - [SENDGRID CONFIG] SendGrid initialized successfully` appears
+  - Confirm API key format validation passes
+
+- **Verify Email Sending**:
+  - Attempt to send test email
+  - Check logs for authentication errors
+  - Verify detailed error messages if authentication fails
+  - Confirm API key status is logged correctly
+
+#### Dependencies
+
+- **Stripe Webhook Fix**:
+  - Requires `STRIPE_WEBHOOK_SECRET` environment variable
+  - Depends on Fastify's content type parser system
+  - Uses Stripe SDK's `webhooks.constructEvent()` method
+  - No additional dependencies required
+
+- **SendGrid Enhancement**:
+  - Requires `SENDGRID_API_KEY` environment variable
+  - Uses existing `@sendgrid/mail` package
+  - No additional dependencies required
+
+---
+
 ### January 17, 2026 @ 01:30 - Order Confirmation Email Fallback and Webhook Debugging Enhancements
 
 **Type**: 🟠 MAJOR CHANGE

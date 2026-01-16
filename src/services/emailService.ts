@@ -57,7 +57,38 @@ export async function sendEmail(
       messageId: response[0]?.headers['x-message-id'] as string | undefined
     };
   } catch (error: any) {
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Enhanced error logging for SendGrid authentication issues
     console.error('❗❗❗ - [EMAIL SERVICE] Error sending email:', error);
+    
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Check for authentication errors (401 Unauthorized)
+    if (error.code === 401 || error.response?.statusCode === 401) {
+      console.error('❌❌❌ - [EMAIL SERVICE] SendGrid authentication failed (401 Unauthorized)');
+      console.error('❌❌❌ - [EMAIL SERVICE] This usually means:');
+      console.error('❌❌❌ - [EMAIL SERVICE]   1. SENDGRID_API_KEY is missing or incorrect');
+      console.error('❌❌❌ - [EMAIL SERVICE]   2. API key format is invalid (should start with "SG.")');
+      console.error('❌❌❌ - [EMAIL SERVICE]   3. API key has been revoked or expired');
+      console.error('❌❌❌ - [EMAIL SERVICE]   4. API key does not have "Mail Send" permissions');
+      console.error('❌❌❌ - [EMAIL SERVICE] Please check your SendGrid API key configuration');
+      
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Log API key status (without exposing the key)
+      const apiKey = process.env.SENDGRID_API_KEY;
+      if (apiKey) {
+        console.error('🟡🟡🟡 - [EMAIL SERVICE] API key is set (length:', apiKey.length, 'chars, starts with:', apiKey.substring(0, 3) + '...)');
+      } else {
+        console.error('❌❌❌ - [EMAIL SERVICE] API key is NOT set in environment variables');
+      }
+      
+      return {
+        success: false,
+        error: 'SendGrid authentication failed. Please check SENDGRID_API_KEY configuration.'
+      };
+    }
+    
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Log other SendGrid errors with details
+    if (error.response?.body?.errors) {
+      console.error('❗❗❗ - [EMAIL SERVICE] SendGrid error details:', JSON.stringify(error.response.body.errors, null, 2));
+    }
+    
     return {
       success: false,
       error: error.message || 'Failed to send email'

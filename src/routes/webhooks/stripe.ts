@@ -26,13 +26,20 @@ export default async function stripeWebhookRoutes(app: FastifyInstance, _opts: F
   console.log('🟡🟡🟡 - [WEBHOOK] Webhook secret configured:', process.env.STRIPE_WEBHOOK_SECRET ? 'Yes' : 'No (webhook verification will fail)');
   console.log('🟡🟡🟡 - [WEBHOOK] Configure webhook in Stripe Dashboard to point to: https://your-domain.com/webhooks/stripe');
   
-  // 🟡🟡🟡 - [WEBHOOK] Configure content type parser to preserve raw body for signature verification
+  // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Configure content type parser to preserve raw body for signature verification
   // Stripe requires raw body (not parsed JSON) for signature verification
-  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
-    // Store raw body for signature verification
-    (req as any).rawBody = body;
+  // IMPORTANT: This must be registered BEFORE Fastify's default JSON parser
+  // We use parseAs: 'buffer' to get the exact raw bytes, then convert to string for Stripe
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+    // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Store raw body as Buffer and string for signature verification
+    // Stripe needs the exact raw body string (with original formatting) for signature verification
+    const rawBodyString = body.toString('utf8');
+    (req as any).rawBody = rawBodyString; // Store as string for Stripe
+    (req as any).rawBodyBuffer = body; // Store as Buffer as backup
+    
     try {
-      const json = JSON.parse(body as string);
+      // Parse JSON for Fastify's request.body (for convenience)
+      const json = JSON.parse(rawBodyString);
       done(null, json);
     } catch (err) {
       done(err as Error, undefined);
@@ -50,10 +57,18 @@ export default async function stripeWebhookRoutes(app: FastifyInstance, _opts: F
     });
 
     try {
-      // 🟡🟡🟡 - [WEBHOOK] Get raw body for signature verification
-      // The raw body should be stored by the content type parser above
-      const rawBody = (request as any).rawBody || JSON.stringify(request.body);
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Get raw body for signature verification
+      // CRITICAL: Must use the exact raw body string (not re-stringified JSON)
+      // The raw body string preserves exact formatting (whitespace, newlines) required for signature verification
+      const rawBody = (request as any).rawBody;
       const signature = request.headers['stripe-signature'] as string;
+      
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Log raw body length for debugging (not full body to avoid log spam)
+      if (rawBody) {
+        console.log('🟡🟡🟡 - [WEBHOOK] Raw body length:', rawBody.length, 'bytes');
+      } else {
+        console.error('❗❗❗ - [WEBHOOK] Raw body not found - signature verification will fail');
+      }
 
       if (!signature) {
         console.error('❗❗❗ - [WEBHOOK] Missing Stripe signature header');
@@ -74,9 +89,21 @@ export default async function stripeWebhookRoutes(app: FastifyInstance, _opts: F
       // 🟡🟡🟡 - [WEBHOOK] Get payment processor for webhook handling
       const processor = PaymentProcessorFactory.create();
 
-      // 🟡🟡🟡 - [WEBHOOK] Verify and parse webhook event
+      // 2026-01-17T01:30:00Z 🟡🟡🟡 - [WEBHOOK] Verify and parse webhook event
+      // CRITICAL: Pass raw body as string directly (not re-stringified)
+      // Stripe signature verification requires the exact raw body bytes as received
+      const rawBodyString = typeof rawBody === 'string' ? rawBody : (rawBody ? rawBody.toString('utf8') : '');
+      
+      if (!rawBodyString) {
+        console.error('❗❗❗ - [WEBHOOK] Cannot verify webhook - raw body is empty');
+        return reply.status(400).send({
+          success: false,
+          message: 'Missing request body'
+        });
+      }
+      
       const verificationResult = await processor.handleWebhook(
-        typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody),
+        rawBodyString,
         signature
       );
 
