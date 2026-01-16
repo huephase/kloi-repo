@@ -5,6 +5,7 @@ import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } f
 import { generatePageClass } from '../lib/pageClass';
 import { prisma } from '../lib/prisma';
 import { paymentService } from '../services/paymentService';
+import { sendOrderConfirmationEmail } from '../services/emailService';
 
 export default async function finalConfirmationRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
   // 🟡🟡🟡 - [2025-01-XX] FINAL CONFIRMATION PAGE ROUTE
@@ -79,6 +80,76 @@ export default async function finalConfirmationRoutes(app: FastifyInstance, _opt
         } catch (error) {
           console.warn('⚠️⚠️⚠️ - [FINAL CONFIRMATION] Could not retrieve payment status from provider:', error);
           // Continue with database status if provider retrieval fails
+        }
+      }
+
+      // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Fallback: Send order confirmation email if payment succeeded
+      // This is a fallback in case the Stripe webhook doesn't fire or isn't configured
+      // The webhook is the primary method, but this ensures emails are sent even if webhook fails
+      const paymentStatus = paymentDetails?.status || order.paymentStatus;
+      const orderStatus = order.status;
+      const isPaymentSucceeded = paymentStatus === 'succeeded';
+      const isOrderCompleted = orderStatus === 'COMPLETED';
+      
+      // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Check if we should send email (payment succeeded and order completed)
+      if (isPaymentSucceeded && isOrderCompleted && order.email) {
+        // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Check if order was recently paid (within last 10 minutes) to avoid duplicate emails
+        // This is a simple heuristic - if order was paid more than 10 minutes ago, webhook likely already sent email
+        const paidAt = paymentDetails?.paidAt || order.paidAt;
+        const shouldSendEmail = paidAt && (Date.now() - new Date(paidAt).getTime()) < 10 * 60 * 1000; // 10 minutes
+        
+        if (shouldSendEmail) {
+          console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Payment succeeded, attempting to send order confirmation email (fallback)');
+          
+          try {
+            // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Fetch full order details for email
+            const fullOrder = await prisma.kloiOrdersTable.findUnique({
+              where: { id: order.id },
+              select: {
+                orderNumber: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                email: true,
+                totalAmount: true,
+                paidAt: true,
+                createdAt: true,
+                location: true,
+                eventDetails: true,
+                eventSetup: true,
+              }
+            });
+            
+            if (fullOrder && fullOrder.email) {
+              const currency = (process.env.DEFAULT_CURRENCY || 'AED');
+              const emailResult = await sendOrderConfirmationEmail(fullOrder, currency);
+              
+              if (emailResult.success) {
+                console.log('✅✅✅ - [FINAL CONFIRMATION] Order confirmation email sent successfully (fallback) for order:', order.orderNumber);
+              } else {
+                console.error('❗❗❗ - [FINAL CONFIRMATION] Failed to send order confirmation email (fallback) for order:', order.orderNumber, emailResult.error);
+              }
+            } else {
+              console.warn('⚠️⚠️⚠️ - [FINAL CONFIRMATION] Cannot send email - order email not available');
+            }
+          } catch (emailError) {
+            // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Handle email errors gracefully - don't fail page rendering
+            console.error('❗❗❗ - [FINAL CONFIRMATION] Error sending order confirmation email (fallback):', emailError);
+            console.error('❗❗❗ - [FINAL CONFIRMATION] Payment was successful, but email notification failed. Order:', order.orderNumber);
+            // Continue rendering page - email failure shouldn't block user from seeing confirmation
+          }
+        } else {
+          console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Order was paid more than 10 minutes ago, skipping email (likely already sent via webhook)');
+        }
+      } else {
+        if (!isPaymentSucceeded) {
+          console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Payment not succeeded, skipping email. Status:', paymentStatus);
+        }
+        if (!isOrderCompleted) {
+          console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Order not completed, skipping email. Status:', orderStatus);
+        }
+        if (!order.email) {
+          console.warn('⚠️⚠️⚠️ - [FINAL CONFIRMATION] Customer email not available, cannot send confirmation email');
         }
       }
 

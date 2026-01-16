@@ -21,6 +21,11 @@ setInterval(() => {
 }, 3600000); // Every hour
 
 export default async function stripeWebhookRoutes(app: FastifyInstance, _opts: FastifyPluginOptions) {
+  // 2026-01-16T17:25:00Z 🟡🟡🟡 - [WEBHOOK] Log webhook endpoint registration
+  console.log('✅✅✅ - [WEBHOOK] Stripe webhook endpoint registered at: POST /webhooks/stripe');
+  console.log('🟡🟡🟡 - [WEBHOOK] Webhook secret configured:', process.env.STRIPE_WEBHOOK_SECRET ? 'Yes' : 'No (webhook verification will fail)');
+  console.log('🟡🟡🟡 - [WEBHOOK] Configure webhook in Stripe Dashboard to point to: https://your-domain.com/webhooks/stripe');
+  
   // 🟡🟡🟡 - [WEBHOOK] Configure content type parser to preserve raw body for signature verification
   // Stripe requires raw body (not parsed JSON) for signature verification
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -37,6 +42,12 @@ export default async function stripeWebhookRoutes(app: FastifyInstance, _opts: F
   // 🟡🟡🟡 - [WEBHOOK] Stripe webhook endpoint (no session validation needed)
   app.post('/webhooks/stripe', async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [WEBHOOK] Received Stripe webhook request');
+    console.log('🟡🟡🟡 - [WEBHOOK] Request headers:', {
+      'stripe-signature': request.headers['stripe-signature'] ? 'present' : 'missing',
+      'content-type': request.headers['content-type'],
+      'user-agent': request.headers['user-agent'],
+      'host': request.headers['host']
+    });
 
     try {
       // 🟡🟡🟡 - [WEBHOOK] Get raw body for signature verification

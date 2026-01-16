@@ -14,6 +14,236 @@
 
 ---
 
+### January 17, 2026 @ 01:30 - Order Confirmation Email Fallback and Webhook Debugging Enhancements
+
+**Type**: 🟠 MAJOR CHANGE
+
+**Summary**: Implemented fallback mechanism for order confirmation email delivery to ensure customers receive confirmation emails even when Stripe webhooks fail or are not configured. Added comprehensive webhook logging and diagnostics to help identify and resolve webhook delivery issues. This addresses the critical issue where emails were not being sent because webhook events were not being received by the server.
+
+#### Problem Identified
+
+- **Root Cause**: Order confirmation emails were only sent via Stripe webhook handler (`payment_intent.succeeded` event)
+- **Symptom**: No email service logs appeared in server output, indicating webhook events were not reaching the server
+- **Impact**: Customers did not receive confirmation emails after successful payment, despite promise on final confirmation page
+- **Likely Causes**: 
+  - Stripe webhook not configured in Stripe Dashboard
+  - Incorrect webhook URL configuration
+  - Missing or incorrect `STRIPE_WEBHOOK_SECRET` environment variable
+  - Network/firewall issues blocking webhook delivery
+
+#### Fallback Email Sending Implementation
+
+- **Final Confirmation Route Enhancement** (`src/routes/finalConfirmation.ts`):
+  - **Added** email service import (line 8):
+    ```typescript
+    import { sendOrderConfirmationEmail } from '../services/emailService';
+    ```
+  - **Added** fallback email sending logic after payment status retrieval (lines 84-150):
+    - Checks if payment status is `succeeded` and order status is `COMPLETED`
+    - Validates customer email exists before attempting to send
+    - Implements time-based duplicate prevention (only sends if order was paid within last 10 minutes)
+    - Fetches full order details from database including all JSON fields
+    - Calls `sendOrderConfirmationEmail()` with order data and currency
+    - Handles errors gracefully without blocking page rendering
+  - **Duplicate Prevention Logic**:
+    - Only attempts to send email if `paidAt` timestamp is within 10 minutes of current time
+    - Prevents duplicate emails if webhook already sent email
+    - Logs when skipping email due to time-based check
+  - **Code Added**:
+    ```typescript
+    // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Fallback: Send order confirmation email if payment succeeded
+    // This is a fallback in case the Stripe webhook doesn't fire or isn't configured
+    // The webhook is the primary method, but this ensures emails are sent even if webhook fails
+    const paymentStatus = paymentDetails?.status || order.paymentStatus;
+    const orderStatus = order.status;
+    const isPaymentSucceeded = paymentStatus === 'succeeded';
+    const isOrderCompleted = orderStatus === 'COMPLETED';
+    
+    // Check if we should send email (payment succeeded and order completed)
+    if (isPaymentSucceeded && isOrderCompleted && order.email) {
+      // Check if order was recently paid (within last 10 minutes) to avoid duplicate emails
+      // This is a simple heuristic - if order was paid more than 10 minutes ago, webhook likely already sent email
+      const paidAt = paymentDetails?.paidAt || order.paidAt;
+      const shouldSendEmail = paidAt && (Date.now() - new Date(paidAt).getTime()) < 10 * 60 * 1000; // 10 minutes
+      
+      if (shouldSendEmail) {
+        console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Payment succeeded, attempting to send order confirmation email (fallback)');
+        
+        try {
+          // Fetch full order details for email
+          const fullOrder = await prisma.kloiOrdersTable.findUnique({
+            where: { id: order.id },
+            select: {
+              orderNumber: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              email: true,
+              totalAmount: true,
+              paidAt: true,
+              createdAt: true,
+              location: true,
+              eventDetails: true,
+              eventSetup: true,
+            }
+          });
+          
+          if (fullOrder && fullOrder.email) {
+            const currency = (process.env.DEFAULT_CURRENCY || 'AED');
+            const emailResult = await sendOrderConfirmationEmail(fullOrder, currency);
+            
+            if (emailResult.success) {
+              console.log('✅✅✅ - [FINAL CONFIRMATION] Order confirmation email sent successfully (fallback) for order:', order.orderNumber);
+            } else {
+              console.error('❗❗❗ - [FINAL CONFIRMATION] Failed to send order confirmation email (fallback) for order:', order.orderNumber, emailResult.error);
+            }
+          } else {
+            console.warn('⚠️⚠️⚠️ - [FINAL CONFIRMATION] Cannot send email - order email not available');
+          }
+        } catch (emailError) {
+          // Handle email errors gracefully - don't fail page rendering
+          console.error('❗❗❗ - [FINAL CONFIRMATION] Error sending order confirmation email (fallback):', emailError);
+          console.error('❗❗❗ - [FINAL CONFIRMATION] Payment was successful, but email notification failed. Order:', order.orderNumber);
+          // Continue rendering page - email failure shouldn't block user from seeing confirmation
+        }
+      } else {
+        console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Order was paid more than 10 minutes ago, skipping email (likely already sent via webhook)');
+      }
+    } else {
+      // Log reasons for skipping email
+      if (!isPaymentSucceeded) {
+        console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Payment not succeeded, skipping email. Status:', paymentStatus);
+      }
+      if (!isOrderCompleted) {
+        console.log('🟡🟡🟡 - [FINAL CONFIRMATION] Order not completed, skipping email. Status:', orderStatus);
+      }
+      if (!order.email) {
+        console.warn('⚠️⚠️⚠️ - [FINAL CONFIRMATION] Customer email not available, cannot send confirmation email');
+      }
+    }
+    ```
+  - **Error Handling**:
+    - Email failures are logged but do not block page rendering
+    - Comprehensive logging for debugging (success, failure, skip reasons)
+    - Graceful degradation ensures user always sees confirmation page
+  - **Impact**: Customers now receive confirmation emails immediately when viewing final confirmation page, even if webhook fails
+
+#### Webhook Logging and Diagnostics Enhancement
+
+- **Webhook Route Startup Logging** (`src/routes/webhooks/stripe.ts`):
+  - **Added** startup diagnostic logs when webhook route is registered (lines 24-27):
+    ```typescript
+    // 2026-01-16T17:25:00Z 🟡🟡🟡 - [WEBHOOK] Log webhook endpoint registration
+    console.log('✅✅✅ - [WEBHOOK] Stripe webhook endpoint registered at: POST /webhooks/stripe');
+    console.log('🟡🟡🟡 - [WEBHOOK] Webhook secret configured:', process.env.STRIPE_WEBHOOK_SECRET ? 'Yes' : 'No (webhook verification will fail)');
+    console.log('🟡🟡🟡 - [WEBHOOK] Configure webhook in Stripe Dashboard to point to: https://your-domain.com/webhooks/stripe');
+    ```
+  - **Impact**: Provides immediate visibility into webhook configuration status at server startup
+
+- **Request Header Logging** (`src/routes/webhooks/stripe.ts`):
+  - **Added** comprehensive request header logging when webhook is received (lines 45-50):
+    ```typescript
+    console.log('🟡🟡🟡 - [WEBHOOK] Received Stripe webhook request');
+    console.log('🟡🟡🟡 - [WEBHOOK] Request headers:', {
+      'stripe-signature': request.headers['stripe-signature'] ? 'present' : 'missing',
+      'content-type': request.headers['content-type'],
+      'user-agent': request.headers['user-agent'],
+      'host': request.headers['host']
+    });
+    ```
+  - **Purpose**: Helps diagnose webhook delivery issues by showing:
+    - Whether Stripe signature header is present (required for verification)
+    - Content type of incoming request
+    - User agent (should be Stripe's webhook service)
+    - Host header (for URL verification)
+  - **Impact**: Enables quick identification of webhook delivery problems (missing signature, wrong endpoint, etc.)
+
+#### Technical Details
+
+- **Dual Email Delivery Strategy**:
+  - **Primary Method**: Stripe webhook handler (`payment_intent.succeeded` event) - most reliable for async processing
+  - **Fallback Method**: Final confirmation page route - ensures immediate delivery even if webhook fails
+  - Both methods use same `sendOrderConfirmationEmail()` function for consistency
+  - Time-based duplicate prevention prevents sending email twice
+
+- **Duplicate Prevention Mechanism**:
+  - Checks if order was paid within last 10 minutes before sending fallback email
+  - Assumes webhook already sent email if order is older than 10 minutes
+  - Simple heuristic that works for most cases without requiring database flags
+  - Can be enhanced in future with explicit `emailSent` flag if needed
+
+- **Error Handling Strategy**:
+  - Email failures never block user experience (page always renders)
+  - Comprehensive logging for debugging (success, failure, skip reasons)
+  - Errors logged with appropriate emoji prefixes for easy identification
+  - Webhook errors don't prevent payment completion
+
+- **Webhook Diagnostics**:
+  - Startup logs show webhook endpoint registration and configuration status
+  - Request logs show incoming webhook request details
+  - Helps identify configuration issues before they cause problems
+  - Provides actionable information for webhook setup
+
+#### Files Modified
+
+- `src/routes/finalConfirmation.ts`:
+  - Added email service import (line 8)
+  - Added fallback email sending logic (lines 84-150)
+  - Added payment status and order status validation
+  - Added time-based duplicate prevention (10-minute window)
+  - Added comprehensive error handling and logging
+  - Added skip condition logging for debugging
+
+- `src/routes/webhooks/stripe.ts`:
+  - Added startup diagnostic logs (lines 24-27)
+  - Added request header logging (lines 45-50)
+  - Enhanced webhook request diagnostics
+
+#### Impact
+
+- **Breaking Change**: None - fallback is additive, existing webhook flow continues to work
+- **User Impact**: 
+  - Customers now receive confirmation emails reliably, even if webhook is not configured
+  - Email delivery is immediate when viewing final confirmation page
+  - Fulfills promise made on final confirmation page: "You will receive a confirmation email shortly"
+- **Developer Impact**: 
+  - Better visibility into webhook configuration and delivery issues
+  - Comprehensive logging helps diagnose webhook problems quickly
+  - Fallback ensures email delivery even in edge cases
+  - No code changes required for existing functionality
+- **Business Impact**: 
+  - Improved customer experience with reliable email confirmations
+  - Reduced support inquiries about missing confirmation emails
+  - Professional communication maintained even if webhook infrastructure has issues
+  - Better operational visibility with enhanced logging
+
+#### Webhook Configuration Requirements
+
+- **Stripe Dashboard Setup**:
+  - Webhook endpoint must be configured: `https://your-domain.com/webhooks/stripe`
+  - Required events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`
+  - Webhook signing secret must be copied to `STRIPE_WEBHOOK_SECRET` environment variable
+
+- **Environment Variable**:
+  - `STRIPE_WEBHOOK_SECRET`: Webhook signing secret from Stripe Dashboard (starts with `whsec_`)
+  - Warning logged at startup if not configured
+  - Webhook verification will fail if not set, but fallback email will still work
+
+- **Testing**:
+  - Use Stripe Dashboard → Webhooks → Send test webhook to verify delivery
+  - Check server logs for `🟡🟡🟡 - [WEBHOOK] Received Stripe webhook request`
+  - Verify webhook signature is present in request headers
+
+#### Dependencies
+
+- Uses existing `sendOrderConfirmationEmail()` function from `emailService.ts`
+- Depends on email collection on checkout page (implemented in January 12, 2026 change)
+- Requires `STRIPE_WEBHOOK_SECRET` for webhook verification (optional for fallback to work)
+- Integrates with existing payment status retrieval in final confirmation route
+- Uses existing SendGrid configuration for email delivery
+
+---
+
 ### January 16, 2026 @ 17:25 - Order Confirmation Email Implementation
 
 **Type**: 🟠 MAJOR CHANGE

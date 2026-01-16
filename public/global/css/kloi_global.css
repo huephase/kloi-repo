@@ -37,7 +37,7 @@ body {
     font-family: 'KloiFont', system-ui, sans-serif;
     font-weight: 300; 
     margin: 0; 
-    padding: 0; 
+    padding: 0 0 10vh; 
     background: var(--kloi-background);
     color: var(--kloi-text);
 }
