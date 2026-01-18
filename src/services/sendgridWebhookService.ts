@@ -30,9 +30,9 @@ export class SendGridWebhookService {
   // Note: SendGrid signed webhooks use ECDSA with public key, but for simplicity we'll use secret-based verification
   // For production, consider implementing public key verification using @sendgrid/eventwebhook
   static verifyWebhookSignature(
-    payload: string | Buffer,
+    _payload: string | Buffer,
     signature?: string,
-    timestamp?: string
+    _timestamp?: string
   ): WebhookVerificationResult {
     console.log('🟡🟡🟡 - [SENDGRID WEBHOOK SERVICE] Verifying webhook signature');
     
@@ -168,7 +168,7 @@ export class SendGridWebhookService {
   // 2026-01-18T23:30:00Z 🟡🟡🟡 - [SENDGRID WEBHOOK SERVICE] Update order email status
   static async updateOrderEmailStatus(
     orderId: string,
-    messageId: string,
+    _messageId: string,
     status: string
   ): Promise<boolean> {
     console.log('🟡🟡🟡 - [SENDGRID WEBHOOK SERVICE] Updating order email status:', orderId.substring(0, 8), 'status:', status);
