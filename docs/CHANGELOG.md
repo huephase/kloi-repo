@@ -14,6 +14,273 @@
 
 ---
 
+### January 18, 2026 @ 23:30 - Email Tracking and Admin Tools Implementation
+
+**Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED
+
+**Summary**: Implemented comprehensive email tracking system for order confirmation emails with database tracking, SendGrid webhook integration, admin verification tools, and enhanced logging. All changes follow DRY principles and existing codebase patterns.
+
+#### Database Schema Changes
+
+##### Email Tracking Fields in kloiOrdersTable (`prisma/schema.prisma`)
+
+- **Added** three new fields to `kloiOrdersTable` model (lines 73-75):
+  - `emailSentAt: DateTime?` - Timestamp when email was sent
+  - `emailMessageId: String?` - SendGrid message ID for tracking
+  - `emailStatus: String?` - Status: 'sent', 'failed', 'delivered', 'bounced', 'opened', 'clicked'
+- **Migration**: `20260118233000_add_email_tracking_fields`
+- **Code Added**:
+  ```prisma
+  // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL TRACKING] Email tracking fields for order confirmation emails
+  emailSentAt     DateTime? @db.Timestamptz(6) // Timestamp when email was sent
+  emailMessageId  String?   @db.VarChar(255)   // SendGrid message ID for tracking
+  emailStatus     String?   @db.VarChar(50)    // Status: 'sent', 'failed', 'delivered', 'bounced', 'opened', 'clicked'
+  ```
+- **Impact**: Orders now track email delivery status and message IDs for webhook correlation
+
+##### Email Logs Table (`prisma/schema.prisma`)
+
+- **Created** new `EmailLogs` model (lines 179-195):
+  - `id: String @id @default(uuid())`
+  - `orderId: String?` - Optional link to order
+  - `recipient: String` - Email recipient
+  - `messageId: String?` - SendGrid message ID
+  - `status: String` - Email status
+  - `errorMessage: String?` - Error details if failed
+  - `eventType: String?` - Webhook event type (delivered, bounce, open, click)
+  - `createdAt: DateTime @default(now())`
+  - `updatedAt: DateTime @updatedAt`
+- **Indexes**: Added indexes on `orderId`, `messageId`, `status`, and `createdAt` for efficient queries
+- **Migration**: `20260118233001_create_email_logs_table`
+- **Impact**: Comprehensive email logging for all email attempts and webhook events
+
+#### Email Service Updates
+
+##### Email Logging Service (`src/services/emailLogService.ts` - NEW FILE)
+
+- **Created** centralized email logging service following DRY principles:
+  - `logEmailAttempt(orderId, recipient, messageId, status, errorMessage?)` - Log email attempt
+  - `updateEmailLog(messageId, status, eventType?)` - Update log from webhook
+  - `getEmailLogsByOrder(orderId)` - Get all email logs for an order
+  - `getEmailLogsByMessageId(messageId)` - Get logs by SendGrid message ID
+  - `getEmailLogById(id)` - Get email log by ID
+- **Pattern**: Follows existing service patterns (similar to `AdminService`)
+- **Impact**: Centralized email logging eliminates code duplication
+
+##### Enhanced sendEmail Function (`src/services/emailService.ts`)
+
+- **Updated** `sendEmail` function to enhance messageId extraction and logging (lines 50-68):
+  - **Added** detailed logging for messageId capture
+  - **Enhanced** error handling with messageId logging
+  - **Code Updated**:
+    ```typescript
+    // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Extract messageId from SendGrid response
+    const messageId = response[0]?.headers?.['x-message-id'] as string | undefined;
+    if (messageId) {
+      console.log('🟡🟡🟡 - [EMAIL SERVICE] Email messageId captured:', messageId);
+    } else {
+      console.warn('⚠️⚠️⚠️ - [EMAIL SERVICE] MessageId not found in SendGrid response headers');
+    }
+    ```
+- **Impact**: Better visibility into messageId capture for debugging
+
+##### Enhanced sendOrderConfirmationEmail Function (`src/services/emailService.ts`)
+
+- **Updated** `sendOrderConfirmationEmail` to store messageId and log to email_logs (lines 394-719):
+  - **Added** order database update with `emailSentAt`, `emailMessageId`, `emailStatus='sent'`
+  - **Added** email_logs entry creation for all email attempts (success and failure)
+  - **Enhanced** error handling to log failures to email_logs
+  - **Updated** return type to include `messageId`
+  - **Code Added**:
+    ```typescript
+    // Update order with email tracking information
+    if (orderRecord) {
+      await prisma.kloiOrdersTable.update({
+        where: { id: orderRecord.id },
+        data: {
+          emailSentAt: new Date(),
+          emailMessageId: emailResult.messageId,
+          emailStatus: 'sent'
+        }
+      });
+    }
+    
+    // Log successful email attempt
+    await EmailLogService.logEmailAttempt(
+      orderRecord.id,
+      order.email,
+      emailResult.messageId,
+      'sent'
+    );
+    ```
+- **Impact**: All order confirmation emails are now tracked in database with full audit trail
+
+#### SendGrid Webhook Implementation
+
+##### SendGrid Webhook Service (`src/services/sendgridWebhookService.ts` - NEW FILE)
+
+- **Created** webhook service for processing SendGrid events:
+  - `verifyWebhookSignature(payload, signature, timestamp)` - Verify webhook signature
+  - `processWebhookEvent(event)` - Process webhook event and update database
+  - `updateOrderEmailStatus(orderId, messageId, status)` - Update order email status
+  - Event type mapping: delivered, bounce, open, click → email status
+  - Status hierarchy: prevents overwriting advanced statuses (e.g., 'clicked' won't be overwritten by 'opened')
+- **Event Handlers**:
+  - `delivered`: Updates order `emailStatus='delivered'`, updates email_logs
+  - `bounce`: Updates order `emailStatus='bounced'`, logs bounce reason
+  - `open`: Updates order `emailStatus='opened'` (if not already opened/clicked), logs open event
+  - `click`: Updates order `emailStatus='clicked'` (if not already clicked), logs click event
+- **Impact**: Real-time email status updates from SendGrid webhook events
+
+##### SendGrid Webhook Route (`src/routes/webhooks/sendgrid.ts` - NEW FILE)
+
+- **Created** webhook endpoint following Stripe webhook pattern:
+  - `POST /webhooks/sendgrid` endpoint
+  - Raw body preservation for signature verification
+  - Idempotency handling using `sg_event_id` to prevent duplicate processing
+  - Batch event processing (SendGrid sends events as array)
+  - **Code Pattern**: Follows existing `src/routes/webhooks/stripe.ts` structure
+- **Registration**: Added to `src/app.ts` (line 251)
+- **Impact**: SendGrid webhooks can now update email status in real-time
+
+##### SendGrid Config Update (`src/config/sendgrid.ts`)
+
+- **Added** `SENDGRID_WEBHOOK_SECRET` environment variable (line 11):
+  - Validation and logging for webhook secret configuration
+  - Warning if webhook secret not configured
+- **Code Added**:
+  ```typescript
+  // 2026-01-18T23:30:00Z 🟡🟡🟡 - [SENDGRID CONFIG] Webhook secret for verifying SendGrid webhook signatures
+  const SENDGRID_WEBHOOK_SECRET = process.env.SENDGRID_WEBHOOK_SECRET;
+  ```
+- **Impact**: Webhook signature verification support (basic implementation, can be enhanced with ECDSA public key verification)
+
+#### Admin Panel Enhancements
+
+##### Email Status Route (`src/routes/admin/index.ts`)
+
+- **Added** `GET /admin/orders/:orderId/email-status` route (lines 877-920):
+  - Displays email status for specific order
+  - Shows email logs for the order
+  - Displays email sent timestamp, message ID, current status
+  - Shows webhook events (delivered, opened, clicked, bounced)
+  - **Authentication**: Uses `validateAdminSession` and `requireEditorOrAbove` hooks
+- **Impact**: Admins can view email status and logs for any order
+
+##### Email Status View (`src/views/admin/email-status.hbs` - NEW FILE)
+
+- **Created** admin view template:
+  - Order information display
+  - Email status with visual indicators (color-coded badges)
+  - Email logs table with timestamps and events
+  - Resend email button (if failed or not sent)
+  - Back to orders list and email logs links
+- **Styling**: Follows existing admin panel styling patterns
+- **Impact**: User-friendly interface for viewing email status
+
+##### Resend Email Route (`src/routes/admin/index.ts`)
+
+- **Added** `POST /admin/orders/:orderId/resend-email` route (lines 922-970):
+  - Fetches order details
+  - Calls `sendOrderConfirmationEmail` with order data
+  - Updates order with new email tracking info (handled by email service)
+  - Logs resend attempt to email_logs (handled by email service)
+  - Returns success/error response
+  - **Authentication**: Uses `validateAdminSession` and `requireEditorOrAbove` hooks
+- **Impact**: Admins can resend failed emails directly from admin panel
+
+##### Email Logs Route (`src/routes/admin/index.ts`)
+
+- **Added** `GET /admin/email-logs` route (lines 972-1028):
+  - Lists all email logs with pagination
+  - Filtering by order ID, recipient, status, date range
+  - Displays message ID, recipient, status, timestamp, error messages
+  - Links to order details and email status page
+  - **Authentication**: Uses `validateAdminSession` hook
+- **Impact**: Comprehensive email logs viewing with filtering capabilities
+
+##### Email Logs View (`src/views/admin/email-logs.hbs` - NEW FILE)
+
+- **Created** admin view template:
+  - Table of email logs with sorting
+  - Filter form (order ID, recipient, status, date range)
+  - Pagination controls
+  - Status badges with colors
+  - Links to order details and email status page
+- **Styling**: Follows existing admin panel styling patterns
+- **Impact**: User-friendly interface for viewing and filtering email logs
+
+#### Integration Points
+
+##### Payment Service Integration (`src/services/paymentService.ts`)
+
+- **Verified** integration works correctly (lines 381-400):
+  - `sendOrderConfirmationEmail` is called after payment success
+  - Email service automatically handles database updates and logging
+  - No changes required - integration is seamless
+- **Impact**: Payment webhook emails are automatically tracked
+
+##### Final Confirmation Route Integration (`src/routes/finalConfirmation.ts`)
+
+- **Verified** integration works correctly (lines 123-140):
+  - `sendOrderConfirmationEmail` is called as fallback if email not sent via webhook
+  - Email service automatically handles database updates and logging
+  - No changes required - integration is seamless
+- **Impact**: Fallback email sending is automatically tracked
+
+#### Files Affected
+
+**New Files:**
+- `src/services/emailLogService.ts` - Centralized email logging service
+- `src/services/sendgridWebhookService.ts` - SendGrid webhook processing service
+- `src/routes/webhooks/sendgrid.ts` - SendGrid webhook route handler
+- `src/views/admin/email-status.hbs` - Email status admin view
+- `src/views/admin/email-logs.hbs` - Email logs admin view
+- `prisma/migrations/20260118233000_add_email_tracking_fields/migration.sql` - Email tracking fields migration
+- `prisma/migrations/20260118233001_create_email_logs_table/migration.sql` - Email logs table migration
+
+**Modified Files:**
+- `prisma/schema.prisma` - Added email tracking fields and EmailLogs model
+- `src/services/emailService.ts` - Enhanced sendEmail and sendOrderConfirmationEmail functions
+- `src/config/sendgrid.ts` - Added SENDGRID_WEBHOOK_SECRET configuration
+- `src/routes/admin/index.ts` - Added email status, resend email, and email logs routes
+- `src/app.ts` - Registered SendGrid webhook route
+
+#### Migration Notes
+
+1. **Run Database Migrations**:
+   ```bash
+   npx prisma migrate deploy
+   # or for development
+   npx prisma migrate dev
+   ```
+
+2. **Generate Prisma Client**:
+   ```bash
+   npx prisma generate
+   ```
+
+3. **Environment Variables**:
+   - `SENDGRID_WEBHOOK_SECRET` (optional but recommended) - Secret for verifying SendGrid webhook signatures
+   - Note: For production, consider implementing ECDSA public key verification using `@sendgrid/eventwebhook` package
+
+4. **SendGrid Webhook Configuration**:
+   - Configure webhook in SendGrid Dashboard to point to: `https://your-domain.com/webhooks/sendgrid`
+   - Enable events: delivered, bounce, open, click
+   - For signed webhooks, retrieve public key from SendGrid API
+
+#### Benefits
+
+- **Complete Email Tracking**: All email attempts are logged with full audit trail
+- **Real-time Status Updates**: Webhook events update email status automatically
+- **Admin Visibility**: Admins can view email status and logs for any order
+- **Resend Capability**: Admins can resend failed emails directly from admin panel
+- **DRY Principles**: Centralized email logging service eliminates code duplication
+- **Error Handling**: Failed emails are logged with error messages for debugging
+- **Webhook Integration**: Real-time email status updates from SendGrid events
+
+---
+
 ### January 17, 2026 @ 02:09 - Stripe Webhook Signature Verification Fix and SendGrid Authentication Enhancement
 
 **Type**: 🟠 MAJOR CHANGE

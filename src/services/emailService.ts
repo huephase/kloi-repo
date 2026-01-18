@@ -1,5 +1,7 @@
 // 2025-12-29T00:00:00Z 🟡🟡🟡 - [EMAIL SERVICE] Email service for sending emails via SendGrid
 import { sgMail, SENDGRID_FROM_EMAIL, SENDGRID_FROM_NAME, ADMIN_CC_EMAIL } from '../config/sendgrid';
+import { prisma } from '../lib/prisma';
+import { EmailLogService } from './emailLogService';
 
 // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Core email sending function with CC support
 export async function sendEmail(
@@ -52,9 +54,20 @@ export async function sendEmail(
     if (ccList.length > 0) {
       console.log('✅✅✅ - [EMAIL SERVICE] Email CCed to:', ccList);
     }
+    
+    // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Extract messageId from SendGrid response
+    // SendGrid returns messageId in response headers as 'x-message-id'
+    const messageId = response[0]?.headers?.['x-message-id'] as string | undefined;
+    if (messageId) {
+      console.log('🟡🟡🟡 - [EMAIL SERVICE] Email messageId captured:', messageId);
+    } else {
+      console.warn('⚠️⚠️⚠️ - [EMAIL SERVICE] MessageId not found in SendGrid response headers');
+      console.log('🟡🟡🟡 - [EMAIL SERVICE] Response headers:', JSON.stringify(response[0]?.headers || {}, null, 2));
+    }
+    
     return {
       success: true,
-      messageId: response[0]?.headers['x-message-id'] as string | undefined
+      messageId: messageId
     };
   } catch (error: any) {
     // 2026-01-17T01:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Enhanced error logging for SendGrid authentication issues
@@ -396,12 +409,34 @@ export async function sendOrderConfirmationEmail(
     eventSetup: any;
   },
   currency: string = 'AED'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   console.log('🟡🟡🟡 - [EMAIL SERVICE] Sending order confirmation email for order:', order.orderNumber);
   
   // 2026-01-16T17:25:00Z 🟡🟡🟡 - [EMAIL SERVICE] Validate customer email exists
   if (!order.email) {
     console.warn('⚠️⚠️⚠️ - [EMAIL SERVICE] Cannot send order confirmation - customer email is missing for order:', order.orderNumber);
+    
+    // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL TRACKING] Log failed attempt to email_logs
+    try {
+      // Fetch order ID by orderNumber for logging
+      const orderRecord = await prisma.kloiOrdersTable.findUnique({
+        where: { orderNumber: order.orderNumber },
+        select: { id: true }
+      });
+      
+      if (orderRecord) {
+        await EmailLogService.logEmailAttempt(
+          orderRecord.id,
+          order.email || 'unknown',
+          null,
+          'failed',
+          'Customer email is required to send confirmation email'
+        );
+      }
+    } catch (logError) {
+      console.error('❗❗❗ - [EMAIL SERVICE] Error logging failed email attempt:', logError);
+    }
+    
     return {
       success: false,
       error: 'Customer email is required to send confirmation email'
@@ -700,10 +735,81 @@ This is an automated confirmation email from KLOI.
 Please keep this email for your records.
   `;
   
-  return await sendEmail(
+  // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL SERVICE] Send email and capture messageId
+  const emailResult = await sendEmail(
     order.email,
     `Order Confirmation - Order #${order.orderNumber}`,
     htmlContent,
     textContent
   );
+  
+  // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL TRACKING] Fetch order ID for database updates
+  let orderRecord = null;
+  try {
+    orderRecord = await prisma.kloiOrdersTable.findUnique({
+      where: { orderNumber: order.orderNumber },
+      select: { id: true }
+    });
+  } catch (dbError) {
+    console.error('❗❗❗ - [EMAIL SERVICE] Error fetching order for tracking:', dbError);
+  }
+  
+  // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL TRACKING] Update order and log email attempt
+  if (emailResult.success && emailResult.messageId) {
+    try {
+      // Update order with email tracking information
+      if (orderRecord) {
+        await prisma.kloiOrdersTable.update({
+          where: { id: orderRecord.id },
+          data: {
+            emailSentAt: new Date(),
+            emailMessageId: emailResult.messageId,
+            emailStatus: 'sent'
+          }
+        });
+        console.log('✅✅✅ - [EMAIL SERVICE] Order updated with email tracking info for order:', order.orderNumber);
+      }
+      
+      // Log successful email attempt
+      if (orderRecord) {
+        await EmailLogService.logEmailAttempt(
+          orderRecord.id,
+          order.email,
+          emailResult.messageId,
+          'sent'
+        );
+        console.log('✅✅✅ - [EMAIL SERVICE] Email attempt logged successfully for order:', order.orderNumber);
+      }
+    } catch (trackingError) {
+      // Don't fail the email send if tracking fails
+      console.error('❗❗❗ - [EMAIL SERVICE] Error updating email tracking:', trackingError);
+      console.error('❗❗❗ - [EMAIL SERVICE] Email was sent successfully but tracking failed for order:', order.orderNumber);
+    }
+  } else {
+    // Log failed email attempt
+    try {
+      if (orderRecord) {
+        await EmailLogService.logEmailAttempt(
+          orderRecord.id,
+          order.email,
+          null,
+          'failed',
+          emailResult.error || 'Unknown error sending email'
+        );
+        
+        // Update order with failed status
+        await prisma.kloiOrdersTable.update({
+          where: { id: orderRecord.id },
+          data: {
+            emailStatus: 'failed'
+          }
+        });
+        console.log('🟡🟡🟡 - [EMAIL SERVICE] Failed email attempt logged for order:', order.orderNumber);
+      }
+    } catch (logError) {
+      console.error('❗❗❗ - [EMAIL SERVICE] Error logging failed email attempt:', logError);
+    }
+  }
+  
+  return emailResult;
 }

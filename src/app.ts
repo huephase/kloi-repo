@@ -98,6 +98,15 @@ handlebars.registerHelper('formatDate', function(date: any) {
   }
 });
 
+// 2026-01-18T23:30:00Z 🟡🟡🟡 - [HANDLEBARS MATH HELPERS] Helpers for pagination calculations
+handlebars.registerHelper('add', function(a: any, b: any) {
+  return (Number(a) || 0) + (Number(b) || 0);
+});
+
+handlebars.registerHelper('subtract', function(a: any, b: any) {
+  return (Number(a) || 0) - (Number(b) || 0);
+});
+
 // console.log('✅✅✅ - [app.ts] Custom Handlebars helpers registered successfully');
 
 app.register(fastifyView, {
@@ -247,6 +256,9 @@ app.register(healthCheckRoutes);
 // 🟡🟡🟡 - [WEBHOOK] Register webhook routes before session validation (webhooks bypass session)
 import stripeWebhookRoutes from './routes/webhooks/stripe';
 app.register(stripeWebhookRoutes);
+// 2026-01-18T23:30:00Z 🟡🟡🟡 - [SENDGRID WEBHOOK] Register SendGrid webhook routes
+import sendgridWebhookRoutes from './routes/webhooks/sendgrid';
+app.register(sendgridWebhookRoutes);
 
 // console.log('🟡🟡🟡 - [app.ts] Registering routes');
 // FE: Register all app routes

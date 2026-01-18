@@ -1,0 +1,281 @@
+{{!-- 2026-01-18T23:30:00Z 🟡🟡🟡 - [ADMIN EMAIL STATUS] Email status page for specific order --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-container">
+  <header class="admin-header">
+    <div class="admin-header-content">
+      <h1>Email Status - Order #{{order.orderNumber}}</h1>
+      <div class="admin-header-info">
+        <span class="admin-theme-badge">Theme: <strong>{{theme}}</strong></span>
+        <span class="admin-username">Logged in as: <strong>{{admin.username}}</strong></span>
+      </div>
+    </div>
+    <div class="admin-header-actions">
+      <a href="/admin/email-logs" class="admin-nav-link">Email Logs</a>
+      <a href="/admin/dashboard" class="admin-nav-link">Dashboard</a>
+      <form method="POST" action="/admin/logout" class="admin-logout-form">
+        <button type="submit" class="admin-logout-button">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <div class="admin-dashboard-wrapper">
+    <div class="admin-section">
+      <h2 class="admin-section-title">Order Information</h2>
+      <div class="admin-info-grid">
+        <div class="admin-info-item">
+          <span class="admin-info-label">Order Number:</span>
+          <span class="admin-info-value">#{{order.orderNumber}}</span>
+        </div>
+        <div class="admin-info-item">
+          <span class="admin-info-label">Customer:</span>
+          <span class="admin-info-value">{{order.firstName}} {{order.lastName}}</span>
+        </div>
+        <div class="admin-info-item">
+          <span class="admin-info-label">Email:</span>
+          <span class="admin-info-value">{{order.email}}</span>
+        </div>
+        <div class="admin-info-item">
+          <span class="admin-info-label">Order Date:</span>
+          <span class="admin-info-value">{{formatDate order.createdAt}}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2 class="admin-section-title">Email Status</h2>
+      <div class="admin-email-status-card">
+        <div class="admin-email-status-header">
+          <div class="admin-email-status-badge admin-email-status-{{order.emailStatus}}">
+            {{#if order.emailStatus}}
+              {{order.emailStatus}}
+            {{else}}
+              Not Sent
+            {{/if}}
+          </div>
+          {{#if order.emailMessageId}}
+            <div class="admin-email-message-id">
+              <span class="admin-info-label">Message ID:</span>
+              <span class="admin-info-value admin-mono">{{order.emailMessageId}}</span>
+            </div>
+          {{/if}}
+        </div>
+        <div class="admin-email-status-details">
+          {{#if order.emailSentAt}}
+            <div class="admin-info-item">
+              <span class="admin-info-label">Sent At:</span>
+              <span class="admin-info-value">{{formatDate order.emailSentAt}}</span>
+            </div>
+          {{/if}}
+          {{#if order.emailStatus}}
+            <div class="admin-info-item">
+              <span class="admin-info-label">Current Status:</span>
+              <span class="admin-info-value">{{order.emailStatus}}</span>
+            </div>
+          {{/if}}
+        </div>
+        {{#if (or (eq order.emailStatus 'failed') (not order.emailStatus))}}
+          <div class="admin-email-actions">
+            <form method="POST" action="/admin/orders/{{order.id}}/resend-email" class="admin-resend-form">
+              <input type="hidden" name="_csrf" value="{{csrfToken}}">
+              <button type="submit" class="admin-button-primary">Resend Email</button>
+            </form>
+          </div>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2 class="admin-section-title">Email Logs</h2>
+      {{#if emailLogs.length}}
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Status</th>
+              <th>Event Type</th>
+              <th>Recipient</th>
+              <th>Message ID</th>
+              <th>Error Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each emailLogs}}
+              <tr>
+                <td>{{formatDate createdAt}}</td>
+                <td>
+                  <span class="admin-status-badge admin-status-{{status}}">{{status}}</span>
+                </td>
+                <td>{{eventType}}</td>
+                <td>{{recipient}}</td>
+                <td class="admin-mono">{{messageId}}</td>
+                <td>{{errorMessage}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      {{else}}
+        <p class="admin-empty-state">No email logs found for this order.</p>
+      {{/if}}
+    </div>
+
+    <div class="admin-section-actions">
+      <a href="/admin/email-logs" class="admin-button-secondary">View All Email Logs</a>
+      <a href="/admin/dashboard" class="admin-button-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .admin-email-status-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .admin-email-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+
+  .admin-email-status-badge {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 14px;
+  }
+
+  .admin-email-status-sent {
+    background-color: #e3f2fd;
+    color: #1976d2;
+  }
+
+  .admin-email-status-delivered {
+    background-color: #d4edda;
+    color: #28a745;
+  }
+
+  .admin-email-status-opened {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+
+  .admin-email-status-clicked {
+    background-color: #d1ecf1;
+    color: #0c5460;
+  }
+
+  .admin-email-status-bounced,
+  .admin-email-status-failed {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+
+  .admin-email-message-id {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .admin-mono {
+    font-family: monospace;
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .admin-email-status-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+
+  .admin-email-actions {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+  }
+
+  .admin-resend-form {
+    display: inline-block;
+  }
+
+  .admin-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+  }
+
+  .admin-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .admin-info-label {
+    font-weight: bold;
+    color: #666;
+    font-size: 14px;
+  }
+
+  .admin-info-value {
+    color: #333;
+    font-size: 16px;
+  }
+
+  .admin-status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .admin-status-sent {
+    background-color: #e3f2fd;
+    color: #1976d2;
+  }
+
+  .admin-status-delivered {
+    background-color: #d4edda;
+    color: #28a745;
+  }
+
+  .admin-status-opened {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+
+  .admin-status-clicked {
+    background-color: #d1ecf1;
+    color: #0c5460;
+  }
+
+  .admin-status-bounced,
+  .admin-status-failed {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+
+  .admin-empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+
+  .admin-section-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+</style>

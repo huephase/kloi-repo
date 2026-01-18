@@ -70,6 +70,11 @@ model kloiOrdersTable {
   paymentMethodId String?   @db.VarChar(255) // Saved payment method ID (optional, for future use)
   paidAt          DateTime? @db.Timestamptz(6) // Timestamp when payment was completed
   
+  // 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL TRACKING] Email tracking fields for order confirmation emails
+  emailSentAt     DateTime? @db.Timestamptz(6) // Timestamp when email was sent
+  emailMessageId  String?   @db.VarChar(255)   // SendGrid message ID for tracking
+  emailStatus     String?   @db.VarChar(50)    // Status: 'sent', 'failed', 'delivered', 'bounced', 'opened', 'clicked'
+  
   createdAt     DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt     DateTime    @updatedAt @db.Timestamptz(6)
   userId        String?
@@ -175,4 +180,23 @@ enum OrderStatus {
   IN_PROGRESS
   CANCELLED
   COMPLETED
+}
+
+// 2026-01-18T23:30:00Z 🟡🟡🟡 - [EMAIL LOGS] Email logs table for tracking all email attempts
+model EmailLogs {
+  id           String    @id @default(uuid())
+  orderId      String?   @db.VarChar(255) // Optional link to order
+  recipient    String    @db.VarChar(255) // Email recipient
+  messageId    String?   @db.VarChar(255) // SendGrid message ID
+  status       String    @db.VarChar(50)  // Status: 'sent', 'failed', 'delivered', 'bounced', 'opened', 'clicked'
+  errorMessage String?   @db.Text         // Error details if failed
+  eventType    String?   @db.VarChar(50) // Webhook event type (delivered, bounce, open, click)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([orderId], map: "email_logs_order_id_idx")
+  @@index([messageId], map: "email_logs_message_id_idx")
+  @@index([status], map: "email_logs_status_idx")
+  @@index([createdAt], map: "email_logs_created_at_idx")
+  @@map("EmailLogs")
 }

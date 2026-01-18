@@ -1,0 +1,283 @@
+{{!-- 2026-01-18T23:30:00Z 🟡🟡🟡 - [ADMIN EMAIL LOGS] Email logs listing page with filtering and pagination --}}
+
+{{! 🟡🟡🟡 - [STYLESHEET] Admin page specific styles }}
+<link rel="stylesheet" href="/public/global/css/admin.css">
+
+<div class="admin-container">
+  <header class="admin-header">
+    <div class="admin-header-content">
+      <h1>Email Logs</h1>
+      <div class="admin-header-info">
+        <span class="admin-theme-badge">Theme: <strong>{{theme}}</strong></span>
+        <span class="admin-username">Logged in as: <strong>{{admin.username}}</strong></span>
+      </div>
+    </div>
+    <div class="admin-header-actions">
+      <a href="/admin/dashboard" class="admin-nav-link">Dashboard</a>
+      <form method="POST" action="/admin/logout" class="admin-logout-form">
+        <button type="submit" class="admin-logout-button">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <div class="admin-dashboard-wrapper">
+    <div class="admin-section">
+      <h2 class="admin-section-title">Filters</h2>
+      <form method="GET" action="/admin/email-logs" class="admin-filter-form">
+        <div class="admin-filter-grid">
+          <div class="admin-filter-item">
+            <label for="orderId" class="admin-filter-label">Order ID:</label>
+            <input type="text" id="orderId" name="orderId" value="{{filters.orderId}}" class="admin-filter-input" placeholder="Order ID">
+          </div>
+          <div class="admin-filter-item">
+            <label for="recipient" class="admin-filter-label">Recipient:</label>
+            <input type="text" id="recipient" name="recipient" value="{{filters.recipient}}" class="admin-filter-input" placeholder="Email address">
+          </div>
+          <div class="admin-filter-item">
+            <label for="status" class="admin-filter-label">Status:</label>
+            <select id="status" name="status" class="admin-filter-select">
+              <option value="">All</option>
+              <option value="sent" {{#if (eq filters.status 'sent')}}selected{{/if}}>Sent</option>
+              <option value="delivered" {{#if (eq filters.status 'delivered')}}selected{{/if}}>Delivered</option>
+              <option value="opened" {{#if (eq filters.status 'opened')}}selected{{/if}}>Opened</option>
+              <option value="clicked" {{#if (eq filters.status 'clicked')}}selected{{/if}}>Clicked</option>
+              <option value="bounced" {{#if (eq filters.status 'bounced')}}selected{{/if}}>Bounced</option>
+              <option value="failed" {{#if (eq filters.status 'failed')}}selected{{/if}}>Failed</option>
+            </select>
+          </div>
+          <div class="admin-filter-item">
+            <label for="startDate" class="admin-filter-label">Start Date:</label>
+            <input type="date" id="startDate" name="startDate" value="{{filters.startDate}}" class="admin-filter-input">
+          </div>
+          <div class="admin-filter-item">
+            <label for="endDate" class="admin-filter-label">End Date:</label>
+            <input type="date" id="endDate" name="endDate" value="{{filters.endDate}}" class="admin-filter-input">
+          </div>
+        </div>
+        <div class="admin-filter-actions">
+          <button type="submit" class="admin-button-primary">Apply Filters</button>
+          <a href="/admin/email-logs" class="admin-button-secondary">Clear Filters</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-header">
+        <h2 class="admin-section-title">Email Logs ({{pagination.totalCount}} total)</h2>
+        <div class="admin-pagination-info">
+          Page {{pagination.page}} of {{pagination.totalPages}}
+        </div>
+      </div>
+
+      {{#if emailLogs.length}}
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Status</th>
+              <th>Event Type</th>
+              <th>Recipient</th>
+              <th>Order ID</th>
+              <th>Message ID</th>
+              <th>Error Message</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each emailLogs}}
+              <tr>
+                <td>{{formatDate createdAt}}</td>
+                <td>
+                  <span class="admin-status-badge admin-status-{{status}}">{{status}}</span>
+                </td>
+                <td>{{eventType}}</td>
+                <td>{{recipient}}</td>
+                <td>
+                  {{#if orderId}}
+                    <a href="/admin/orders/{{orderId}}/email-status" class="admin-link">{{orderId}}</a>
+                  {{else}}
+                    -
+                  {{/if}}
+                </td>
+                <td class="admin-mono">{{messageId}}</td>
+                <td class="admin-error-message">{{errorMessage}}</td>
+                <td>
+                  {{#if orderId}}
+                    <a href="/admin/orders/{{orderId}}/email-status" class="admin-link">View Status</a>
+                  {{/if}}
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+
+        {{#if (gt pagination.totalPages 1)}}
+          <div class="admin-pagination">
+            {{#if (gt pagination.page 1)}}
+              <a href="?page={{subtract pagination.page 1}}{{#if filters.orderId}}&orderId={{filters.orderId}}{{/if}}{{#if filters.recipient}}&recipient={{filters.recipient}}{{/if}}{{#if filters.status}}&status={{filters.status}}{{/if}}{{#if filters.startDate}}&startDate={{filters.startDate}}{{/if}}{{#if filters.endDate}}&endDate={{filters.endDate}}{{/if}}" class="admin-button-secondary">Previous</a>
+            {{/if}}
+            
+            <span class="admin-pagination-info">Page {{pagination.page}} of {{pagination.totalPages}}</span>
+
+            {{#if (lt pagination.page pagination.totalPages)}}
+              <a href="?page={{add pagination.page 1}}{{#if filters.orderId}}&orderId={{filters.orderId}}{{/if}}{{#if filters.recipient}}&recipient={{filters.recipient}}{{/if}}{{#if filters.status}}&status={{filters.status}}{{/if}}{{#if filters.startDate}}&startDate={{filters.startDate}}{{/if}}{{#if filters.endDate}}&endDate={{filters.endDate}}{{/if}}" class="admin-button-secondary">Next</a>
+            {{/if}}
+          </div>
+        {{/if}}
+      {{else}}
+        <p class="admin-empty-state">No email logs found.</p>
+      {{/if}}
+    </div>
+  </div>
+</div>
+
+<style>
+  .admin-filter-form {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .admin-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+
+  .admin-filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .admin-filter-label {
+    font-weight: bold;
+    color: #666;
+    font-size: 14px;
+  }
+
+  .admin-filter-input,
+  .admin-filter-select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .admin-filter-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .admin-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+
+  .admin-pagination-info {
+    color: #666;
+    font-size: 14px;
+  }
+
+  .admin-mono {
+    font-family: monospace;
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .admin-error-message {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-link {
+    color: #1976d2;
+    text-decoration: none;
+  }
+
+  .admin-link:hover {
+    text-decoration: underline;
+  }
+
+  .admin-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .admin-pagination-current {
+    padding: 8px 12px;
+    background-color: #1976d2;
+    color: white;
+    border-radius: 4px;
+    font-weight: bold;
+  }
+
+  .admin-pagination-link {
+    padding: 8px 12px;
+    background-color: #f5f5f5;
+    color: #333;
+    border-radius: 4px;
+    text-decoration: none;
+  }
+
+  .admin-pagination-link:hover {
+    background-color: #e0e0e0;
+  }
+
+  .admin-pagination-ellipsis {
+    padding: 8px 4px;
+    color: #666;
+  }
+
+  .admin-status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .admin-status-sent {
+    background-color: #e3f2fd;
+    color: #1976d2;
+  }
+
+  .admin-status-delivered {
+    background-color: #d4edda;
+    color: #28a745;
+  }
+
+  .admin-status-opened {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+
+  .admin-status-clicked {
+    background-color: #d1ecf1;
+    color: #0c5460;
+  }
+
+  .admin-status-bounced,
+  .admin-status-failed {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+
+  .admin-empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+</style>

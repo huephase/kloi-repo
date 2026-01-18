@@ -18,6 +18,9 @@ import { saveImageFile, validateImageFile } from '../../services/imageUploadServ
 import { performHealthCheck } from '../healthCheck';
 import { generateCsrfToken } from '../../lib/csrf';
 import { checkRateLimit, incrementRateLimit, resetRateLimit } from '../../lib/rateLimiter';
+// 2026-01-18T23:30:00Z 🟡🟡🟡 - [ADMIN EMAIL TRACKING] Import email tracking services
+import { EmailLogService } from '../../services/emailLogService';
+import { sendOrderConfirmationEmail } from '../../services/emailService';
 
 // 2026-01-12T19:10:00Z 🟡🟡🟡 - [RATE LIMITING] Rate limiting constants
 // ⚠️⚠️⚠️ - [RATE LIMITING] SECURITY FIX: Rate limiting now uses Redis for multi-instance support
@@ -868,6 +871,213 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     } catch (error) {
       console.error('❗❗❗ - [ADMIN HEALTH CHECK] Error performing health check:', error);
       return reply.status(500).send('Error performing health check');
+    }
+  });
+
+  // 2026-01-18T23:30:00Z 🟡🟡🟡 - [ADMIN EMAIL TRACKING] Email status and management routes
+  
+  // GET /admin/orders/:orderId/email-status - Display email status for specific order
+  app.get('/admin/orders/:orderId/email-status', {
+    preHandler: [validateAdminSession, requireEditorOrAbove()]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN EMAIL STATUS] GET /admin/orders/:orderId/email-status');
+    
+    const theme = (request as any).theme || 'default';
+    const admin = (request as any).admin;
+    const orderId = (request.params as any).orderId;
+
+    try {
+      // Fetch order details
+      const order = await prisma.kloiOrdersTable.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          orderNumber: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          emailSentAt: true,
+          emailMessageId: true,
+          emailStatus: true,
+          createdAt: true,
+          totalAmount: true
+        }
+      });
+
+      if (!order) {
+        return reply.status(404).send('Order not found');
+      }
+
+      // Fetch email logs for this order
+      const emailLogs = await EmailLogService.getEmailLogsByOrder(orderId);
+
+      // 2026-01-18T23:30:00Z 🟡🟡🟡 - [CSRF] Generate CSRF token for resend email form
+      const csrfToken = await generateCsrfToken(reply);
+
+      const templatePath = 'admin/email-status';
+      const page_class = generatePageClass(templatePath);
+
+      return reply.view(templatePath, {
+        theme,
+        admin,
+        order,
+        emailLogs,
+        csrfToken,
+        page_class
+      });
+    } catch (error) {
+      console.error('❗❗❗ - [ADMIN EMAIL STATUS] Error loading email status:', error);
+      return reply.status(500).send('Error loading email status');
+    }
+  });
+
+  // POST /admin/orders/:orderId/resend-email - Resend order confirmation email
+  app.post('/admin/orders/:orderId/resend-email', {
+    preHandler: [validateAdminSession, requireEditorOrAbove(), app.csrfProtection]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN RESEND EMAIL] POST /admin/orders/:orderId/resend-email');
+    
+    const orderId = (request.params as any).orderId;
+
+    try {
+      // Fetch full order details
+      const order = await prisma.kloiOrdersTable.findUnique({
+        where: { id: orderId },
+        select: {
+          orderNumber: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          email: true,
+          totalAmount: true,
+          paidAt: true,
+          createdAt: true,
+          location: true,
+          eventDetails: true,
+          eventSetup: true
+        }
+      });
+
+      if (!order) {
+        return reply.status(404).send({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+
+      if (!order.email) {
+        return reply.status(400).send({
+          success: false,
+          message: 'Order does not have an email address'
+        });
+      }
+
+      // Send order confirmation email
+      const currency = process.env.DEFAULT_CURRENCY || 'AED';
+      const emailResult = await sendOrderConfirmationEmail(order, currency);
+
+      if (emailResult.success) {
+        console.log('✅✅✅ - [ADMIN RESEND EMAIL] Order confirmation email resent successfully for order:', order.orderNumber);
+        return reply.send({
+          success: true,
+          message: 'Email resent successfully',
+          messageId: emailResult.messageId
+        });
+      } else {
+        console.error('❗❗❗ - [ADMIN RESEND EMAIL] Failed to resend email for order:', order.orderNumber, emailResult.error);
+        return reply.status(500).send({
+          success: false,
+          message: emailResult.error || 'Failed to resend email'
+        });
+      }
+    } catch (error: any) {
+      console.error('❗❗❗ - [ADMIN RESEND EMAIL] Error resending email:', error);
+      return reply.status(500).send({
+        success: false,
+        message: error.message || 'Failed to resend email'
+      });
+    }
+  });
+
+  // GET /admin/email-logs - List all email logs with filtering and pagination
+  app.get('/admin/email-logs', {
+    preHandler: [validateAdminSession]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log('🟡🟡🟡 - [ADMIN EMAIL LOGS] GET /admin/email-logs');
+    
+    const theme = (request as any).theme || 'default';
+    const admin = (request as any).admin;
+    const query = (request.query as any) || {};
+
+    try {
+      // Parse query parameters
+      const page = parseInt(query.page || '1', 10);
+      const limit = parseInt(query.limit || '50', 10);
+      const orderId = query.orderId || null;
+      const recipient = query.recipient || null;
+      const status = query.status || null;
+      const startDate = query.startDate || null;
+      const endDate = query.endDate || null;
+
+      // Build where clause
+      const where: any = {};
+      if (orderId) {
+        where.orderId = orderId;
+      }
+      if (recipient) {
+        where.recipient = { contains: recipient, mode: 'insensitive' };
+      }
+      if (status) {
+        where.status = status;
+      }
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) {
+          where.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+          where.createdAt.lte = new Date(endDate);
+        }
+      }
+
+      // Fetch email logs with pagination
+      const [emailLogs, totalCount] = await Promise.all([
+        prisma.emailLogs.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit
+        }),
+        prisma.emailLogs.count({ where })
+      ]);
+
+      const totalPages = Math.ceil(totalCount / limit);
+
+      const templatePath = 'admin/email-logs';
+      const page_class = generatePageClass(templatePath);
+
+      return reply.view(templatePath, {
+        theme,
+        admin,
+        emailLogs,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages
+        },
+        filters: {
+          orderId,
+          recipient,
+          status,
+          startDate,
+          endDate
+        },
+        page_class
+      });
+    } catch (error) {
+      console.error('❗❗❗ - [ADMIN EMAIL LOGS] Error loading email logs:', error);
+      return reply.status(500).send('Error loading email logs');
     }
   });
 
