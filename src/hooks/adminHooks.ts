@@ -4,8 +4,10 @@ import { AdminService, Admin } from '../services/adminService';
 
 console.log('🟡🟡🟡 - [ADMIN HOOKS] Loading admin authentication hooks');
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN HOOKS] Admin role type
-export type AdminRole = 'SUPER_ADMIN' | 'EDITOR' | 'READ_ONLY';
+// 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Admin level types - replaced AdminRole enum with level system
+export type AdminLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type BackendAdminLevel = 1 | 2 | 3 | 4;
+export type ThemeAdminLevel = 5 | 6 | 7 | 8;
 
 /**
  * 🟡🟡🟡 Admin session validation hook for admin routes
@@ -84,8 +86,8 @@ export const validateAdminSession = async (request: FastifyRequest, reply: Fasti
 
     // ✅✅✅ - [ATTACH ADMIN] Attach admin object to request for use in routes
     (request as any).admin = admin;
-    (request as any).adminRole = admin.role; // Attach role for easy access
-    console.log('✅✅✅ - [ADMIN HOOK] Admin authenticated:', adminId.substring(0, 8), 'for theme:', currentTheme, 'role:', admin.role);
+    (request as any).adminLevel = admin.level; // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Attach level for easy access
+    console.log('✅✅✅ - [ADMIN HOOK] Admin authenticated:', adminId.substring(0, 8), 'for theme:', currentTheme, 'level:', admin.level);
   } catch (error) {
     console.error('❗❗❗ - [ADMIN HOOK] Error validating admin:', error);
     (request.session as any).adminId = undefined;
@@ -94,8 +96,236 @@ export const validateAdminSession = async (request: FastifyRequest, reply: Fasti
   }
 };
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Middleware factory for role-based access control
-export function requireRole(allowedRoles: AdminRole[]) {
+// 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Level checking helper functions
+export function isBackendAdmin(level: AdminLevel): boolean {
+  return level >= 1 && level <= 4;
+}
+
+export function isThemeAdmin(level: AdminLevel): boolean {
+  return level >= 5 && level <= 8;
+}
+
+export function canAccessAdminSubdomain(level: AdminLevel): boolean {
+  return isBackendAdmin(level); // Only Levels 1-4 can access admin subdomain
+}
+
+// 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Permission checking functions based on permission matrix
+// Permission matrix source: docs/ADMIN_LEVELS_AND_ROLES.md
+
+// Backend Admin Management Permissions
+export function canCreateBackendAdminInvitations(level: AdminLevel): boolean {
+  return level === 1; // Only Level 1 can create backend admin invitations
+}
+
+export function canCreateThemeAdminInvitations(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Level 1 can create for any theme, Level 5 can create for assigned theme only
+  if (level === 1) return true;
+  if (level === 5 && adminTheme === targetTheme) return true;
+  return false;
+}
+
+export function canApproveBackendAdmins(level: AdminLevel): boolean {
+  return level === 1; // Only Level 1 can approve backend admins
+}
+
+export function canApproveThemeAdmins(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Level 1 can approve for any theme, Level 5 can approve for assigned theme only
+  if (level === 1) return true;
+  if (level === 5 && adminTheme === targetTheme) return true;
+  return false;
+}
+
+export function canViewAllAdminAccounts(level: AdminLevel): boolean {
+  return level === 1 || level === 2; // Levels 1-2 can view all admin accounts
+}
+
+export function canViewThemeAdminAccounts(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Levels 1-2 can view all, Level 3-4 can view assigned themes, Level 5 can view assigned theme
+  if (level === 1 || level === 2) return true;
+  if ((level === 3 || level === 4 || level === 5) && adminTheme === targetTheme) return true;
+  return false;
+}
+
+export function canDeleteAdminAccounts(level: AdminLevel): boolean {
+  return level === 1; // Only Level 1 can delete admin accounts
+}
+
+// System Management Permissions
+export function canAccessAdminDashboard(level: AdminLevel): boolean {
+  return isBackendAdmin(level); // Levels 1-4 can access admin dashboard
+}
+
+export function canViewSystemHealthCheck(level: AdminLevel): boolean {
+  return level === 1 || level === 2; // Levels 1-2 can view system health check (Levels 3-4 have limited access)
+}
+
+export function canViewAuditLogs(level: AdminLevel): boolean {
+  return level === 1; // Only Level 1 can view audit logs
+}
+
+export function canModifySecuritySettings(level: AdminLevel): boolean {
+  return level === 1; // Only Level 1 can modify security settings
+}
+
+// Theme Management Permissions
+export function canCreateModifyThemes(level: AdminLevel): boolean {
+  return level === 1; // Only Level 1 can create/modify themes
+}
+
+export function canViewAllThemes(level: AdminLevel): boolean {
+  return level === 1 || level === 2; // Levels 1-2 can view all themes
+}
+
+export function canAssignThemeAdmins(level: AdminLevel): boolean {
+  return level === 1; // Only Level 1 can assign theme admins
+}
+
+// Menu Management Permissions
+export function canViewMenusAllThemes(level: AdminLevel): boolean {
+  return level === 1 || level === 2; // Levels 1-2 can view menus for all themes
+}
+
+export function canViewMenuAssignedTheme(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // All levels can view menu for assigned theme, but Levels 1-2 can view all themes
+  if (level === 1 || level === 2) return true;
+  return adminTheme === targetTheme;
+}
+
+export function canEditMenusAllThemes(level: AdminLevel): boolean {
+  return level === 1 || level === 2; // Levels 1-2 can edit menus for all themes
+}
+
+export function canEditMenuAssignedTheme(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Levels 1-3 can edit assigned theme, Level 5-6 can edit assigned theme, Level 7 has limited edit
+  if (level === 1 || level === 2 || level === 3) {
+    return adminTheme === targetTheme || adminTheme === 'admin'; // Backend admins can edit assigned themes
+  }
+  if (level === 5 || level === 6) {
+    return adminTheme === targetTheme; // Theme admins can edit their assigned theme
+  }
+  if (level === 7) {
+    return adminTheme === targetTheme; // Level 7 has limited edit (limited fields)
+  }
+  return false; // Level 4 and 8 cannot edit
+}
+
+export function canCreateMenuItems(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Levels 1-3 can create, Level 5-6 can create for assigned theme
+  if (level === 1 || level === 2 || level === 3) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 5 || level === 6) {
+    return adminTheme === targetTheme;
+  }
+  return false;
+}
+
+export function canDeleteMenuItems(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Only Levels 1-2 and Level 5 can delete menu items
+  if (level === 1 || level === 2) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 5) {
+    return adminTheme === targetTheme;
+  }
+  return false;
+}
+
+export function canUploadImagesAllThemes(level: AdminLevel): boolean {
+  return level === 1 || level === 2; // Levels 1-2 can upload images for all themes
+}
+
+export function canUploadImagesAssignedTheme(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Levels 1-3 can upload for assigned themes, Level 5-6 can upload for assigned theme, Level 7 has limited upload
+  if (level === 1 || level === 2 || level === 3) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 5 || level === 6) {
+    return adminTheme === targetTheme;
+  }
+  if (level === 7) {
+    return adminTheme === targetTheme; // Level 7 has limited upload (requires approval)
+  }
+  return false;
+}
+
+// Order Management Permissions
+export function canViewOrdersAllThemes(level: AdminLevel): boolean {
+  return level === 1 || level === 2; // Levels 1-2 can view orders for all themes
+}
+
+export function canViewOrdersAssignedTheme(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // All backend admins can view assigned themes, all theme admins can view assigned theme
+  if (isBackendAdmin(level)) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (isThemeAdmin(level)) {
+    return adminTheme === targetTheme;
+  }
+  return false;
+}
+
+export function canModifyOrderStatuses(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Only Level 1 and Level 5 can modify order statuses
+  if (level === 1) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 5) {
+    return adminTheme === targetTheme;
+  }
+  return false;
+}
+
+export function canViewOrderAnalytics(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Levels 1-2 can view analytics for all themes, Level 3 can view for assigned themes (limited), Level 5-6 can view for assigned theme
+  if (level === 1 || level === 2) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 3) {
+    return adminTheme === targetTheme; // Limited analytics
+  }
+  if (level === 5 || level === 6) {
+    return adminTheme === targetTheme; // Level 6 has limited analytics
+  }
+  return false;
+}
+
+export function canExportOrderData(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Only Level 1 and Level 5 can export order data
+  if (level === 1) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 5) {
+    return adminTheme === targetTheme;
+  }
+  return false;
+}
+
+// Content Management Permissions
+export function canManageThemeContent(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Levels 1-3 can manage content, Level 5-7 can manage content for assigned theme (with restrictions)
+  if (level === 1 || level === 2 || level === 3) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 5 || level === 6 || level === 7) {
+    return adminTheme === targetTheme; // Level 6-7 have limited management
+  }
+  return false;
+}
+
+export function canDeleteContent(level: AdminLevel, adminTheme: string, targetTheme: string): boolean {
+  // Only Levels 1-2 and Level 5 can delete content
+  if (level === 1 || level === 2) {
+    return adminTheme === targetTheme || adminTheme === 'admin';
+  }
+  if (level === 5) {
+    return adminTheme === targetTheme;
+  }
+  return false;
+}
+
+// 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Hook factories for route protection
+export function requireLevel(minLevel: AdminLevel) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const admin = (request as any).admin as Admin | undefined;
     
@@ -104,36 +334,123 @@ export function requireRole(allowedRoles: AdminRole[]) {
       return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
     }
 
-    if (!allowedRoles.includes(admin.role)) {
-      console.log('❗❗❗ - [ROLE CHECK] Admin role not allowed. Required:', allowedRoles, 'Current:', admin.role);
+    if (admin.level < minLevel) {
+      console.log('❗❗❗ - [LEVEL CHECK] Admin level insufficient. Required:', minLevel, 'Current:', admin.level);
       return reply.status(403).send({
         success: false,
         message: 'You do not have permission to access this resource.'
       });
     }
 
-    console.log('✅✅✅ - [ROLE CHECK] Role check passed for:', admin.role);
+    console.log('✅✅✅ - [LEVEL CHECK] Level check passed for level:', admin.level);
   };
 }
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Require SUPER_ADMIN role
+export function requireBackendAdmin() {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = (request as any).admin as Admin | undefined;
+    
+    if (!admin) {
+      const theme = (request as any).theme || 'default';
+      return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
+    }
+
+    if (!isBackendAdmin(admin.level)) {
+      console.log('❗❗❗ - [BACKEND ADMIN CHECK] Admin is not a backend admin. Level:', admin.level);
+      return reply.status(403).send({
+        success: false,
+        message: 'This resource is only accessible to backend admins (Levels 1-4).'
+      });
+    }
+
+    console.log('✅✅✅ - [BACKEND ADMIN CHECK] Backend admin check passed for level:', admin.level);
+  };
+}
+
+export function requireThemeAdmin() {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = (request as any).admin as Admin | undefined;
+    
+    if (!admin) {
+      const theme = (request as any).theme || 'default';
+      return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
+    }
+
+    if (!isThemeAdmin(admin.level)) {
+      console.log('❗❗❗ - [THEME ADMIN CHECK] Admin is not a theme admin. Level:', admin.level);
+      return reply.status(403).send({
+        success: false,
+        message: 'This resource is only accessible to theme admins (Levels 5-8).'
+      });
+    }
+
+    console.log('✅✅✅ - [THEME ADMIN CHECK] Theme admin check passed for level:', admin.level);
+  };
+}
+
+export function requireLevel1() {
+  return requireLevel(1); // Super Admin only
+}
+
+export function requireLevel1Or2() {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = (request as any).admin as Admin | undefined;
+    
+    if (!admin) {
+      const theme = (request as any).theme || 'default';
+      return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
+    }
+
+    if (admin.level !== 1 && admin.level !== 2) {
+      console.log('❗❗❗ - [LEVEL 1-2 CHECK] Admin level insufficient. Required: 1 or 2, Current:', admin.level);
+      return reply.status(403).send({
+        success: false,
+        message: 'You do not have permission to access this resource.'
+      });
+    }
+
+    console.log('✅✅✅ - [LEVEL 1-2 CHECK] Level check passed for level:', admin.level);
+  };
+}
+
+// Legacy compatibility functions (for backward compatibility during migration)
 export function requireSuperAdmin() {
-  return requireRole(['SUPER_ADMIN']);
+  return requireLevel1(); // Map SUPER_ADMIN to Level 1
 }
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Require EDITOR or SUPER_ADMIN role
 export function requireEditorOrAbove() {
-  return requireRole(['EDITOR', 'SUPER_ADMIN']);
+  // Map EDITOR/SUPER_ADMIN to appropriate levels based on theme
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const admin = (request as any).admin as Admin | undefined;
+    const theme = (request as any).theme || 'default';
+    
+    if (!admin) {
+      return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
+    }
+
+    // For backend admins: Levels 1-3 can edit, for theme admins: Levels 5-6 can edit
+    const canEdit = (isBackendAdmin(admin.level) && admin.level <= 3) || 
+                    (isThemeAdmin(admin.level) && admin.level <= 6);
+    
+    if (!canEdit) {
+      console.log('❗❗❗ - [EDITOR CHECK] Admin level insufficient for editing. Level:', admin.level);
+      return reply.status(403).send({
+        success: false,
+        message: 'You do not have permission to edit this resource.'
+      });
+    }
+
+    console.log('✅✅✅ - [EDITOR CHECK] Editor check passed for level:', admin.level);
+  };
 }
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Check if admin can edit menu
-export function canEditMenu(admin: Admin): boolean {
-  return admin.role === 'EDITOR' || admin.role === 'SUPER_ADMIN';
+// Updated menu permission functions
+export function canEditMenu(admin: Admin, targetTheme: string): boolean {
+  return canEditMenuAssignedTheme(admin.level, admin.theme, targetTheme);
 }
 
-// 2025-12-29T00:00:00Z 🟡🟡🟡 - [ROLE-BASED ACCESS] Check if admin can view menu (all roles can view)
-export function canViewMenu(_admin: Admin): boolean {
-  return true; // All roles can view
+export function canViewMenu(admin: Admin, targetTheme: string): boolean {
+  return canViewMenuAssignedTheme(admin.level, admin.theme, targetTheme);
 }
 
 // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Middleware factory for admin subdomain access control

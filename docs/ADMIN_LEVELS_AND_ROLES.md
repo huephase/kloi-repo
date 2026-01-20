@@ -169,7 +169,7 @@ This document defines the comprehensive 8-level role-based access control (RBAC)
 ## Theme Admin Levels (5-8)
 
 ### Level 5: Theme Super Admin
-**Theme**: Specific theme (e.g., `default`, `wedding`, `corporate`)  
+**Theme**: Specific theme (e.g., `starbucks`, `wedding`, `halloween`)  
 **Access**: Theme subdomain (`theme.yourdomain.com`)
 
 #### Permissions
@@ -189,8 +189,10 @@ This document defines the comprehensive 8-level role-based access control (RBAC)
   - Access order analytics for theme
   - Export order data
 - ✅ **Theme Admin Management** (Limited)
-  - View other admins for assigned theme
-  - Cannot create or approve theme admins (requires Level 1-2)
+  - View other admins for assigned theme only
+  - Create and invite Level 5-8 admins for assigned theme only (cannot create admins for other themes)
+  - Approve and activate Level 5-8 admins for assigned theme only
+  - Cannot create or approve Level 1-4 admins (requires Level 1-2)
   - Cannot delete theme admins
 - ✅ **Content Management**
   - Manage all theme content
@@ -209,7 +211,7 @@ This document defines the comprehensive 8-level role-based access control (RBAC)
 ---
 
 ### Level 6: Theme Editor
-**Theme**: Specific theme (e.g., `default`, `wedding`, `corporate`)  
+**Theme**: Specific theme (e.g., `starbucks`, `wedding`, `halloween`)  
 **Access**: Theme subdomain (`theme.yourdomain.com`)
 
 #### Permissions
@@ -247,7 +249,7 @@ This document defines the comprehensive 8-level role-based access control (RBAC)
 ---
 
 ### Level 7: Theme Contributor
-**Theme**: Specific theme (e.g., `default`, `wedding`, `corporate`)  
+**Theme**: Specific theme (e.g., `starbucks`, `wedding`, `halloween`)  
 **Access**: Theme subdomain (`theme.yourdomain.com`)
 
 #### Permissions
@@ -282,7 +284,7 @@ This document defines the comprehensive 8-level role-based access control (RBAC)
 ---
 
 ### Level 8: Theme Viewer
-**Theme**: Specific theme (e.g., `default`, `wedding`, `corporate`)  
+**Theme**: Specific theme (e.g., `starbucks`, `wedding`, `halloween`)  
 **Access**: Theme subdomain (`theme.yourdomain.com`)
 
 #### Permissions
@@ -318,10 +320,15 @@ This document defines the comprehensive 8-level role-based access control (RBAC)
 
 | Permission | L1 | L2 | L3 | L4 | L5 | L6 | L7 | L8 |
 |------------|----|----|----|----|----|----|----|----|
+| **Theme Assignment** |
+| Assigned Theme | `admin` | `admin` | `admin` | `admin` | Specific theme | Specific theme | Specific theme | Specific theme |
 | **Backend Admin Management** |
-| Create admin invitations | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Approve/activate admins | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Create admin invitations (Levels 1-4) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Create theme admin invitations (Levels 5-8, assigned theme only) | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Approve/activate admins (Levels 1-4) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Approve/activate theme admins (Levels 5-8, assigned theme only) | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | View all admin accounts | ✅ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ |
+| View theme admin accounts (assigned theme) | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ❌ | ❌ | ❌ |
 | Delete admin accounts | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **System Management** |
 | Access admin dashboard | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -373,7 +380,8 @@ This document defines the comprehensive 8-level role-based access control (RBAC)
    - Can be assigned to specific themes for limited operations
 
 3. **Levels 5-8 (Theme Admins)**:
-   - Assigned by Level 1 or Level 2 admins
+   - Level 5 admins can create and invite Level 5-8 admins for their assigned theme
+   - Level 1-2 admins can create and assign any level (1-8) admins
    - Require `theme: <specific-theme-name>`
    - Scoped to their assigned theme only
 

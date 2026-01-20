@@ -22,7 +22,7 @@ export interface Admin {
   firstName: string;
   lastName: string;
   phone: string;
-  role: 'SUPER_ADMIN' | 'EDITOR' | 'READ_ONLY';
+  level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Admin level (1-8): Levels 1-4 are Backend Admins, Levels 5-8 are Theme Admins
   emailVerified: boolean;
   emailVerificationToken: string | null;
   emailVerificationExpiry: Date | null;
@@ -71,6 +71,7 @@ export class AdminService {
   }
 
   // 🟡🟡🟡 - [CREATE ADMIN] Create admin with hashed password
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level instead of role
   static async createAdmin(
     username: string,
     password: string,
@@ -79,7 +80,7 @@ export class AdminService {
     firstName?: string,
     lastName?: string,
     phone?: string,
-    role: 'SUPER_ADMIN' | 'EDITOR' | 'READ_ONLY' = 'READ_ONLY',
+    level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = 8, // Default to Level 8 (lowest level)
     status: 'PENDING' | 'EMAIL_VERIFIED' | 'APPROVED' | 'ACTIVE' | 'INACTIVE' = 'PENDING',
     emailVerified: boolean = false
   ): Promise<Admin> {
@@ -111,7 +112,7 @@ export class AdminService {
           firstName: firstName || '',
           lastName: lastName || '',
           phone: phone || '',
-          role,
+          level, // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Use level instead of role
           status,
           emailVerified,
           isActive: status === 'ACTIVE'
@@ -246,14 +247,30 @@ export class AdminService {
   }
 
   // 🟡🟡🟡 - [CREATE INVITATION] Create invitation for new admin
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to support level-based invitation creation
   static async createInvitation(
     inviterId: string,
     email: string,
-    theme: string
+    theme: string,
+    targetLevel?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
   ): Promise<{ admin: Admin; invitationLink: string }> {
-    console.log('🟡🟡🟡 - [ADMIN SERVICE] Creating invitation for email:', email, 'theme:', theme);
+    console.log('🟡🟡🟡 - [ADMIN SERVICE] Creating invitation for email:', email, 'theme:', theme, 'targetLevel:', targetLevel);
     
     try {
+      // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Validate inviter can create invitation for target level/theme
+      const inviter = await this.getAdminById(inviterId);
+      if (!inviter) {
+        throw new Error('Inviter admin not found');
+      }
+
+      const defaultLevel = targetLevel || 8; // Default to Level 8 if not specified
+      
+      // Validate permission to create invitation
+      if (!this.canCreateInvitationForLevel(inviter.level, defaultLevel, inviter.theme, theme)) {
+        console.log('❗❗❗ - [ADMIN SERVICE] Inviter does not have permission to create invitation. Inviter level:', inviter.level, 'Target level:', defaultLevel, 'Inviter theme:', inviter.theme, 'Target theme:', theme);
+        throw new Error('You do not have permission to create invitations for this level and theme');
+      }
+
       // Check if admin with this email already exists
       const existingAdmin = await this.getAdminByEmail(email);
       if (existingAdmin) {
@@ -276,7 +293,7 @@ export class AdminService {
           firstName: '', // Will be set during sign-up
           lastName: '', // Will be set during sign-up
           phone: '', // Will be set during sign-up
-          role: 'READ_ONLY', // Default role, will be assigned during approval
+          level: defaultLevel, // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Use target level (will be confirmed during approval)
           status: 'PENDING',
           invitationToken,
           invitationExpiry,
@@ -505,13 +522,14 @@ export class AdminService {
     }
   }
 
-  // 🟡🟡🟡 - [APPROVE ADMIN] Backend team approves and assigns role
+  // 🟡🟡🟡 - [APPROVE ADMIN] Backend team approves and assigns level
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level instead of role
   static async approveAdmin(
     adminId: string,
     approverId: string,
-    role: 'SUPER_ADMIN' | 'EDITOR' | 'READ_ONLY'
+    level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
   ): Promise<Admin> {
-    console.log('🟡🟡🟡 - [ADMIN SERVICE] Approving admin:', adminId.substring(0, 8), 'with role:', role);
+    console.log('🟡🟡🟡 - [ADMIN SERVICE] Approving admin:', adminId.substring(0, 8), 'with level:', level);
     
     try {
       const admin = await this.getAdminById(adminId);
@@ -526,7 +544,7 @@ export class AdminService {
       const updatedAdmin = await prisma.admins.update({
         where: { id: adminId },
         data: {
-          role,
+          level, // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Use level instead of role
           approvedAt: new Date(),
           approvedBy: approverId,
           status: 'APPROVED'
@@ -599,5 +617,47 @@ export class AdminService {
       console.error('❗❗❗ - [ADMIN SERVICE] Error getting pending admins:', error);
       return [];
     }
+  }
+
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Check if inviter can create invitation for target level/theme
+  static canCreateInvitationForLevel(
+    inviterLevel: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
+    targetLevel: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
+    inviterTheme: string,
+    targetTheme: string
+  ): boolean {
+    // Level 1-2 can create any level (1-8) for any theme
+    if (inviterLevel === 1 || inviterLevel === 2) {
+      return true;
+    }
+    
+    // Level 5 can create levels 5-8 for assigned theme only
+    if (inviterLevel === 5) {
+      return targetLevel >= 5 && targetLevel <= 8 && inviterTheme === targetTheme;
+    }
+    
+    // Others cannot create invitations
+    return false;
+  }
+
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Check if approver can approve admin for target level/theme
+  static canApproveAdminForLevel(
+    approverLevel: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
+    targetLevel: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
+    approverTheme: string,
+    targetTheme: string
+  ): boolean {
+    // Level 1 can approve any level for any theme
+    if (approverLevel === 1) {
+      return true;
+    }
+    
+    // Level 5 can approve levels 5-8 for assigned theme only
+    if (approverLevel === 5) {
+      return targetLevel >= 5 && targetLevel <= 8 && approverTheme === targetTheme;
+    }
+    
+    // Others cannot approve admins
+    return false;
   }
 }

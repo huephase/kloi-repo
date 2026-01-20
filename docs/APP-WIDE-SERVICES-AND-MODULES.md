@@ -270,12 +270,12 @@ export function requireAdminSubdomain() {
 
 Protected routes:
 - `/kloiserverhealthcheck` - System health check for Render's internal monitoring (no admin requirements, lightweight check)
-- `/admin/kloiserverhealthcheck` - System health check dashboard (admin subdomain only, requires authentication)
-- `/admin/dashboard` - Admin dashboard with links to all superadmin routes (admin subdomain only, requires authentication)
-- `/admin/invitations` - Invitation management page (SUPER_ADMIN only, admin subdomain only)
-- `/admin/pending-approvals` - List admins awaiting approval (SUPER_ADMIN only, admin subdomain only)
-- `/admin/invitations/create` - Create new invitation (SUPER_ADMIN only, admin subdomain only)
-- `/admin/approve` - Approve and activate admin (SUPER_ADMIN only, admin subdomain only)
+- `/admin/kloiserverhealthcheck` - System health check dashboard (admin subdomain only, Levels 1-4 only)
+- `/admin/dashboard` - Admin dashboard with links to all superadmin routes (admin subdomain only, Levels 1-4 only)
+- `/admin/invitations` - Invitation management page (Level 1 or Level 5, admin subdomain only)
+- `/admin/pending-approvals` - List admins awaiting approval (Level 1 only, admin subdomain only)
+- `/admin/invitations/create` - Create new invitation (Level 1-2 or Level 5, admin subdomain only)
+- `/admin/approve` - Approve and activate admin (Level 1 or Level 5, admin subdomain only)
 
 Code reference – health check route protection:
 ```17:20:src/routes/healthCheck.ts
@@ -574,16 +574,18 @@ Examples across the codebase show the expected prefixes:
 
 ### Admin Sign-Up and Invitation Workflow
 
-- Admin sign-up is invitation-only. Super admins create invitations that send email links to new users.
+- **2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to support level-based invitation and approval**
+- Admin sign-up is invitation-only. Level 1-2 admins can create invitations for any level/theme. Level 5 admins can create invitations for levels 5-8 for their assigned theme only.
 - Sign-up flow: Invitation link → Sign-up form → Email verification → Manual approval → Activation.
 - Email verification is required before approval. Verification tokens expire after 7 days.
-- Backend team manually approves admins and assigns roles (SUPER_ADMIN, EDITOR, READ_ONLY).
+- Backend team manually approves admins and assigns levels (1-8) based on permission matrix.
 - Admin status flow: PENDING → EMAIL_VERIFIED → APPROVED → ACTIVE (or INACTIVE for deactivation).
 
 Code reference – invitation creation:
 ```typescript
 // src/services/adminService.ts
-static async createInvitation(inviterId: string, email: string, theme: string)
+static async createInvitation(inviterId: string, email: string, theme: string, targetLevel?: AdminLevel)
+static canCreateInvitationForLevel(inviterLevel: AdminLevel, targetLevel: AdminLevel, inviterTheme: string, targetTheme: string): boolean
 ```
 
 Code reference – sign-up processing:
@@ -601,40 +603,54 @@ static async verifyEmail(token: string)
 Code reference – approval and activation:
 ```typescript
 // src/services/adminService.ts
-static async approveAdmin(adminId: string, approverId: string, role: AdminRole)
+static async approveAdmin(adminId: string, approverId: string, level: AdminLevel)
+static canApproveAdminForLevel(approverLevel: AdminLevel, targetLevel: AdminLevel, approverTheme: string, targetTheme: string): boolean
 static async activateAdmin(adminId: string)
 ```
 
-### Role-Based Access Control
+### Level-Based Access Control
 
-- Three admin roles: SUPER_ADMIN (full access), EDITOR (can edit menus), READ_ONLY (view only).
-- Role checks are enforced server-side via hooks before route handlers.
-- Menu editor routes require EDITOR or SUPER_ADMIN role.
-- Invitation and approval management routes require SUPER_ADMIN role only.
-- All roles can view menus, but only EDITOR+ can edit.
+- **2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated from 3-role system to 8-level system**
+- Eight admin levels: Levels 1-4 are Backend Admins, Levels 5-8 are Theme Admins.
+- Level checks are enforced server-side via hooks before route handlers.
+- Permission matrix is defined in `docs/ADMIN_LEVELS_AND_ROLES.md`.
+- Menu editor routes require appropriate level-based permissions (Levels 1-3, 5-6 can edit).
+- Invitation and approval management routes require Level 1 (or Level 5 for theme admins).
+- All levels can view menus for their assigned theme, but editing requires specific levels.
 
-Code reference – role-based hooks:
+Code reference – level-based hooks:
 ```typescript
 // src/hooks/adminHooks.ts
-export function requireRole(allowedRoles: AdminRole[])
-export function requireSuperAdmin()
-export function requireEditorOrAbove()
-export function canEditMenu(admin: Admin): boolean
-export function canViewMenu(admin: Admin): boolean
+export type AdminLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export function requireLevel(minLevel: AdminLevel)
+export function requireBackendAdmin() // Levels 1-4
+export function requireThemeAdmin() // Levels 5-8
+export function requireLevel1() // Super Admin only
+export function requireLevel1Or2() // For admin management
+export function canEditMenuAssignedTheme(level: AdminLevel, adminTheme: string, targetTheme: string): boolean
+export function canViewMenuAssignedTheme(level: AdminLevel, adminTheme: string, targetTheme: string): boolean
+// ... comprehensive permission checking functions based on permission matrix
 ```
 
-Code reference – role enforcement in routes:
+Code reference – level enforcement in routes:
 ```typescript
 // src/routes/admin/index.ts
 app.post('/admin/api/menu/save', {
-  preHandler: [requireEditorOrAbove()]
+  preHandler: [app.csrfProtection, async (request, reply) => {
+    const admin = (request as any).admin;
+    const theme = (request as any).theme || 'default';
+    if (!canEditMenuAssignedTheme(admin.level, admin.theme, theme)) {
+      return reply.status(403).send({ success: false, message: 'Permission denied' });
+    }
+  }]
 }, async (request, reply) => { ... });
 ```
 
 Required when adding new admin routes:
-- Apply role checks using `requireRole()`, `requireSuperAdmin()`, or `requireEditorOrAbove()` hooks.
-- Check `canEditMenu()` or `canViewMenu()` helper functions for conditional logic.
-- Never trust client-side role information; always verify server-side.
+- Apply level checks using `requireLevel()`, `requireBackendAdmin()`, `requireThemeAdmin()`, or specific permission functions.
+- Check permission functions (e.g., `canEditMenuAssignedTheme()`, `canViewOrdersAssignedTheme()`) for conditional logic.
+- Never trust client-side level information; always verify server-side.
+- Reference `docs/ADMIN_LEVELS_AND_ROLES.md` for the complete permission matrix.
 
 ### Where to Extend and Reuse
 
@@ -642,7 +658,8 @@ Required when adding new admin routes:
 - Server API: `src/routes/api/index.ts` (extend `stepConfig`, validation schemas, and per-step DB logic as needed).
 - Admin authentication: `src/services/adminService.ts` (extend with additional admin management methods as needed).
 - Admin routes: `src/routes/admin/index.ts` (extend with additional admin endpoints as needed).
-- Admin hooks: `src/hooks/adminHooks.ts` (extend with additional admin validation logic as needed).
+- Admin hooks: `src/hooks/adminHooks.ts` (extend with additional admin validation logic and permission checks as needed).
+- **Admin levels and permissions: `docs/ADMIN_LEVELS_AND_ROLES.md`** (reference for complete permission matrix and level definitions).
 - Theming: `src/lib/themeDetector.ts` (extend for special cases or theme aliases if required).
 - Sessions: `src/lib/session-store.ts` and `src/lib/redis.ts` for backend storage adjustments.
 - **Session utilities: `src/lib/utils.ts`** (extend with new extraction helpers as needed, e.g., `extractGuestCountFromSession`, `calculateNumberOfDaysFromDateInfo`).

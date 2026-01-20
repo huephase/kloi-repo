@@ -14,6 +14,183 @@
 
 ---
 
+### January 20, 2026 @ 20:40 - Admin Levels System Overhaul: Migration from 3-Role to 8-Level System
+
+**Type**: 🔴 BREAKING CHANGE | 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED
+
+**Summary**: Migrated admin system from 3-role system (SUPER_ADMIN, EDITOR, READ_ONLY) to comprehensive 8-level system (Levels 1-8) with Backend Admins (Levels 1-4) and Theme Admins (Levels 5-8). Implemented granular permission matrix with level-based access control following DRY principles. All existing admin accounts are automatically migrated to appropriate levels based on their role and theme.
+
+#### Database Schema Changes
+
+##### AdminRole Enum Replaced with Level Field (`prisma/schema.prisma`)
+
+- **Removed** `AdminRole` enum (SUPER_ADMIN, EDITOR, READ_ONLY)
+- **Added** `level: Int @default(8)` field to `Admins` model (lines 135)
+- **Added** constraint: Level must be between 1 and 8
+- **Migration**: `20260120204000_migrate_admin_roles_to_levels`
+- **Migration Strategy**:
+  - `SUPER_ADMIN` + `theme='admin'` → Level 1 (Super Admin)
+  - `SUPER_ADMIN` + `theme!='admin'` → Level 5 (Theme Super Admin)
+  - `EDITOR` + `theme='admin'` → Level 2 (Backend Admin)
+  - `EDITOR` + `theme!='admin'` → Level 6 (Theme Editor)
+  - `READ_ONLY` + `theme='admin'` → Level 4 (Backend Viewer)
+  - `READ_ONLY` + `theme!='admin'` → Level 8 (Theme Viewer)
+- **Impact**: All existing admin accounts preserved with appropriate level assignments
+
+#### Type Definitions and Interfaces
+
+##### Admin Hooks (`src/hooks/adminHooks.ts`)
+
+- **Removed** `AdminRole` type
+- **Added** `AdminLevel` type: `type AdminLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8`
+- **Added** helper types: `BackendAdminLevel`, `ThemeAdminLevel`
+- **Updated** `validateAdminSession` to attach `adminLevel` instead of `adminRole` (line 89)
+- **Impact**: Type-safe level system throughout the application
+
+##### Admin Service (`src/services/adminService.ts`)
+
+- **Updated** `Admin` interface: replaced `role: 'SUPER_ADMIN' | 'EDITOR' | 'READ_ONLY'` with `level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8` (line 25)
+- **Updated** `createAdmin()`: changed parameter from `role` to `level`, default changed from `'READ_ONLY'` to `8` (line 74)
+- **Updated** `approveAdmin()`: changed parameter from `role` to `level` (line 510)
+- **Updated** `createInvitation()`: added optional `targetLevel` parameter with validation (line 251)
+- **Added** `canCreateInvitationForLevel()`: validates inviter can create invitation for target level/theme (line 608)
+- **Added** `canApproveAdminForLevel()`: validates approver can approve admin for target level/theme (line 625)
+- **Impact**: All admin operations now use level-based system
+
+#### Permission Checking System
+
+##### Comprehensive Permission Functions (`src/hooks/adminHooks.ts`)
+
+- **Added** 30+ permission checking functions based on permission matrix from `docs/ADMIN_LEVELS_AND_ROLES.md`:
+  - Level checks: `isBackendAdmin()`, `isThemeAdmin()`, `canAccessAdminSubdomain()`
+  - Backend Admin Management: `canCreateBackendAdminInvitations()`, `canCreateThemeAdminInvitations()`, `canApproveBackendAdmins()`, `canApproveThemeAdmins()`, `canViewAllAdminAccounts()`, `canViewThemeAdminAccounts()`, `canDeleteAdminAccounts()`
+  - System Management: `canAccessAdminDashboard()`, `canViewSystemHealthCheck()`, `canViewAuditLogs()`, `canModifySecuritySettings()`
+  - Theme Management: `canCreateModifyThemes()`, `canViewAllThemes()`, `canAssignThemeAdmins()`
+  - Menu Management: `canViewMenusAllThemes()`, `canViewMenuAssignedTheme()`, `canEditMenusAllThemes()`, `canEditMenuAssignedTheme()`, `canCreateMenuItems()`, `canDeleteMenuItems()`, `canUploadImagesAllThemes()`, `canUploadImagesAssignedTheme()`
+  - Order Management: `canViewOrdersAllThemes()`, `canViewOrdersAssignedTheme()`, `canModifyOrderStatuses()`, `canViewOrderAnalytics()`, `canExportOrderData()`
+  - Content Management: `canManageThemeContent()`, `canDeleteContent()`
+- **Added** new hook factories:
+  - `requireLevel(minLevel)` - Require minimum level
+  - `requireBackendAdmin()` - Require Levels 1-4
+  - `requireThemeAdmin()` - Require Levels 5-8
+  - `requireLevel1()` - Super Admin only
+  - `requireLevel1Or2()` - For admin management
+- **Updated** legacy compatibility functions:
+  - `requireSuperAdmin()` - Maps to `requireLevel1()`
+  - `requireEditorOrAbove()` - Maps to appropriate level checks based on theme
+  - `canEditMenu()` - Updated to use `canEditMenuAssignedTheme()`
+  - `canViewMenu()` - Updated to use `canViewMenuAssignedTheme()`
+- **Impact**: Granular permission control following permission matrix, DRY principles maintained
+
+#### Route Protection Updates
+
+##### Admin Routes (`src/routes/admin/index.ts`)
+
+- **Updated** imports to include new level-based hooks (line 15)
+- **Updated** `/admin/api/menu/save` (POST): Uses `canEditMenuAssignedTheme()` permission check (line 565)
+- **Updated** `/admin/api/upload-image` (POST): Uses `canUploadImagesAssignedTheme()` permission check (line 628)
+- **Updated** `/admin/invitations` (GET): Allows Level 1 and Level 5 (for theme admins) (line 684)
+- **Updated** `/admin/pending-approvals` (GET): Requires Level 1 only (line 710)
+- **Updated** `/admin/invitations/create` (POST): Validates level-based invitation creation, accepts `level` parameter (line 741)
+- **Updated** `/admin/approve` (POST): Uses level instead of role, validates approver permissions (line 786)
+- **Impact**: All routes now enforce level-based permissions according to permission matrix
+
+#### Schema Validation Updates
+
+##### Admin Schemas (`src/schemas/admin.schemas.ts`)
+
+- **Updated** `adminCreateSchema`: Changed `role` field to `level` with integer validation (1-8) (line 71)
+- **Updated** `invitationCreateSchema`: Added optional `level` field (line 123)
+- **Updated** `adminApprovalSchema`: Changed `role` enum to `level` integer validation (1-8) (line 129)
+- **Impact**: API validation now enforces level-based system
+
+#### Seed Script Updates
+
+##### Admin Seed Script (`src/scripts/seedAdmin.ts`)
+
+- **Updated** `CLIOptions` type: Changed `role` to `level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8` (line 14)
+- **Updated** argument parsing: Accepts `--level 1-8` instead of `--role` (line 51)
+- **Updated** help text: Added level descriptions and examples (line 87)
+- **Updated** `createAdmin()` call: Uses `level` instead of `role` (line 136)
+- **Updated** log messages: Display level instead of role (line 154)
+- **Impact**: Seed script supports new level system with clear documentation
+
+#### Documentation Updates
+
+##### App-Wide Services Documentation (`docs/APP-WIDE-SERVICES-AND-MODULES.md`)
+
+- **Updated** "Role-Based Access Control" section: Renamed to "Level-Based Access Control", updated examples (line 608)
+- **Updated** "Admin Sign-Up and Invitation Workflow": Updated to reference level assignment (line 575)
+- **Updated** "Admin Subdomain Route Protection": Updated route descriptions with level requirements (line 271)
+- **Added** reference to `docs/ADMIN_LEVELS_AND_ROLES.md` for complete permission matrix (line 645)
+- **Impact**: Documentation reflects new level-based system
+
+#### Files Modified
+
+1. `prisma/schema.prisma` - Schema change: AdminRole enum → level integer field
+2. `prisma/migrations/20260120204000_migrate_admin_roles_to_levels/migration.sql` - Migration script with data migration
+3. `src/hooks/adminHooks.ts` - Complete rewrite of permission system with 30+ permission functions
+4. `src/services/adminService.ts` - Updated all role references to level, added level-based validation methods
+5. `src/routes/admin/index.ts` - Updated all route protections to use level-based hooks
+6. `src/schemas/admin.schemas.ts` - Updated validation schemas to use level instead of role
+7. `src/scripts/seedAdmin.ts` - Updated seed script to accept and use level parameter
+8. `docs/APP-WIDE-SERVICES-AND-MODULES.md` - Updated documentation to reflect level-based system
+
+#### Migration Instructions
+
+1. **Run Database Migration**:
+   ```bash
+   npx prisma migrate deploy
+   # or for development
+   npx prisma migrate dev
+   ```
+
+2. **Verify Migration**: Check that all existing admin accounts have been assigned appropriate levels:
+   - Backend admins (theme='admin') with SUPER_ADMIN → Level 1
+   - Backend admins (theme='admin') with EDITOR → Level 2
+   - Backend admins (theme='admin') with READ_ONLY → Level 4
+   - Theme admins (theme!='admin') with SUPER_ADMIN → Level 5
+   - Theme admins (theme!='admin') with EDITOR → Level 6
+   - Theme admins (theme!='admin') with READ_ONLY → Level 8
+
+3. **Update Seed Script Usage**: Use `--level` instead of `--role`:
+   ```bash
+   npm run admin:seed -- --username superadmin --password SecurePass123 --theme admin --level 1 --status ACTIVE --emailVerified true
+   ```
+
+#### Breaking Changes
+
+- **API Changes**: All admin API endpoints that previously accepted `role` now require `level` (integer 1-8)
+- **Database Changes**: `AdminRole` enum removed, replaced with `level` integer field
+- **Hook Changes**: `requireSuperAdmin()` and `requireEditorOrAbove()` maintain backward compatibility but map to level-based checks
+- **Type Changes**: `AdminRole` type removed, replaced with `AdminLevel` type
+
+#### Permission Matrix Reference
+
+Complete permission matrix is documented in `docs/ADMIN_LEVELS_AND_ROLES.md`. Key highlights:
+- **Level 1**: Full system access, can create/approve any admin level
+- **Level 2**: Backend admin with limited admin management
+- **Level 3**: Backend support with assigned theme access
+- **Level 4**: Backend viewer (read-only)
+- **Level 5**: Theme super admin, can create/approve levels 5-8 for assigned theme
+- **Level 6**: Theme editor, can edit but not delete
+- **Level 7**: Theme contributor, limited edit permissions
+- **Level 8**: Theme viewer (read-only)
+
+#### Testing Considerations
+
+- Test level-based permission checks for all 8 levels
+- Test theme scoping for Levels 3-8
+- Test invitation creation rules (Level 1-2 can create any, Level 5 can create 5-8 for theme)
+- Test admin subdomain access (Levels 1-4 only)
+- Test menu editing permissions across all levels
+- Test order management permissions
+- Verify migration script correctly maps roles to levels
+
+---
+
+---
+
 ### January 18, 2026 @ 23:30 - Email Tracking and Admin Tools Implementation
 
 **Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED

@@ -12,7 +12,19 @@ import {
   resendVerificationSchema 
 } from '../../schemas/admin.schemas';
 import { prisma } from '../../lib/prisma';
-import { validateAdminSession, requireEditorOrAbove, requireSuperAdmin, requireAdminSubdomain } from '../../hooks/adminHooks';
+import { 
+  validateAdminSession, 
+  requireEditorOrAbove, // Legacy compatibility - maps to level-based checks
+  requireSuperAdmin, // Legacy compatibility - maps to requireLevel1
+  requireAdminSubdomain,
+  requireLevel1,
+  requireLevel1Or2,
+  requireBackendAdmin,
+  canEditMenuAssignedTheme,
+  canUploadImagesAssignedTheme,
+  canCreateBackendAdminInvitations,
+  canCreateThemeAdminInvitations
+} from '../../hooks/adminHooks';
 import { generatePageClass } from '../../lib/pageClass';
 import { saveImageFile, validateImageFile } from '../../services/imageUploadService';
 import { performHealthCheck } from '../healthCheck';
@@ -562,8 +574,24 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   });
 
   // POST /admin/api/menu/save - Save menu JSON to database
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level-based permission check
   app.post('/admin/api/menu/save', {
-    preHandler: [app.csrfProtection, requireEditorOrAbove()]
+    preHandler: [app.csrfProtection, async (request: FastifyRequest, reply: FastifyReply) => {
+      const admin = (request as any).admin;
+      const theme = (request as any).theme || 'default';
+      
+      if (!admin) {
+        return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
+      }
+      
+      if (!canEditMenuAssignedTheme(admin.level, admin.theme, theme)) {
+        console.log('❗❗❗ - [MENU SAVE] Admin level insufficient for editing menu. Level:', admin.level, 'Admin theme:', admin.theme, 'Target theme:', theme);
+        return reply.status(403).send({
+          success: false,
+          message: 'You do not have permission to edit this menu.'
+        });
+      }
+    }]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/api/menu/save');
     
@@ -625,8 +653,24 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   });
 
   // POST /admin/api/upload-image - Upload image file for menu editor
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level-based permission check
   app.post('/admin/api/upload-image', {
-    preHandler: [app.csrfProtection, requireEditorOrAbove()]
+    preHandler: [app.csrfProtection, async (request: FastifyRequest, reply: FastifyReply) => {
+      const admin = (request as any).admin;
+      const theme = (request as any).theme || 'default';
+      
+      if (!admin) {
+        return reply.redirect(`/admin/login?theme=${theme}&error=access_denied`);
+      }
+      
+      if (!canUploadImagesAssignedTheme(admin.level, admin.theme, theme)) {
+        console.log('❗❗❗ - [UPLOAD IMAGE] Admin level insufficient for uploading images. Level:', admin.level, 'Admin theme:', admin.theme, 'Target theme:', theme);
+        return reply.status(403).send({
+          success: false,
+          message: 'You do not have permission to upload images for this theme.'
+        });
+      }
+    }]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/api/upload-image');
     
@@ -678,12 +722,26 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   });
 
 
-  // 2025-12-29T00:00:00Z 🟡🟡🟡 - [PROTECTED ROUTES] Invitation and approval management (SUPER_ADMIN only)
+  // 2025-12-29T00:00:00Z 🟡🟡🟡 - [PROTECTED ROUTES] Invitation and approval management
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated: Level 1 can manage all admins, Level 5 can manage theme admins
   // 2025-12-30T17:40:00Z 🟡🟡🟡 - [ADMIN SUBDOMAIN] Invitation routes require admin subdomain access
 
-  // GET /admin/invitations - Render invitation management page (SUPER_ADMIN only, admin subdomain only)
+  // GET /admin/invitations - Render invitation management page (Level 1 or Level 5 for theme admins, admin subdomain only)
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to allow Level 1 and Level 5 (for theme admins)
   app.get('/admin/invitations', {
-    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
+    preHandler: [requireAdminSubdomain(), async (request: FastifyRequest, reply: FastifyReply) => {
+      const admin = (request as any).admin;
+      if (!admin) {
+        return reply.redirect(`/admin/login?theme=admin&error=access_denied`);
+      }
+      // Level 1 can create backend admin invitations, Level 5 can create theme admin invitations
+      if (admin.level !== 1 && admin.level !== 5) {
+        return reply.status(403).send({
+          success: false,
+          message: 'You do not have permission to access invitation management.'
+        });
+      }
+    }]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN ROUTE] GET /admin/invitations');
     
@@ -706,9 +764,10 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     }
   });
 
-  // GET /admin/pending-approvals - List admins awaiting approval (admin subdomain only)
+  // GET /admin/pending-approvals - List admins awaiting approval (Level 1 or Level 5, admin subdomain only)
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to allow Level 1 and Level 5
   app.get('/admin/pending-approvals', {
-    preHandler: [requireAdminSubdomain(), requireSuperAdmin()]
+    preHandler: [requireAdminSubdomain(), requireLevel1()] // Only Level 1 can view all pending approvals
   }, async (_request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] GET /admin/pending-approvals');
     
@@ -737,9 +796,22 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     }
   });
 
-  // POST /admin/invitations/create - Create new invitation (SUPER_ADMIN only, admin subdomain only)
+  // POST /admin/invitations/create - Create new invitation (Level 1-2 or Level 5, admin subdomain only)
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to support level-based invitation creation
   app.post('/admin/invitations/create', {
-    preHandler: [app.csrfProtection, requireAdminSubdomain(), requireSuperAdmin()]
+    preHandler: [app.csrfProtection, requireAdminSubdomain(), async (request: FastifyRequest, reply: FastifyReply) => {
+      const admin = (request as any).admin;
+      if (!admin) {
+        return reply.redirect(`/admin/login?theme=admin&error=access_denied`);
+      }
+      // Level 1-2 can create any invitations, Level 5 can create theme admin invitations
+      if (admin.level !== 1 && admin.level !== 2 && admin.level !== 5) {
+        return reply.status(403).send({
+          success: false,
+          message: 'You do not have permission to create invitations.'
+        });
+      }
+    }]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/invitations/create');
     
@@ -750,7 +822,8 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       const body = request.body as any;
       const validationResult = invitationCreateSchema.safeParse({
         email: body.email || '',
-        theme: body.theme || theme
+        theme: body.theme || theme,
+        level: body.level ? parseInt(body.level, 10) : undefined
       });
 
       if (!validationResult.success) {
@@ -761,10 +834,10 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
         });
       }
 
-      const { email, theme: invitationTheme } = validationResult.data;
+      const { email, theme: invitationTheme, level: targetLevel } = validationResult.data;
 
-      // Create invitation
-      const result = await AdminService.createInvitation(admin.id, email, invitationTheme);
+      // Create invitation with target level
+      const result = await AdminService.createInvitation(admin.id, email, invitationTheme, targetLevel);
 
       console.log('✅✅✅ - [ADMIN INVITATION] Invitation created successfully for:', email);
 
@@ -782,9 +855,22 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
     }
   });
 
-  // POST /admin/approve - Approve and assign role to admin (SUPER_ADMIN only, admin subdomain only)
+  // POST /admin/approve - Approve and assign level to admin (Level 1 or Level 5, admin subdomain only)
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level instead of role
   app.post('/admin/approve', {
-    preHandler: [app.csrfProtection, requireAdminSubdomain(), requireSuperAdmin()]
+    preHandler: [app.csrfProtection, requireAdminSubdomain(), async (request: FastifyRequest, reply: FastifyReply) => {
+      const admin = (request as any).admin;
+      if (!admin) {
+        return reply.redirect(`/admin/login?theme=admin&error=access_denied`);
+      }
+      // Level 1 can approve any admin, Level 5 can approve theme admins for their theme
+      if (admin.level !== 1 && admin.level !== 5) {
+        return reply.status(403).send({
+          success: false,
+          message: 'You do not have permission to approve admins.'
+        });
+      }
+    }]
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN API] POST /admin/approve');
     
@@ -794,7 +880,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       const body = request.body as any;
       const validationResult = adminApprovalSchema.safeParse({
         adminId: body.adminId || '',
-        role: body.role || 'READ_ONLY'
+        level: body.level ? parseInt(body.level, 10) : 8 // Default to Level 8 if not specified
       });
 
       if (!validationResult.success) {
@@ -805,10 +891,26 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
         });
       }
 
-      const { adminId, role } = validationResult.data;
+      const { adminId, level } = validationResult.data;
+
+      // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Validate approver can approve admin for target level/theme
+      const targetAdmin = await AdminService.getAdminById(adminId);
+      if (!targetAdmin) {
+        return reply.status(404).send({
+          success: false,
+          message: 'Admin not found'
+        });
+      }
+
+      if (!AdminService.canApproveAdminForLevel(admin.level, level, admin.theme, targetAdmin.theme)) {
+        return reply.status(403).send({
+          success: false,
+          message: 'You do not have permission to approve admins for this level and theme.'
+        });
+      }
 
       // Approve admin
-      await AdminService.approveAdmin(adminId, admin.id, role);
+      await AdminService.approveAdmin(adminId, admin.id, level);
 
       // Activate admin
       await AdminService.activateAdmin(adminId);
@@ -877,8 +979,9 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   // 2026-01-18T23:30:00Z 🟡🟡🟡 - [ADMIN EMAIL TRACKING] Email status and management routes
   
   // GET /admin/orders/:orderId/email-status - Display email status for specific order
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level-based permission check
   app.get('/admin/orders/:orderId/email-status', {
-    preHandler: [validateAdminSession, requireEditorOrAbove()]
+    preHandler: [validateAdminSession, requireEditorOrAbove()] // Legacy compatibility maintained
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN EMAIL STATUS] GET /admin/orders/:orderId/email-status');
     
@@ -932,8 +1035,9 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
   });
 
   // POST /admin/orders/:orderId/resend-email - Resend order confirmation email
+  // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level-based permission check
   app.post('/admin/orders/:orderId/resend-email', {
-    preHandler: [validateAdminSession, requireEditorOrAbove(), app.csrfProtection]
+    preHandler: [validateAdminSession, requireEditorOrAbove(), app.csrfProtection] // Legacy compatibility maintained
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log('🟡🟡🟡 - [ADMIN RESEND EMAIL] POST /admin/orders/:orderId/resend-email');
     

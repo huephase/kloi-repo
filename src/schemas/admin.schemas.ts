@@ -68,8 +68,11 @@ export const adminCreateSchema = z.object({
     .max(20, 'Phone number must be 20 characters or less')
     .trim()
     .optional(),
-  role: z.enum(['SUPER_ADMIN', 'EDITOR', 'READ_ONLY'])
-    .optional()
+  level: z.number()
+    .int('Level must be an integer')
+    .min(1, 'Level must be at least 1')
+    .max(8, 'Level must be at most 8')
+    .optional() // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level (1-8) instead of role
 });
 
 // 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN VALIDATION] Admin sign-up schema
@@ -110,6 +113,7 @@ export const emailVerificationSchema = z.object({
 });
 
 // 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN VALIDATION] Invitation creation schema
+// 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Added optional level field
 export const invitationCreateSchema = z.object({
   email: z.string()
     .email('Please enter a valid email address')
@@ -119,16 +123,26 @@ export const invitationCreateSchema = z.object({
     .min(1, 'Theme is required')
     .max(50, 'Theme must be 50 characters or less')
     .trim()
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Theme can only contain letters, numbers, underscores, and hyphens')
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Theme can only contain letters, numbers, underscores, and hyphens'),
+  level: z.number()
+    .int('Level must be an integer')
+    .min(1, 'Level must be at least 1')
+    .max(8, 'Level must be at most 8')
+    .optional() // Optional - defaults based on inviter permissions
 });
 
 // 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN VALIDATION] Admin approval schema
+// 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Updated to use level (1-8) instead of role
 export const adminApprovalSchema = z.object({
   adminId: z.string()
     .uuid('Invalid admin ID'),
-  role: z.enum(['SUPER_ADMIN', 'EDITOR', 'READ_ONLY'], {
-    errorMap: () => ({ message: 'Role must be SUPER_ADMIN, EDITOR, or READ_ONLY' })
-  })
+  level: z.number()
+    .int('Level must be an integer')
+    .min(1, 'Level must be at least 1')
+    .max(8, 'Level must be at most 8')
+    .refine((val) => val >= 1 && val <= 8, {
+      message: 'Level must be between 1 and 8'
+    })
 });
 
 // 2025-12-29T00:00:00Z 🟡🟡🟡 - [ADMIN VALIDATION] Resend verification schema

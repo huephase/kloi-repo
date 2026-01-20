@@ -291,7 +291,7 @@ export async function sendApprovalNotificationEmail(
             <p><strong>Email:</strong> ${adminEmail}</p>
             <p><strong>Status:</strong> Email Verified - Awaiting Approval</p>
           </div>
-          <p>Please review and approve this admin account in the database, then assign an appropriate role (SUPER_ADMIN, EDITOR, or READ_ONLY).</p>
+          <p>Please review and approve this admin account in the database, then assign an appropriate level (1-8). See docs/ADMIN_LEVELS_AND_ROLES.md for level definitions.</p>
           <p>After approval and role assignment, the admin account will be activated and the user will be notified.</p>
         </div>
         <div class="footer">
@@ -313,7 +313,7 @@ Name: ${adminName}
 Email: ${adminEmail}
 Status: Email Verified - Awaiting Approval
 
-Please review and approve this admin account in the database, then assign an appropriate role (SUPER_ADMIN, EDITOR, or READ_ONLY).
+Please review and approve this admin account in the database, then assign an appropriate level (1-8). See docs/ADMIN_LEVELS_AND_ROLES.md for level definitions.
 
 After approval and role assignment, the admin account will be activated and the user will be notified.
 

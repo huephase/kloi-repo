@@ -132,7 +132,7 @@ model Admins {
   firstName String   @db.VarChar(50)
   lastName  String   @db.VarChar(50)
   phone     String   @db.VarChar(20)
-  role      AdminRole @default(READ_ONLY)
+  level     Int      @default(8) // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Admin level (1-8): Levels 1-4 are Backend Admins, Levels 5-8 are Theme Admins
   emailVerified Boolean @default(false)
   emailVerificationToken String? @unique @db.VarChar(255)
   emailVerificationExpiry DateTime?
@@ -161,11 +161,15 @@ model Admins {
   @@map("Admins")
 }
 
-enum AdminRole {
-  SUPER_ADMIN
-  EDITOR
-  READ_ONLY
-}
+// 2026-01-20T20:40:00Z ⚠️⚠️⚠️ - [ADMIN LEVELS] AdminRole enum removed - replaced with integer level field (1-8)
+// Level 1: Super Admin (Backend)
+// Level 2: Backend Admin
+// Level 3: Backend Support
+// Level 4: Backend Viewer
+// Level 5: Theme Super Admin
+// Level 6: Theme Editor
+// Level 7: Theme Contributor
+// Level 8: Theme Viewer
 
 enum AdminStatus {
   PENDING
