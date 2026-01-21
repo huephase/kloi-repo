@@ -15,15 +15,11 @@ import { prisma } from '../../lib/prisma';
 import { 
   validateAdminSession, 
   requireEditorOrAbove, // Legacy compatibility - maps to level-based checks
-  requireSuperAdmin, // Legacy compatibility - maps to requireLevel1
   requireAdminSubdomain,
   requireLevel1,
-  requireLevel1Or2,
-  requireBackendAdmin,
   canEditMenuAssignedTheme,
   canUploadImagesAssignedTheme,
-  canCreateBackendAdminInvitations,
-  canCreateThemeAdminInvitations
+  type AdminLevel // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Import AdminLevel type for type assertions
 } from '../../hooks/adminHooks';
 import { generatePageClass } from '../../lib/pageClass';
 import { saveImageFile, validateImageFile } from '../../services/imageUploadService';
@@ -836,8 +832,13 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
 
       const { email, theme: invitationTheme, level: targetLevel } = validationResult.data;
 
+      // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Type assertion: Zod returns number but we need AdminLevel
+      const validatedLevel: AdminLevel | undefined = targetLevel !== undefined && targetLevel >= 1 && targetLevel <= 8 
+        ? (targetLevel as AdminLevel) 
+        : undefined;
+
       // Create invitation with target level
-      const result = await AdminService.createInvitation(admin.id, email, invitationTheme, targetLevel);
+      const result = await AdminService.createInvitation(admin.id, email, invitationTheme, validatedLevel);
 
       console.log('✅✅✅ - [ADMIN INVITATION] Invitation created successfully for:', email);
 
@@ -893,6 +894,10 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
 
       const { adminId, level } = validationResult.data;
 
+      // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Type assertion: Zod returns number but we need AdminLevel
+      const validatedLevel: AdminLevel = level as AdminLevel;
+      const adminLevel: AdminLevel = admin.level as AdminLevel;
+
       // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Validate approver can approve admin for target level/theme
       const targetAdmin = await AdminService.getAdminById(adminId);
       if (!targetAdmin) {
@@ -902,7 +907,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
         });
       }
 
-      if (!AdminService.canApproveAdminForLevel(admin.level, level, admin.theme, targetAdmin.theme)) {
+      if (!AdminService.canApproveAdminForLevel(adminLevel, validatedLevel, admin.theme, targetAdmin.theme)) {
         return reply.status(403).send({
           success: false,
           message: 'You do not have permission to approve admins for this level and theme.'
@@ -910,7 +915,7 @@ export default async function adminRoutes(app: FastifyInstance, _opts: FastifyPl
       }
 
       // Approve admin
-      await AdminService.approveAdmin(adminId, admin.id, level);
+      await AdminService.approveAdmin(adminId, admin.id, validatedLevel);
 
       // Activate admin
       await AdminService.activateAdmin(adminId);

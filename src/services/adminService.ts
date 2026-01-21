@@ -307,8 +307,7 @@ export class AdminService {
       const baseUrl = process.env.APP_URL || 'http://localhost:3000';
       const invitationLink = `${baseUrl}/admin/signup?token=${invitationToken}`;
 
-      // Send invitation email
-      const inviter = await this.getAdminById(inviterId);
+      // 2026-01-20T20:40:00Z 🟡🟡🟡 - [ADMIN LEVELS] Reuse inviter variable from above instead of redeclaring
       const inviterName = inviter ? `${inviter.firstName} ${inviter.lastName}` : 'Admin';
       await sendInvitationEmail(email, invitationLink, inviterName);
 

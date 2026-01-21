@@ -189,8 +189,6 @@ Complete permission matrix is documented in `docs/ADMIN_LEVELS_AND_ROLES.md`. Ke
 
 ---
 
----
-
 ### January 18, 2026 @ 23:30 - Email Tracking and Admin Tools Implementation
 
 **Type**: 🟠 MAJOR CHANGE | 🔵 MIGRATION REQUIRED
