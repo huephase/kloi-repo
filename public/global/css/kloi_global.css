@@ -64,6 +64,11 @@ header.kloi_header {
     align-items: center;
     margin: 2vh auto;
 }
+img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
 
 img.kloi_header_logo {
     height: 12vh;
